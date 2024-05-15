@@ -140,7 +140,7 @@ begin
         FLinkGridList[Pred(Length(FLinkGridList))].GridControl := obj.FObjName;
 
         // Passa por todas propriedades da grid
-        for J := Low(F2DPropertyArray) to High(F2DPropertyArray) do
+        for J := Low(obj.F2DPropertyArray) to High(obj.F2DPropertyArray) do
         begin
           // Obtem os dados do DataSource
           if obj.F2DPropertyArray[J, 0].Equals('DataSource') then
@@ -186,7 +186,7 @@ begin
         FLinkControlList[Pred(Length(FLinkControlList))].Control := obj.FObjName;
 
         // Passa por todas propriedades do dbedit
-        for J := Low(F2DPropertyArray) to High(F2DPropertyArray) do
+        for J := Low(obj.F2DPropertyArray) to High(obj.F2DPropertyArray) do
         begin
           // Obtem os dados do DataSource
           if obj.F2DPropertyArray[J, 0].Equals('DataSource') then
@@ -423,7 +423,7 @@ begin
     if F2DPropertyArray[i, 1] = '<' then
       Result := Result + APad +'  '+ TransformProperty(F2DPropertyArray[i, 0], F2DPropertyArray[i, 1]) + CRLF + AddArrayOfItemProperties(i, APad +'  ') + CRLF
     else
-    if F2DPropertyArray[i, 1][1] = '{' then
+    if (Length(F2DPropertyArray[i, 1]) > 0) and (F2DPropertyArray[i, 1][1] = '{') then
     begin
       sProp := TransformProperty(F2DPropertyArray[i, 0], F2DPropertyArray[i, 1], APad);
       if not sProp.IsEmpty then
