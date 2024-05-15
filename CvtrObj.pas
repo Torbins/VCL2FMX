@@ -1,4 +1,4 @@
-unit CvtrObj;
+﻿unit CvtrObj;
 
 interface
 
@@ -804,7 +804,7 @@ var
 begin
   s := AnsiString(FMXFile);
   if String(s).IsEmpty then
-    raise Exception.Create('Não há dados para o arquivo FMX!');
+    raise Exception.Create('There is no data for the file FMX!');
 
   if FileExists(AFmxFileName) then
     RenameFile(AFmxFileName, ChangeFileExt(AFmxFileName, '.fbk'));

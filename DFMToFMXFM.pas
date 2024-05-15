@@ -19,7 +19,7 @@ uses
   FMX.StdCtrls,
   FMX.ScrollBox,
   FMX.Controls.Presentation,
-  FMX.Objects;
+  FMX.Objects, FMX.Memo.Types;
 
 type
   TDFMtoFMXConvert = class(TForm)
@@ -88,7 +88,7 @@ begin
         BtnProcess.Enabled := True;
       end
       else
-        raise Exception.Create('Arquivo dfm incompatível:' + FInDfmFileName);
+        raise Exception.Create('Incompatible dfm file:' + FInDfmFileName);
     end;
   end;
   UpdateForm;
@@ -170,7 +170,7 @@ begin
       if FileExists(FOutFmxFileName) or FileExists(FOutPasFileName) then
       begin
         if myMessageDialog(
-          'Substituir Arquivos Existentes: '+ FOutFmxFileName +' e/ou '+ FOutPasFileName,
+          'Replace Existing Files: '+ FOutFmxFileName +' and/or '+ FOutPasFileName,
           TMsgDlgType.mtWarning,
           [TMsgDlgBtn.mbOK, TMsgDlgBtn.mbCancel],
           TMsgDlgBtn.mbOK) = mrOk then
@@ -181,12 +181,12 @@ begin
       end;
 
       if FileExists(FOutFmxFileName) then
-        raise Exception.Create(FOutFmxFileName + 'Já existe');
+        raise Exception.Create(FOutFmxFileName + 'Already exists');
 
       DFMObj.WriteFMXToFile(FOutFmxFileName);
 
       if FileExists(FOutPasFileName) then
-        raise Exception.Create(FOutPasFileName + 'Já existe');
+        raise Exception.Create(FOutPasFileName + 'Already exists');
 
       DFMObj.WritePasToFile(FOutPasFileName, FInPasFileName);
     end;

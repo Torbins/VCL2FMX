@@ -18,7 +18,7 @@ object DFMtoFMXConvert: TDFMtoFMXConvert
     Size.Height = 22.000000000000000000
     Size.PlatformDefault = False
     TabOrder = 0
-    Text = 'Abrir DFM'
+    Text = 'Open DFM'
     OnClick = BtnOpenFileClick
   end
   object mmOutput: TMemo
@@ -43,7 +43,7 @@ object DFMtoFMXConvert: TDFMtoFMXConvert
     Size.PlatformDefault = False
     StyleLookup = 'BtnProcessStyle1'
     TabOrder = 3
-    Text = 'Processar'
+    Text = 'Process'
     OnClick = BtnProcessClick
   end
   object btnConfiguracoes: TButton
@@ -53,7 +53,7 @@ object DFMtoFMXConvert: TDFMtoFMXConvert
     Size.Height = 22.000000000000000000
     Size.PlatformDefault = False
     TabOrder = 4
-    Text = 'Configura'#231#245'es'
+    Text = 'Configuration'
     OnClick = btnConfiguracoesClick
   end
   object BtnSaveFMX: TButton
@@ -63,7 +63,7 @@ object DFMtoFMXConvert: TDFMtoFMXConvert
     Size.Height = 22.000000000000000000
     Size.PlatformDefault = False
     TabOrder = 5
-    Text = 'Salvar FMX'
+    Text = 'Save FMX'
     OnClick = BtnSaveFMXClick
   end
   object mmInput: TMemo

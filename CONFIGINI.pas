@@ -65,7 +65,7 @@ begin
     Dlg.FileName := ExtractFileName(edtINI.Text);
     Dlg.InitialDir := ExtractFilePath(edtINI.Text);
     Dlg.DefaultExt := '.ini';
-    Dlg.Filter := 'Arquivos INI|*.ini|All Files|*.*';
+    Dlg.Filter := 'INI Files|*.ini|All Files|*.*';
     if Dlg.Execute then
     begin
       RegFile := TRegistryIniFile.Create('DFMtoFMXConvertor');

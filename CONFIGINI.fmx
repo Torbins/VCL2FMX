@@ -34,7 +34,7 @@ object INI: TINI
       Size.Height = 22.000000000000000000
       Size.PlatformDefault = False
       TabOrder = 1
-      Text = 'Adicionar'
+      Text = 'Add'
       OnClick = btnAdicionarClick
     end
     object edtVCL: TEdit
@@ -73,7 +73,7 @@ object INI: TINI
       Size.Height = 22.000000000000000000
       Size.PlatformDefault = False
       TabOrder = 0
-      Text = 'Remover'
+      Text = 'Remove'
       OnClick = btnRemoverClick
     end
     object btnSalvar: TButton
@@ -83,7 +83,7 @@ object INI: TINI
       Size.Height = 22.000000000000000000
       Size.PlatformDefault = False
       TabOrder = 5
-      Text = 'Salvar'
+      Text = 'Save'
       OnClick = btnSalvarClick
     end
     object btnAbrir: TButton
@@ -93,7 +93,7 @@ object INI: TINI
       Size.Height = 22.000000000000000000
       Size.PlatformDefault = False
       TabOrder = 6
-      Text = 'Abrir'
+      Text = 'Open'
       OnClick = btnAbrirClick
     end
     object edtINI: TEdit
@@ -104,7 +104,7 @@ object INI: TINI
       Size.Width = 281.000000000000000000
       Size.Height = 22.000000000000000000
       Size.PlatformDefault = False
-      TextPrompt = 'Arquivo'
+      TextPrompt = 'File'
     end
   end
 end
