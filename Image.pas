@@ -71,12 +71,21 @@ begin
     img1 := FMX.Objects.TImage.Create(nil);
     // Cria imagem VCL
     Lgraphic := TGraphicClass(FindClass(UTF8ToString(LclsName))).Create;
+    img2 := nil;
     try
       // Carrega dados para imagem VCL
       Loutput.Position := 1 + Length(LclsName);
       TGraphicAccess(Lgraphic).ReadData(Loutput);
       img2 := TImage.Create(nil);
-      img2.Picture.Assign(Lgraphic);
+      if not (Lgraphic is TMetafile) then
+        img2.Picture.Assign(Lgraphic)
+      else
+      begin
+        var b := img2.Picture.Bitmap; // Create empty bitmap
+        b.Canvas.Brush.Color := clBlack;
+        b.SetSize(Lgraphic.Width, Lgraphic.Height);
+        b.Canvas.Draw(0, 0, Lgraphic);
+      end;
 
       // Converte de VCL para FMX
       stream:= TMemoryStream.Create;
@@ -92,6 +101,7 @@ begin
       Result := ImageToHex(img1, 64);
     finally
       img1.Free;
+      img2.Free;
       Lgraphic.Free;
     end;
   finally
