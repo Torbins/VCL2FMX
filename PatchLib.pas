@@ -166,7 +166,7 @@ function ReadLineFrmStream(AStream: TStream): String;
 var
   CurPos, EndPos: int64;
   i, EndSZ: Integer;
-  Nxt: Char;
+  Nxt: AnsiChar;
 begin
   CurPos := AStream.Position;
   EndPos := AStream.Seek(0, soFromEnd);
@@ -185,7 +185,7 @@ begin
   while not CharInSet(Nxt, [CR, LF, CRP, LFP]) and (i < EndSZ) do
   try
     inc(i);
-    Result[i] := Nxt;
+    Result[i] := Chr(Ord(Nxt));
     AStream.Read(Nxt, 1);
   except
     Nxt := CR;
