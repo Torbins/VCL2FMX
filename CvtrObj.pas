@@ -725,7 +725,7 @@ var
   s: String;
 begin
   if ACurrentName = ContinueCode then
-    Result := ACurrentValue
+    Result := '  ' + ACurrentValue
   else
   begin
     s := FIniSectionValues.Values[ACurrentName];
