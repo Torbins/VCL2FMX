@@ -329,9 +329,17 @@ begin
   if Pos(AnsiString('object'), Trim(ACreateText)) = 1 then
   begin
     InputArray := GetArrayFromString(ACreateText, ' ');
-    NxtChr := @InputArray[1][1];
-    FObjName := FieldSep(NxtChr, ':');
-    FDFMClass := InputArray[2];
+    if Length(InputArray) > 2 then
+    begin
+      NxtChr := @InputArray[1][1];
+      FObjName := FieldSep(NxtChr, ':');
+      FDFMClass := InputArray[2];
+    end
+    else
+    begin
+      FObjName := '';
+      FDFMClass := InputArray[1];
+    end;
     Data := Trim(ReadLineFrmStream(AStm));
     while Data <> AnsiString('end') do
     begin
@@ -403,7 +411,10 @@ end;
 
 function TDfmToFmxObject.FMXFile(APad: String = ''): String;
 begin
-  Result := APad +'object '+ FObjName +': '+ FMXClass + CRLF;
+  if FObjName <> '' then
+    Result := APad +'object '+ FObjName +': '+ FMXClass + CRLF
+  else
+    Result := APad +'object '+ FMXClass + CRLF;
   Result := Result + FMXProperties(APad);
   Result := Result + FMXSubObjects(APad +' ');
   if APad = EmptyStr then
