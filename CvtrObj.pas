@@ -432,6 +432,8 @@ begin
   Result := EmptyStr;
   for i := Low(F2DPropertyArray) to High(F2DPropertyArray) do
   begin
+    if Length(F2DPropertyArray[i]) = 0 then
+      Continue;
     if F2DPropertyArray[i, 1] = '<' then
       Result := Result + APad +'  '+ TransformProperty(F2DPropertyArray[i, 0], F2DPropertyArray[i, 1]) + CRLF + AddArrayOfItemProperties(i, APad +'  ') + CRLF
     else
