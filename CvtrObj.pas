@@ -106,8 +106,7 @@ const
 { Eduardo }
 procedure TDfmToFmxObject.LiveBindings(DfmObject: TObjectList = nil);
 var
-  I,J,K,L,M: Integer;
-  sProp: String;
+  I,J: Integer;
   sFields: String;
   obj: TDfmToFmxObject;
   bItem: Boolean;
@@ -117,6 +116,8 @@ begin
   // Se não informou um objeto, obtem o inicial
   if DfmObject = nil then
     DfmObject := FOwnedObjs;
+  if DfmObject = nil then
+    Exit;
 
   // Passa por todos objetos filhos
   for I := 0 to Pred(DfmObject.Count) do
