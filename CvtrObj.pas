@@ -668,7 +668,7 @@ var
   sTemp: String;
 begin
   Data := Trim(ReadLineFrmStream(AStm));
-  while not (Pos(AnsiString('>'), Data) > 0) do
+  while not EndsText('>', Data) do
   begin
     SetLength(saTemp, Succ(Length(saTemp)));
     saTemp[Pred(Length(saTemp))] := Data;
@@ -687,7 +687,7 @@ var
   Data: String;
 begin
   Data := Trim(ReadLineFrmStream(AStm));
-  while not (Pos(AnsiString('}'), Data) > 0) do
+  while not EndsText('}', Data) do
   begin
     Prop[APropertyIdx, 1] := Prop[APropertyIdx, 1] + Data;
     Data := Trim(ReadLineFrmStream(AStm));
@@ -701,7 +701,7 @@ var
   Data: String;
 begin
   Data := Trim(ReadLineFrmStream(AStm));
-  while (Pos(AnsiString('+'), Data) > 0) do
+  while EndsText('+', Data) do
   begin
     Prop[APropertyIdx, 1] := Prop[APropertyIdx, 1] + Data;
     Data := Trim(ReadLineFrmStream(AStm));
