@@ -52,6 +52,8 @@ type
     FIniAddProperties,
     FUsesTranslation,
     FIniObjectTranslations: TStringlist;
+    FIni: TIniFile;
+    FOriginalIni: TIniFile;
     function OwnedObjs: TObjectList;
     function IniObjectTranslations: TStringList;
     function IniSectionValues: TStringlist;
@@ -366,6 +368,7 @@ begin
   FIniSectionValues.Free;
   FUsesTranslation.Free;
   FIniAddProperties.Free;
+  FOriginalIni.Free;
 end;
 
 class function TDfmToFmxObject.DFMIsTextBased(ADfmFileName: String): Boolean;
@@ -535,6 +538,7 @@ var
 begin
   if AIni = nil then
     Exit;
+  FIni := AIni;
   if FDepth < 1 then
   begin
     AIni.ReadSectionValues('ObjectChanges', IniObjectTranslations);
@@ -602,11 +606,9 @@ begin
 end;
 
 procedure TDfmToFmxObject.LoadInfileDefs(AIniFileName: String);
-var
-  Ini: TIniFile;
 begin
-  Ini := TIniFile.Create(AIniFileName);
-  IniFileLoad(Ini);
+  FOriginalIni := TIniFile.Create(AIniFileName);
+  IniFileLoad(FOriginalIni);
 end;
 
 function TDfmToFmxObject.OwnedObjs: TObjectList;
