@@ -66,7 +66,7 @@ function GetArrayFromString(const S: String; SepVal: Char; ARemoveQuote: Boolean
 var
   i: Integer;
   NextChar, SecondQuoteChar: PChar;
-  CSepVal: Char;
+  CSepVal, FirstQuoteChar: Char;
   QuoteVal: String;
   ThisS, fs: String;
 begin
@@ -85,9 +85,10 @@ begin
       fs := '';
     end
     else
-    if ARemoveQuote and CharInSet(NextChar[0], ['''', '"', '[', '{', '(', '<']) then
+    if CharInSet(NextChar[0], ['''', '"', '[', '{', '(', '<']) then
     begin
-      case Char(NextChar[0]) of
+      FirstQuoteChar := NextChar[0];
+      case FirstQuoteChar of
         '''', '"':
           QuoteVal := NextChar[0];
         '[':
@@ -105,18 +106,29 @@ begin
       SecondQuoteChar := StrPos(PChar(NextChar + 1), PChar(QuoteVal));
       if (Pointer(SecondQuoteChar) <> nil) and ((SecondQuoteChar[1] = CSepVal) or (SecondQuoteChar[1] = #0)) then
       begin
-        inc(NextChar);
-        if NextChar = SecondQuoteChar then
+        if ARemoveQuote then
         begin
-          fs := '';
           inc(NextChar);
+          if NextChar = SecondQuoteChar then
+          begin
+            fs := '';
+            inc(NextChar);
+          end
+          else
+            fs := FieldSep(NextChar, QuoteVal[1 + ZSISOffset]);
+          if SecondQuoteChar[1] = #0 then
+            NextChar := nil
+          else
+            inc(NextChar);
         end
         else
-          fs := FieldSep(NextChar, QuoteVal[1 + ZSISOffset]);
-        if SecondQuoteChar[1] = #0 then
-          NextChar := nil
-        else
-          inc(NextChar);
+        begin
+          fs := Copy(NextChar, 0, SecondQuoteChar - NextChar + 1);
+          if SecondQuoteChar[1] = #0 then
+            NextChar := nil
+          else
+            NextChar := SecondQuoteChar + 1;
+        end;
       end
       else
         fs := FieldSep(NextChar, CSepVal);
