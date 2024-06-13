@@ -156,7 +156,13 @@ begin
     if CharPointer = nil then
       ss := nil
     else
-      ss := CharPointer + 1;
+      if SepVal = ' ' then
+        ss := CharPointer + 1
+      else
+        repeat
+          CharPointer := CharPointer + 1;
+          ss := CharPointer;
+        until ss[0] <> ' ';
   end
   else
     Result := '';
