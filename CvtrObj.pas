@@ -35,6 +35,8 @@ type
     Columns : TArray<TLinkGridColumn>;
   end;
 
+  TEnumList = TObjectDictionary<String,TStringList>;
+
   TDfmToFmxObject = class(TObject)
   private
     FLinkControlList: TArray<TLinkControl>;
@@ -52,6 +54,7 @@ type
     FIniAddProperties,
     FUsesTranslation,
     FIniObjectTranslations: TStringlist;
+    FEnumList: TEnumList;
     FIni: TMemIniFile;
     FOriginalIni: TMemIniFile;
     function OwnedObjs: TObjectList;
@@ -367,6 +370,7 @@ begin
   FIniIncludeValues.Free;
   FIniSectionValues.Free;
   FUsesTranslation.Free;
+  FEnumList.Free;
   FIniAddProperties.Free;
   FOriginalIni.Free;
 end;
@@ -535,6 +539,7 @@ procedure TDfmToFmxObject.IniFileLoad(AIni: TMemIniFile);
 var
   i: integer;
   NewClassName: String;
+  Sections: TStringList;
 begin
   if AIni = nil then
     Exit;
@@ -555,6 +560,22 @@ begin
     AIni.ReadSectionValues(FDFMClass + '#Replace', IniReplaceValues);
     AIni.ReadSection(FDFMClass + '#Include', IniIncludeValues);
     AIni.ReadSectionValues(FDFMClass + '#AddProperty', IniAddProperties);
+  end;
+
+  Sections := TStringList.Create;
+  try
+    FEnumList := TEnumList.Create([doOwnsValues]);
+
+    AIni.ReadSections(Sections);
+    for var Section in Sections do
+      if Section.StartsWith('#') and Section.EndsWith('#') then
+      begin
+        var EnumElements := TStringList.Create;
+        AIni.ReadSectionValues(Section, EnumElements);
+        FEnumList.Add(Section, EnumElements);
+      end;
+  finally
+    Sections.Free;
   end;
 
   for i := 0 to Pred(OwnedObjs.Count) do
@@ -739,22 +760,49 @@ end;
 function TDfmToFmxObject.TransformProperty(ACurrentName, ACurrentValue: String; APad: String = ''): String;
 var
   s: String;
+
+  function ReplaceEnum(var ReplacementLine: String): Boolean;
+  var
+    EnumNameStart, EnumNameEnd, Item: Integer;
+    EnumName, PropName: String;
+    EnumItems: TStringList;
+  begin
+    Result := False;
+    EnumNameStart := Pos('#', s);
+    if EnumNameStart = 0 then
+      Exit;
+
+    if EnumNameStart > 1 then
+      PropName := Copy(s, 1, EnumNameStart)
+    else
+      PropName := ACurrentName;
+
+    EnumNameEnd := Pos('#', s, EnumNameStart + 1);
+    if EnumNameEnd = 0 then
+      Exit;
+
+    EnumName := Copy(s, EnumNameStart, EnumNameEnd - EnumNameStart + 1);
+    if (EnumName = '') or not FEnumList.TryGetValue(EnumName, EnumItems) then
+      Exit;
+
+    Item := EnumItems.IndexOfName(ACurrentValue);
+    if Item < 0 then
+      raise Exception.Create('Unknown item ' + ACurrentValue + ' in enum ' + EnumName);
+
+    ReplacementLine := PropName + ' = ' + EnumItems.ValueFromIndex[Item];
+    Result := True;
+  end;
+
 begin
   if ACurrentName = ContinueCode then
     Result := '  ' + ACurrentValue
   else
   begin
-    s := FIniSectionValues.Values[ACurrentName];
+    s := Trim(FIniSectionValues.Values[ACurrentName]);
     if s = EmptyStr then
       s := ACurrentName;
     if s = '#Delete#' then
       Result := EmptyStr
-    else
-    if Pos('#TAlign#', s) > 0 then
-    begin
-      ACurrentValue := StringReplace(ACurrentValue, 'al', EmptyStr, [rfReplaceAll]);
-      Result := ACurrentName +' = '+ ACurrentValue;
-    end
     else
     if Pos('#Class#', s) > 0 then
     begin
@@ -765,6 +813,7 @@ begin
         Result := StringReplace(s, '#Class#', ProcessImageList(ACurrentValue, APad), [])
     end
     else
+    if not ReplaceEnum(Result) then
       Result := s +' = '+ ACurrentValue;
   end;
 end;

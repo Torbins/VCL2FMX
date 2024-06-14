@@ -195,6 +195,7 @@ end;
 
 procedure TDFMtoFMXConvert.FormClose(Sender: TObject; var Action: TCloseAction);
 begin
+  FreeAndNil(DFMObj);
   RegIniSave;
 end;
 
