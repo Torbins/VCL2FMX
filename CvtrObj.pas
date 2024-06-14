@@ -543,8 +543,8 @@ begin
   begin
     AIni.ReadSectionValues('ObjectChanges', IniObjectTranslations);
     AIni.ReadSectionValues('TForm', IniSectionValues);
-    AIni.ReadSectionValues('TFormReplace', IniReplaceValues);
-    AIni.ReadSection('TFormInclude', IniIncludeValues);
+    AIni.ReadSectionValues('TForm#Replace', IniReplaceValues);
+    AIni.ReadSection('TForm#Include', IniIncludeValues);
   end
   else
   begin
@@ -552,9 +552,9 @@ begin
     if NewClassName <> EmptyStr then
       FDFMClass := NewClassName;
     AIni.ReadSectionValues(FDFMClass, IniSectionValues);
-    AIni.ReadSectionValues(FDFMClass + 'Replace', IniReplaceValues);
-    AIni.ReadSection(FDFMClass + 'Include', IniIncludeValues);
-    AIni.ReadSectionValues(FDFMClass + 'AddProperty', IniAddProperties);
+    AIni.ReadSectionValues(FDFMClass + '#Replace', IniReplaceValues);
+    AIni.ReadSection(FDFMClass + '#Include', IniIncludeValues);
+    AIni.ReadSectionValues(FDFMClass + '#AddProperty', IniAddProperties);
   end;
 
   for i := 0 to Pred(OwnedObjs.Count) do
@@ -574,7 +574,7 @@ begin
   end;
 
   if IniIncludeValues.Count < 1 then
-    AIni.WriteString(FDFMClass + 'Include', 'FMX.Controls', 'Empty Include');
+    AIni.WriteString(FDFMClass + '#Include', 'FMX.Controls', 'Empty Include');
 end;
 
 function TDfmToFmxObject.IniIncludeValues: TStringlist;
