@@ -10,7 +10,7 @@ uses
   System.StrUtils,
   Contnrs,
   Winapi.Windows,
-  inifiles,
+  System.IniFiles,
   FMX.Objects,
   System.Generics.Collections,
   Image,
@@ -52,8 +52,8 @@ type
     FIniAddProperties,
     FUsesTranslation,
     FIniObjectTranslations: TStringlist;
-    FIni: TIniFile;
-    FOriginalIni: TIniFile;
+    FIni: TMemIniFile;
+    FOriginalIni: TMemIniFile;
     function OwnedObjs: TObjectList;
     function IniObjectTranslations: TStringList;
     function IniSectionValues: TStringlist;
@@ -66,7 +66,7 @@ type
     procedure ReadProperties(AData: String; AStm: TStream; var AIdx: Integer);
     function ProcessUsesString(AOrigUsesArray: TArrayOfStrings): String;
     function ProcessCodeBody(const ACodeBody: String): String;
-    procedure IniFileLoad(AIni: TIniFile);
+    procedure IniFileLoad(AIni: TMemIniFile);
     procedure ReadItems(Prop: TTwoDArrayOfString; APropertyIdx: integer; AStm: TStream);
     function FMXClass: String;
     function TransformProperty(ACurrentName, ACurrentValue: String; APad: String = ''): String;
@@ -531,7 +531,7 @@ begin
   Result := FIniAddProperties;
 end;
 
-procedure TDfmToFmxObject.IniFileLoad(AIni: TIniFile);
+procedure TDfmToFmxObject.IniFileLoad(AIni: TMemIniFile);
 var
   i: integer;
   NewClassName: String;
@@ -606,7 +606,8 @@ end;
 
 procedure TDfmToFmxObject.LoadInfileDefs(AIniFileName: String);
 begin
-  FOriginalIni := TIniFile.Create(AIniFileName);
+  FOriginalIni := TMemIniFile.Create(AIniFileName);
+  FOriginalIni.AutoSave := True;
   IniFileLoad(FOriginalIni);
 end;
 
