@@ -568,7 +568,6 @@ begin
 
   if IniSectionValues.Count < 1 then
   begin
-    AIni.WriteString(FDFMClass, 'Empty', 'Add Transformations');
     AIni.WriteString(FDFMClass, 'Top',   'Position.Y');
     AIni.WriteString(FDFMClass, 'Left',  'Position.X');
   end;
