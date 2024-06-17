@@ -773,7 +773,7 @@ var
       Exit;
 
     if EnumNameStart > 1 then
-      PropName := Copy(s, 1, EnumNameStart)
+      PropName := Copy(s, 1, EnumNameStart - 1)
     else
       PropName := ACurrentName;
 
