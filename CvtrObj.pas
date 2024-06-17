@@ -103,6 +103,9 @@ type
 
 implementation
 
+uses
+  System.RegularExpressions;
+
 const
   ContinueCode: String = '#$Continue$#';
 
@@ -770,6 +773,7 @@ end;
 function TDfmToFmxObject.TransformProperty(ACurrentName, ACurrentValue: String; APad: String = ''): String;
 var
   s: String;
+  Regex: TRegEx;
 
   function ReplaceEnum(var ReplacementLine: String): Boolean;
   var
@@ -809,6 +813,16 @@ begin
   else
   begin
     s := Trim(FIniSectionValues.Values[ACurrentName]);
+    if s = EmptyStr then
+    begin
+      Regex := TRegex.Create('', [roIgnoreCase, roSingleLine]);
+      for var i := 0 to Pred(FIniSectionValues.Count) do
+        if Regex.IsMatch(ACurrentName, FIniSectionValues.Names[i]) then
+        begin
+          s := FIniSectionValues.ValueFromIndex[i];
+          Break;
+        end;
+    end;
     if s = EmptyStr then
       s := ACurrentName;
     if s = '#Delete#' then
