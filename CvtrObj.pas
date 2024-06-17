@@ -539,7 +539,7 @@ procedure TDfmToFmxObject.IniFileLoad(AIni: TMemIniFile);
 var
   i: integer;
   NewClassName: String;
-  Sections: TStringList;
+  Sections, CommonProps: TStringList;
 begin
   if AIni = nil then
     Exit;
@@ -560,6 +560,16 @@ begin
     AIni.ReadSectionValues(FDFMClass + '#Replace', IniReplaceValues);
     AIni.ReadSection(FDFMClass + '#Include', IniIncludeValues);
     AIni.ReadSectionValues(FDFMClass + '#AddProperty', IniAddProperties);
+
+    CommonProps := TStringList.Create;
+    try
+      AIni.ReadSectionValues('CommonProperties', CommonProps);
+      for i := 0 to Pred(CommonProps.Count) do
+        if IniSectionValues.IndexOfName(CommonProps.Names[i]) = -1 then
+          IniSectionValues.Add(CommonProps[i]);
+    finally
+      CommonProps.Free;
+    end;
   end;
 
   Sections := TStringList.Create;
