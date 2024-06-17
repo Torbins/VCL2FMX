@@ -110,7 +110,6 @@ var
   RegFile: TRegistryIniFile;
   Ini: TIniFile;
   sIniFile: String;
-  IniObjectTranslations: TStringList;
   sKey: String;
   sValue: String;
   I: Integer;
@@ -124,21 +123,16 @@ begin
     RenameFile(sIniFile, ChangeFileExt(sIniFile, '.bkp'));
     Ini := TIniFile.Create(sIniFile);
     try
-      IniObjectTranslations := TStringList.Create;
-      try
-        for I := 0 to Pred(tvINI.Count) do
+      for I := 0 to Pred(tvINI.Count) do
+      begin
+        if (tvINI.Items[I].Count = 0) or tvINI.Items[I].Text.Trim.IsEmpty then
+          Continue;
+        for J := 0 to Pred(tvINI.Items[I].Count) do
         begin
-          if (tvINI.Items[I].Count = 0) or tvINI.Items[I].Text.Trim.IsEmpty then
-            Continue;
-          for J := 0 to Pred(tvINI.Items[I].Count) do
-          begin
-            sKey := Copy(tvINI.Items[I].Items[J].Text, 1, Pred(Pos('=', tvINI.Items[I].Items[J].Text)));
-            sValue := Copy(tvINI.Items[I].Items[J].Text, Succ(Pos('=', tvINI.Items[I].Items[J].Text)));
-            Ini.WriteString(tvINI.Items[I].Text, sKey, sValue);
-          end;
+          sKey := Copy(tvINI.Items[I].Items[J].Text, 1, Pred(Pos('=', tvINI.Items[I].Items[J].Text)));
+          sValue := Copy(tvINI.Items[I].Items[J].Text, Succ(Pos('=', tvINI.Items[I].Items[J].Text)));
+          Ini.WriteString(tvINI.Items[I].Text, sKey, sValue);
         end;
-      finally
-        IniObjectTranslations.Free;
       end;
     finally
       Ini.Free;
@@ -174,14 +168,14 @@ begin
   edtINI.Text := sIniFile;
   Ini := TIniFile.Create(sIniFile);
   try
-    IniObjectTranslations := TStringList.Create;
+    IniObjectTranslations := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
     try
       Ini.ReadSections(IniObjectTranslations);
       for sClass in IniObjectTranslations do
       begin
         tvObj := TTreeViewItem.Create(tvINI);
         tvObj.Text := sClass;
-        IniSectionValues := TStringList.Create;
+        IniSectionValues := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
         try
           Ini.ReadSectionValues(sClass, IniSectionValues);
           for sItem in IniSectionValues do

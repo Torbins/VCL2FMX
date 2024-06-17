@@ -531,7 +531,7 @@ end;
 function TDfmToFmxObject.IniAddProperties: TStringlist;
 begin
   if FIniAddProperties = nil then
-    FIniAddProperties := TStringlist.Create;
+    FIniAddProperties := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
   Result := FIniAddProperties;
 end;
 
@@ -561,7 +561,7 @@ begin
     AIni.ReadSection(FDFMClass + '#Include', IniIncludeValues);
     AIni.ReadSectionValues(FDFMClass + '#AddProperty', IniAddProperties);
 
-    CommonProps := TStringList.Create;
+    CommonProps := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
     try
       AIni.ReadSectionValues('CommonProperties', CommonProps);
       for i := 0 to Pred(CommonProps.Count) do
@@ -572,7 +572,7 @@ begin
     end;
   end;
 
-  Sections := TStringList.Create;
+  Sections := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
   try
     FEnumList := TEnumList.Create([doOwnsValues]);
 
@@ -580,7 +580,7 @@ begin
     for var Section in Sections do
       if Section.StartsWith('#') and Section.EndsWith('#') then
       begin
-        var EnumElements := TStringList.Create;
+        var EnumElements := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
         AIni.ReadSectionValues(Section, EnumElements);
         FEnumList.Add(Section, EnumElements);
       end;
@@ -610,28 +610,28 @@ end;
 function TDfmToFmxObject.IniIncludeValues: TStringlist;
 begin
   if FIniIncludeValues = nil then
-    FIniIncludeValues := TStringlist.Create;
+    FIniIncludeValues := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
   Result := FIniIncludeValues;
 end;
 
 function TDfmToFmxObject.IniObjectTranslations: TStringList;
 begin
   if FIniObjectTranslations = nil then
-    FIniObjectTranslations := TStringlist.Create;
+    FIniObjectTranslations := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
   Result := FIniObjectTranslations;
 end;
 
 function TDfmToFmxObject.IniReplaceValues: TStringlist;
 begin
   if FIniReplaceValues = nil then
-    FIniReplaceValues := TStringlist.Create;
+    FIniReplaceValues := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
   Result := FIniReplaceValues;
 end;
 
 function TDfmToFmxObject.IniSectionValues: TStringlist;
 begin
   if FIniSectionValues = nil then
-    FIniSectionValues := TStringlist.Create;
+    FIniSectionValues := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
   Result := FIniSectionValues;
 end;
 
@@ -868,7 +868,7 @@ end;
 function TDfmToFmxObject.UsesTranslation: TStringlist;
 begin
   if FUsesTranslation = nil then
-    FUsesTranslation := TStringlist.Create;
+    FUsesTranslation := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
   Result := FUsesTranslation;
 end;
 
