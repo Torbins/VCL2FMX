@@ -540,9 +540,11 @@ end;
 
 procedure TDfmToFmxObject.IniFileLoad(AIni: TMemIniFile);
 var
-  i: integer;
+  i, j: integer;
+  Found: Boolean;
   NewClassName: String;
-  Sections, CommonProps: TStringList;
+  Sections, CommonProps, Candidates: TStringList;
+  Regex: TRegEx;
 begin
   if AIni = nil then
     Exit;
@@ -564,14 +566,38 @@ begin
     AIni.ReadSection(FDFMClass + '#Include', IniIncludeValues);
     AIni.ReadSectionValues(FDFMClass + '#AddProperty', IniAddProperties);
 
-    CommonProps := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
+    CommonProps := nil;
+    Candidates := nil;
     try
+      CommonProps := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
+      Candidates := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
+      Regex := TRegex.Create('', [roIgnoreCase, roSingleLine]);
+
       AIni.ReadSectionValues('CommonProperties', CommonProps);
       for i := 0 to Pred(CommonProps.Count) do
         if IniSectionValues.IndexOfName(CommonProps.Names[i]) = -1 then
-          IniSectionValues.Add(CommonProps[i]);
+        begin
+          Found := False;
+          for j := 0 to Pred(IniSectionValues.Count) do
+            if Regex.IsMatch(IniSectionValues.Names[j], '^' + CommonProps.Names[i] + '$') then
+            begin
+              Found := True;
+              Break;
+            end;
+          if not Found then
+            Candidates.Add(CommonProps[i]);
+        end;
+
+      for i := 0 to Pred(IniSectionValues.Count) do
+        for j := Pred(Candidates.Count) downto 0 do
+          if Regex.IsMatch(Candidates.Names[j], '^' + IniSectionValues.Names[i] + '$') then
+            Candidates.Delete(j);
+
+      for i := 0 to Pred(Candidates.Count) do
+        IniSectionValues.Add(Candidates[i]);
     finally
       CommonProps.Free;
+      Candidates.Free;
     end;
   end;
 
@@ -808,7 +834,7 @@ begin
     begin
       Regex := TRegex.Create('', [roIgnoreCase, roSingleLine]);
       for var i := 0 to Pred(FIniSectionValues.Count) do
-        if Regex.IsMatch(ACurrentName, FIniSectionValues.Names[i]) then
+        if Regex.IsMatch(ACurrentName, '^' + FIniSectionValues.Names[i] + '$') then
         begin
           s := FIniSectionValues.ValueFromIndex[i];
           Break;
