@@ -599,15 +599,6 @@ begin
     for i := 0 to Pred(fOwnedItems.Count) do
      if fOwnedItems[i] is TDfmToFmxListItem then
        TDfmToFmxListItem(fOwnedItems[i]).IniFileLoad(AIni);
-
-  if IniSectionValues.Count < 1 then
-  begin
-    AIni.WriteString(FDFMClass, 'Top',   'Position.Y');
-    AIni.WriteString(FDFMClass, 'Left',  'Position.X');
-  end;
-
-  if IniIncludeValues.Count < 1 then
-    AIni.WriteString(FDFMClass + '#Include', 'FMX.Controls', 'Empty Include');
 end;
 
 function TDfmToFmxObject.IniIncludeValues: TStringlist;
@@ -787,7 +778,7 @@ var
       Exit;
 
     if EnumNameStart > 1 then
-      PropName := Copy(s, 1, EnumNameStart - 1)
+      PropName := Trim(Copy(s, 1, EnumNameStart - 1))
     else
       PropName := ACurrentName;
 
