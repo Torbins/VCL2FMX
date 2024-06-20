@@ -800,7 +800,7 @@ var
   function ReplaceEnum(var ReplacementLine: String): Boolean;
   var
     EnumNameStart, EnumNameEnd, Item: Integer;
-    EnumName, PropName: String;
+    EnumName, PropName, Value: String;
     EnumItems: TStringList;
   begin
     Result := False;
@@ -818,6 +818,14 @@ var
       Exit;
 
     EnumName := Copy(s, EnumNameStart, EnumNameEnd - EnumNameStart + 1);
+
+    if EnumName = '#SetValue#' then
+    begin
+      Value := Copy(s, EnumNameEnd + 1);
+      ReplacementLine := PropName + ' = ' + Value;
+      Exit(True);
+    end;
+
     if (EnumName = '') or not FEnumList.TryGetValue(EnumName, EnumItems) then
       Exit;
 
