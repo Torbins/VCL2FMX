@@ -595,6 +595,12 @@ begin
 
       for i := 0 to Pred(Candidates.Count) do
         IniSectionValues.Add(Candidates[i]);
+
+      CommonProps.Clear;
+      AIni.ReadSectionValues('CommonProperties#AddProperty', CommonProps);
+      for i := 0 to Pred(CommonProps.Count) do
+        if IniAddProperties.IndexOfName(CommonProps.Names[i]) = -1 then
+          IniAddProperties.Add(CommonProps[i]);
     finally
       CommonProps.Free;
       Candidates.Free;
