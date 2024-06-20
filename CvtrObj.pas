@@ -664,7 +664,6 @@ end;
 procedure TDfmToFmxObject.LoadInfileDefs(AIniFileName: String);
 begin
   FOriginalIni := TMemIniFile.Create(AIniFileName);
-  FOriginalIni.AutoSave := True;
   IniFileLoad(FOriginalIni);
 end;
 
