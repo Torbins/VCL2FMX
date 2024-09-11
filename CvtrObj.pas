@@ -52,6 +52,7 @@ type
     FIniIncludeValues,
     FIniSectionValues,
     FIniAddProperties,
+    FIniDefaultValueProperties,
     FUsesTranslation,
     FIniObjectTranslations: TStringlist;
     FEnumList: TEnumList;
@@ -64,6 +65,7 @@ type
     function IniReplaceValues: TStringlist;
     function IniIncludeValues: TStringlist;
     function IniAddProperties: TStringlist;
+    function IniDefaultValueProperties: TStringlist;
     function PropertyArray(ARow: integer): TArrayOfStrings;
     procedure UpdateUsesStringList(AUsesList: TStrings);
     procedure ReadProperties(AData: String; AStm: TStream; var AIdx: Integer);
@@ -375,6 +377,7 @@ begin
   FUsesTranslation.Free;
   FEnumList.Free;
   FIniAddProperties.Free;
+  FIniDefaultValueProperties.Free;
   FOriginalIni.Free;
 end;
 
@@ -440,6 +443,7 @@ var
   sProp: String;
 begin
   Result := EmptyStr;
+
   for i := Low(F2DPropertyArray) to High(F2DPropertyArray) do
   begin
     if Length(F2DPropertyArray[i]) = 0 then
@@ -461,9 +465,13 @@ begin
         Result := Result + APad +'  '+ sProp + CRLF;
     end;
   end;
+
   if IniAddProperties.Count > 0 then
     for i := 0 to Pred(FIniAddProperties.Count) do
       Result := Result + APad +'  '+ StringReplace(FIniAddProperties[i], '=', ' = ', []) + CRLF;
+  if IniDefaultValueProperties.Count > 0 then
+    for i := 0 to Pred(FIniDefaultValueProperties.Count) do
+      Result := Result + APad +'  '+ StringReplace(FIniDefaultValueProperties.ValueFromIndex[i], '=', ' = ', []) + CRLF;
 end;
 
 function TDfmToFmxObject.FMXSubObjects(APad: String): String;
@@ -538,6 +546,13 @@ begin
   Result := FIniAddProperties;
 end;
 
+function TDfmToFmxObject.IniDefaultValueProperties: TStringlist;
+begin
+  if FIniDefaultValueProperties = nil then
+    FIniDefaultValueProperties := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
+  Result := FIniDefaultValueProperties;
+end;
+
 procedure TDfmToFmxObject.IniFileLoad(AIni: TMemIniFile);
 var
   i, j: integer;
@@ -565,6 +580,7 @@ begin
     AIni.ReadSectionValues(FDFMClass + '#Replace', IniReplaceValues);
     AIni.ReadSection(FDFMClass + '#Include', IniIncludeValues);
     AIni.ReadSectionValues(FDFMClass + '#AddProperty', IniAddProperties);
+    AIni.ReadSectionValues(FDFMClass + '#DefaultValueProperty', IniDefaultValueProperties);
 
     CommonProps := nil;
     Candidates := nil;
@@ -796,6 +812,7 @@ function TDfmToFmxObject.TransformProperty(ACurrentName, ACurrentValue: String; 
 var
   s: String;
   Regex: TRegEx;
+  DefaultValuePropPos: Integer;
 
   function ReplaceEnum(var ReplacementLine: String): Boolean;
   var
@@ -869,6 +886,13 @@ begin
     else
     if not ReplaceEnum(Result) then
       Result := s +' = '+ ACurrentValue;
+
+    if IniDefaultValueProperties.Count > 0 then
+    begin
+      DefaultValuePropPos := FIniDefaultValueProperties.IndexOfName(Trim(ACurrentName));
+      if DefaultValuePropPos >= 0 then
+        FIniDefaultValueProperties.Delete(DefaultValuePropPos);
+    end;
   end;
 end;
 
