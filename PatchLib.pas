@@ -6,61 +6,27 @@ interface
 
 uses
   System.Classes, System.UITypes,
-  System.SyncObjs,
   System.IOUtils,
-  System.Win.ComObj,
-  System.Win.Registry,
   Winapi.Windows,
-  Winapi.ShlObj,
-  Winapi.ShellAPI,
   System.SysUtils;
 
 type
   TArrayOfStrings = array of String;
-  ArrayOfStrings = TArrayOfStrings;
-  TArrayOfUnicodeStrings = array of UnicodeString;
-  TArrayOfReal = array of real;
-  TArrayofInteger = array of Integer;
-  TArrayofLongWord = array of Longword;
-  TArrayofObjects = array of TObject;
-  TTwoDArrayofInteger = array of TArrayofInteger;
-  TTwoDArrayOfString = array of ArrayOfStrings;
-
-  StrCodeInfoRec = record
-    CodePage: Word;
-    ElementLength: Word;
-    RefCount: Integer;
-    Length: Integer;
-  end;
+  TTwoDArrayOfString = array of TArrayOfStrings;
 
 function GetArrayFromString(const S: String; SepVal: Char; ARemoveQuote: Boolean = false; ATrim: Boolean = True; ADropNulls: Boolean = false): TArrayOfStrings; overload;
 function FieldSep(var ss: PChar; SepVal: Char): String; overload;
-function ReadLineFrmStream(AStream: TStream): String;
 function PosNoCase(const ASubstr: String; AFullString: String): Integer; overload;
-procedure PopulateStringsFromArray(AStrings: TStrings; AArray: TArrayOfStrings; AObjArray: TArrayofObjects = nil);
-function CompressedUnicode(const AUCode: UnicodeString): String;
-function StrCodeInfo(const S: UnicodeString): StrCodeInfoRec; overload; inline;
-function StrCodeInfo(const S: RawByteString): StrCodeInfoRec; overload; inline;
-function ShellExecuteDocument(const Command, Parameters, Directory: String; Visiblity: DWord = SW_RESTORE; Action: String = 'open'): Boolean;
+procedure PopulateStringsFromArray(AStrings: TStrings; AArray: TArrayOfStrings);
 
 const
-  NullStrCodeInfo: StrCodeInfoRec = (CodePage: 0; ElementLength: 0; RefCount: 0;
-    Length: 0);
-
-type
-  PStrCodeInfoRec = ^StrCodeInfoRec;
-
-const
-  CRLF = AnsiChar(#13) + AnsiChar(#10);
+  CRLF = #13#10;
   ZSISOffset = 0;
-  CR = AnsiChar(#13);
-  LF = AnsiChar(#10);
-  TAB = AnsiChar(#9);
-  CRP = AnsiChar(#141);
-  LFP = AnsiChar(#138);
-  FirstStrCharNo = 1;
 
 implementation
+
+uses
+  System.StrUtils;
 
 function GetArrayFromString(const S: String; SepVal: Char; ARemoveQuote: Boolean = false; ATrim: Boolean = True; ADropNulls: Boolean = false): TArrayOfStrings;
 var
@@ -180,42 +146,6 @@ begin
     Result := '';
 end;
 
-function ReadLineFrmStream(AStream: TStream): String;
-var
-  CurPos, EndPos: int64;
-  i, EndSZ: Integer;
-  Nxt: AnsiChar;
-begin
-  CurPos := AStream.Position;
-  EndPos := AStream.Seek(0, soFromEnd);
-  AStream.Seek(CurPos, soFromBeginning);
-
-  if 256 > EndPos - CurPos then
-    EndSZ := Word(EndPos - CurPos)
-  else
-    EndSZ := 256; // Max Line Size
-  SetLength(Result, EndSZ);
-  if EndSZ < 1 then
-    exit;
-
-  i := 0;
-  AStream.Read(Nxt, 1);
-  while not CharInSet(Nxt, [CR, LF, CRP, LFP]) and (i < EndSZ) do
-  try
-    inc(i);
-    Result[i] := Chr(Ord(Nxt));
-    AStream.Read(Nxt, 1);
-  except
-    Nxt := CR;
-  end;
-  SetLength(Result, i);
-  while CharInSet(Nxt, [CR, LF, CRP, LFP]) and (AStream.Position < EndPos) do
-    AStream.Read(Nxt, 1);
-  CurPos := AStream.Position;
-  if CurPos < EndPos then
-    AStream.seek(CurPos - 1, soFromBeginning);
-end;
-
 function PosNoCase(const ASubstr: String; AFullString: String): Integer;
 var
   Substr: String;
@@ -226,112 +156,20 @@ begin
     Result := -1;
     exit;
   end;
-  Substr := Lowercase(ASubstr);
-  S := Lowercase(AFullString);
-  Result := Pos(Substr, S);
+  Substr := AnsiLowerCase(ASubstr);
+  S := AnsiLowerCase(AFullString);
+  Result := AnsiPos(Substr, S);
 end;
 
-procedure PopulateStringsFromArray(AStrings: TStrings; AArray: TArrayOfStrings; AObjArray: TArrayofObjects);
+procedure PopulateStringsFromArray(AStrings: TStrings; AArray: TArrayOfStrings);
 var
-  i, ObjMx: Integer;
+  i: Integer;
 begin
   if AStrings = nil then
     raise Exception.Create('PopulateStringsFromArray');
   AStrings.Clear;
-  if AObjArray = nil then
-    ObjMx := -1
-  else
-    ObjMx := high(AObjArray);
   for i := 0 to high(AArray) do
-    if i > ObjMx then
-      AStrings.Add(AArray[i])
-    else
-      AStrings.AddObject(AArray[i], AObjArray[i]);
-end;
-
-function CompressedUnicode(const AUCode: UnicodeString): String;
-var
-  Ri, Ui: Integer;
-  Nxt, Dest: PAnsiChar;
-  R: StrCodeInfoRec;
-begin
-  R := StrCodeInfo(AUCode);
-  if R.Length < 1 then
-    Result := ''
-  else
-  begin
-    if R.CodePage <> DefaultUnicodeCodePage then
-      raise Exception.Create('Non Unicode Unicode');
-    SetLength(Result, R.Length);
-    Nxt := @AUCode[1];
-    Dest := @Result[1];
-    Ri := 0;
-    Ui := 0;
-    while (Nxt[Ui + 1] = AnsiChar(0)) and (Ri < R.Length) do
-    begin
-      Dest[Ri] := Nxt[Ui];
-      inc(Ui, 2);
-      inc(Ri);
-    end;
-    if Ri < R.Length then
-      Result := '';
-  end;
-end;
-
-function StrCodeInfo(const S: UnicodeString): StrCodeInfoRec; overload; inline;
-var
-  AtS: NativeInt;
-begin
-  AtS := NativeInt(S);
-  if AtS = 0 then
-    Result := NullStrCodeInfo
-  else
-    Result := PStrCodeInfoRec(AtS - 12)^
-end;
-
-function StrCodeInfo(const S: RawByteString): StrCodeInfoRec; overload; inline;
-var
-  AtS: NativeInt;
-begin
-  AtS := NativeInt(S);
-  if AtS = 0 then
-    Result := NullStrCodeInfo
-  else
-    Result := PStrCodeInfoRec(AtS - 12)^
-end;
-
-function ShellExecuteDocumentRetError(const Command, Parameters, Directory: String; Visiblity: DWord; Action: String): DWord;
-var
-  lpParameters, lpDirectory, lpOperation: PChar;
-  LocalAction: String;
-begin
-  if Action = '' then
-    LocalAction := 'open'
-  else
-    LocalAction := lowercase(Action);
-  lpOperation := PChar(LocalAction);
-  if Parameters = '' then
-    lpParameters := nil
-  else
-    lpParameters := @Parameters[1];
-  if Directory = '' then
-    lpDirectory := nil
-  else
-    lpDirectory := @Directory[1];
-  Result := ShellExecuteA(0,
-    PAnsiChar(lpOperation),
-    @Command[1],
-    PAnsiChar(lpParameters),
-    PAnsiChar(lpDirectory),
-    Visiblity);
-end;
-
-function ShellExecuteDocument(const Command, Parameters, Directory: String; Visiblity: DWord; Action: String): Boolean;
-var
-  Return: DWord;
-begin
-  Return := ShellExecuteDocumentRetError(Command, Parameters, Directory, Visiblity, Action);
-  Result := Return > 32;
+    AStrings.Add(AArray[i])
 end;
 
 end.

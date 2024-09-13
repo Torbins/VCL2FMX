@@ -80,7 +80,7 @@ begin
               Lgraphic.GetBitmap(I, bmp);
               // Salva no Stream
               bmp.SaveToStream(stream);
-              bmp.SaveToFile('D:\teste.bmp');
+//              bmp.SaveToFile('D:\teste.bmp');
               // Adiciona imagem no FMX
               stream.Position := 0;
               img1.Source.Add.MultiResBitmap.Add.Bitmap.LoadFromStream(stream);
@@ -158,16 +158,18 @@ end;
 
 procedure StreamToHex(ms:TMemoryStream; LineLen: Integer; var sResult: String);
 var
-  s: String;
-  t: AnsiString;
+  s, t: String;
+  LineNum: Integer;
 begin
   SetLength(t, ms.Size * 2);
-  BinToHex(ms.Memory^, PAnsiChar(t), ms.Size);
+  BinToHex(ms.Memory^, PChar(t), ms.Size);
+  LineNum := 0;
   repeat
-    s := Copy(String(t), 1, LineLen);
-    sResult := sResult + sLineBreak + FPad +'            '+ s;
-    Delete(t, 1, LineLen);
-  until t = '';
+    s := Copy(t, LineLen * LineNum + 1, LineLen);
+    if s <> '' then
+      sResult := sResult + sLineBreak + FPad + '            ' + s;
+    Inc(LineNum);
+  until Length(s) < LineLen;
 end;
 
 end.

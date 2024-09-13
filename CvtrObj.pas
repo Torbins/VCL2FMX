@@ -68,26 +68,26 @@ type
     function IniDefaultValueProperties: TStringlist;
     function PropertyArray(ARow: integer): TArrayOfStrings;
     procedure UpdateUsesStringList(AUsesList: TStrings);
-    procedure ReadProperties(AData: String; AStm: TStream; var AIdx: Integer);
+    procedure ReadProperties(AData: String; AStm: TStreamReader; var AIdx: Integer);
     function ProcessUsesString(AOrigUsesArray: TArrayOfStrings): String;
     function ProcessCodeBody(const ACodeBody: String): String;
     procedure IniFileLoad(AIni: TMemIniFile);
-    procedure ReadItems(Prop: TTwoDArrayOfString; APropertyIdx: integer; AStm: TStream);
+    procedure ReadItems(Prop: TTwoDArrayOfString; APropertyIdx: integer; AStm: TStreamReader);
     function FMXClass: String;
     function TransformProperty(ACurrentName, ACurrentValue: String; APad: String = ''): String;
     function AddArrayOfItemProperties(APropertyIdx: Integer; APad: String): String;
     function FMXProperties(APad: String): String;
     function FMXSubObjects(APad: String): String;
-    procedure ReadData(Prop: TTwoDArrayOfString; APropertyIdx: integer; AStm: TStream);
+    procedure ReadData(Prop: TTwoDArrayOfString; APropertyIdx: integer; AStm: TStreamReader);
     function GetFMXLiveBindings: String;
     function GetPASLiveBindings: String;
-    procedure ReadText(Prop: TTwoDArrayOfString; APropertyIdx: integer; AStm: TStream);
+    procedure ReadText(Prop: TTwoDArrayOfString; APropertyIdx: integer; AStm: TStreamReader);
   public
-    constructor Create(ACreateText: String; AStm: TStream; ADepth: integer);
+    constructor Create(ACreateText: String; AStm: TStreamReader; ADepth: integer);
     destructor Destroy; override;
     procedure LoadInfileDefs(AIniFileName: String);
     class function DFMIsTextBased(ADfmFileName: String): Boolean;
-    function GenPasFile(const APascalSourceFileName: String): AnsiString;
+    function GenPasFile(const APascalSourceFileName: String): String;
     function FMXFile(APad: String = ''): String;
     function WriteFMXToFile(const AFmxFileName: String): Boolean;
     function WritePasToFile(const APasOutFileName, APascalSourceFileName: String): Boolean;
@@ -95,11 +95,11 @@ type
   end;
 
   TDfmToFmxListItem = class(TDfmToFmxObject)
-    FHasMore:Boolean;
-    FPropertyIndex:Integer;
-    FOwner:TDfmToFmxObject;
+    FHasMore: Boolean;
+    FPropertyIndex: Integer;
+    FOwner: TDfmToFmxObject;
     public
-      constructor Create(AOwner:TDfmToFmxObject;APropertyIdx: integer; AStm: TStream;ADepth: integer);
+      constructor Create(AOwner: TDfmToFmxObject; APropertyIdx: integer; AStm: TStreamReader; ADepth: integer);
       property HasMore: Boolean read FHasMore;
     end;
 
@@ -328,7 +328,7 @@ begin
   //Tempary patch
 end;
 
-constructor TDfmToFmxObject.Create(ACreateText: String; AStm: TStream; ADepth: integer);
+constructor TDfmToFmxObject.Create(ACreateText: String; AStm: TStreamReader; ADepth: integer);
 var
   InputArray: TArrayOfStrings;
   Data: String;
@@ -337,7 +337,7 @@ var
 begin
   i := 0;
   FDepth := ADepth;
-  if Pos(AnsiString('object'), Trim(ACreateText)) = 1 then
+  if Pos('object', Trim(ACreateText)) = 1 then
   begin
     InputArray := GetArrayFromString(ACreateText, ' ');
     if Length(InputArray) > 2 then
@@ -351,14 +351,14 @@ begin
       FObjName := '';
       FDFMClass := InputArray[1];
     end;
-    Data := Trim(ReadLineFrmStream(AStm));
-    while Data <> AnsiString('end') do
+    Data := Trim(AStm.ReadLine);
+    while Data <> 'end' do
     begin
-      if Pos(AnsiString('object'), Data) = 1 then
+      if Pos('object', Data) = 1 then
         OwnedObjs.Add(TDfmToFmxObject.Create(Data, AStm, FDepth + 1))
       else
         ReadProperties(Data,AStm,i);
-      Data := Trim(ReadLineFrmStream(AStm));
+      Data := Trim(AStm.ReadLine);
     end
   end
   else
@@ -383,36 +383,16 @@ end;
 
 class function TDfmToFmxObject.DFMIsTextBased(ADfmFileName: String): Boolean;
 var
-  Sz: Int64;
-  Idx: integer;
-  DFMFile: TFileStream;
-  TestString: AnsiString;
+  DFMFile: TStreamReader;
 begin
   Result := false;
   if not FileExists(ADfmFileName) then
     Exit;
 
-  DFMFile := TFileStream.Create(ADfmFileName, fmOpenRead);
+  DFMFile := TStreamReader.Create(ADfmFileName);
   try
-    Sz := DFMFile.Size;
-    if Sz > 20 then
-    begin
-      SetLength(TestString, 20);
-      Idx := DFMFile.Read(TestString[1], 20);
-      if Idx <> 20 then
-        raise Exception.Create('Error Dfm file read');
-      if PosNoCase('object', String(TestString)) > 0 then
-        Result := true;
-      if not Result then
-      begin
-        try
-          TestString := AnsiString(CompressedUnicode(String(TestString)));
-          if PosNoCase('object', String(TestString)) > 0 then
-            Result := true;
-        except
-        end;
-      end;
-    end;
+    if Pos('object', DFMFile.ReadLine) > 0 then
+      Result := true;
   finally
     DFMFile.Free;
   end;
@@ -468,10 +448,10 @@ begin
 
   if IniAddProperties.Count > 0 then
     for i := 0 to Pred(FIniAddProperties.Count) do
-      Result := Result + APad +'  '+ StringReplace(FIniAddProperties[i], '=', ' = ', []) + CRLF;
+      Result := Result + APad + '  ' + StringReplace(FIniAddProperties[i], '=', ' = ', []) + CRLF;
   if IniDefaultValueProperties.Count > 0 then
     for i := 0 to Pred(FIniDefaultValueProperties.Count) do
-      Result := Result + APad +'  '+ StringReplace(FIniDefaultValueProperties.ValueFromIndex[i], '=', ' = ', []) + CRLF;
+      Result := Result + APad + '  ' + StringReplace(FIniDefaultValueProperties.ValueFromIndex[i], '=', ' = ', []) + CRLF;
 end;
 
 function TDfmToFmxObject.FMXSubObjects(APad: String): String;
@@ -489,10 +469,10 @@ end;
 
 function TDfmToFmxObject.GenPasFile(const APascalSourceFileName: String): AnsiString;
 var
-  PasFile: TFileStream;
-  PreUsesString, PostUsesString, UsesString: AnsiString;
+  PasFile: TStreamReader;
+  PreUsesString, PostUsesString, UsesString: String;
   UsesArray: TArrayOfStrings;
-  StartChr, EndChar: PAnsiChar;
+  StartChr, EndChar: PChar;
   Sz: integer;
   Idx: integer;
   s: String;
@@ -503,18 +483,10 @@ begin
   if not FileExists(APascalSourceFileName) then
     Exit;
 
-  PasFile := TFileStream.Create(APascalSourceFileName, fmOpenRead);
+  PasFile := TStreamReader.Create(APascalSourceFileName);
   try
-    Sz := PasFile.Size;
-    if Sz > 20 then
-    begin
-      SetLength(PreUsesString, Sz);
-      Idx := PasFile.Read(PreUsesString[1], Sz);
-      if Idx <> Sz then
-        raise Exception.Create('Error Pas file read');
-    end
-    else
-      PreUsesString := '';
+    PreUsesString := PasFile.ReadToEnd;
+    Sz := Length(PreUsesString);
   finally
     PasFile.Free;
   end;
@@ -524,17 +496,17 @@ begin
     Idx := PosNoCase('uses', String(PreUsesString));
     StartChr := @PreUsesString[Idx + 4];
     s := ';';
-    EndChar := StrPos(StartChr, PAnsiChar(s));
+    EndChar := StrPos(StartChr, PChar(s));
     UsesArray := GetArrayFromString(StringReplace(Copy(String(PreUsesString), Idx + 4, EndChar - StartChr), CRLF, '', [rfReplaceAll]), ',');
     PostUsesString := Copy(PreUsesString, EndChar - StartChr + Idx + 4, Sz);
-    PostUsesString := AnsiString(ProcessCodeBody(String(PostUsesString)));
+    PostUsesString := ProcessCodeBody(PostUsesString);
 
-    PostUsesString := AnsiString(Copy(String(PostUsesString), 1, Pos('TBindSourceDB', String(PostUsesString)) + 15) +
+    PostUsesString := Copy(PostUsesString, 1, Pos('TBindSourceDB', PostUsesString) + 15) +
       GetPASLiveBindings +
-      Copy(String(PostUsesString), Pos('TBindSourceDB', String(PostUsesString)) + 15));
+      Copy(PostUsesString, Pos('TBindSourceDB', PostUsesString) + 15);
 
     SetLength(PreUsesString, Pred(Idx));
-    UsesString := AnsiString(ProcessUsesString(UsesArray));
+    UsesString := ProcessUsesString(UsesArray);
   end;
   Result := PreUsesString + UsesString + PostUsesString;
 end;
@@ -699,7 +671,7 @@ var
   Idx: Integer;
   TransArray: TArrayOfStrings;
 begin
-  BdyStr := StringReplace(ACodeBody, AnsiString('{$R *.DFM}'), AnsiString('{$R *.FMX}'), [rfIgnoreCase]);
+  BdyStr := StringReplace(ACodeBody, '{$R *.DFM}', '{$R *.FMX}', [rfIgnoreCase]);
   if FIniObjectTranslations <> nil then
   begin
     for Idx := 0 to FIniObjectTranslations.Count-1 do
@@ -738,18 +710,18 @@ begin
 end;
 
 { Eduardo }
-procedure TDfmToFmxObject.ReadItems(Prop: TTwoDArrayOfString; APropertyIdx: integer; AStm: TStream);
+procedure TDfmToFmxObject.ReadItems(Prop: TTwoDArrayOfString; APropertyIdx: integer; AStm: TStreamReader);
 var
   Data: String;
   saTemp: Array of String;
   sTemp: String;
 begin
-  Data := Trim(ReadLineFrmStream(AStm));
+  Data := Trim(AStm.ReadLine);
   while not EndsText('>', Data) do
   begin
     SetLength(saTemp, Succ(Length(saTemp)));
     saTemp[Pred(Length(saTemp))] := Data;
-    Data := Trim(ReadLineFrmStream(AStm));
+    Data := Trim(AStm.ReadLine);
   end;
   SetLength(saTemp, Succ(Length(saTemp)));
   saTemp[Pred(Length(saTemp))] := Data;
@@ -759,34 +731,34 @@ begin
 end;
 
 { Eduardo }
-procedure TDfmToFmxObject.ReadData(Prop: TTwoDArrayOfString; APropertyIdx: integer; AStm: TStream);
+procedure TDfmToFmxObject.ReadData(Prop: TTwoDArrayOfString; APropertyIdx: integer; AStm: TStreamReader);
 var
   Data: String;
 begin
-  Data := Trim(ReadLineFrmStream(AStm));
+  Data := Trim(AStm.ReadLine);
   while not EndsText('}', Data) do
   begin
     Prop[APropertyIdx, 1] := Prop[APropertyIdx, 1] + Data;
-    Data := Trim(ReadLineFrmStream(AStm));
+    Data := Trim(AStm.ReadLine);
   end;
   Prop[APropertyIdx, 1] := Prop[APropertyIdx, 1] + Data;
 end;
 
 { Eduardo }
-procedure TDfmToFmxObject.ReadText(Prop: TTwoDArrayOfString; APropertyIdx: integer; AStm: TStream);
+procedure TDfmToFmxObject.ReadText(Prop: TTwoDArrayOfString; APropertyIdx: integer; AStm: TStreamReader);
 var
   Data: String;
 begin
-  Data := Trim(ReadLineFrmStream(AStm));
+  Data := Trim(AStm.ReadLine);
   while EndsText('+', Data) do
   begin
     Prop[APropertyIdx, 1] := Prop[APropertyIdx, 1] + Data;
-    Data := Trim(ReadLineFrmStream(AStm));
+    Data := Trim(AStm.ReadLine);
   end;
   Prop[APropertyIdx, 1] := Prop[APropertyIdx, 1] + Data;
 end;
 
-procedure TDfmToFmxObject.ReadProperties(AData: String; AStm: TStream; var AIdx: Integer);
+procedure TDfmToFmxObject.ReadProperties(AData: String; AStm: TStreamReader; var AIdx: Integer);
 begin
   PropertyArray(AIdx);
   F2DPropertyArray[AIdx] := GetArrayFromString(AData, '=');
@@ -843,7 +815,7 @@ var
       Exit(True);
     end;
 
-    if (EnumName = '') or not FEnumList.TryGetValue(EnumName, EnumItems) then
+    if (EnumName = '') then
       Exit;
 
     Item := EnumItems.IndexOfName(ACurrentValue);
@@ -942,19 +914,19 @@ end;
 
 function TDfmToFmxObject.WriteFMXToFile(const AFmxFileName: String): Boolean;
 var
-  OutFile: TFileStream;
-  s: AnsiString;
+  OutFile: TStreamWriter;
+  s: String;
 begin
-  s := AnsiString(FMXFile);
-  if String(s).IsEmpty then
+  s := FMXFile;
+  if s.IsEmpty then
     raise Exception.Create('There is no data for the file FMX!');
 
   if FileExists(AFmxFileName) then
     RenameFile(AFmxFileName, ChangeFileExt(AFmxFileName, '.fbk'));
 
-  OutFile := TFileStream.Create(AFmxFileName, fmCreate);
+  OutFile := TStreamWriter.Create(AFmxFileName, {Append} False, TEncoding.UTF8);
   try
-    OutFile.Write(s[1], Length(s));
+    OutFile.Write(s);
     Result := True;
   finally
     OutFile.Free;
@@ -963,22 +935,21 @@ end;
 
 function TDfmToFmxObject.WritePasToFile(const APasOutFileName, APascalSourceFileName: String): Boolean;
 var
-  OutFile: TFileStream;
-  s: AnsiString;
+  OutFile: TStreamWriter;
+  s: String;
 begin
   if not FileExists(APascalSourceFileName) then
-    raise Exception.Create('Pascal Source:' + APascalSourceFileName +
-      ' Does not Exist');
+    raise Exception.Create('Pascal Source:' + APascalSourceFileName + ' Does not Exist');
 
   s := GenPasFile(APascalSourceFileName);
   if s = '' then
     raise Exception.Create('No Data for Pas File');
-  s := AnsiString(StringReplace(String(s), ChangeFileExt(ExtractFileName(APascalSourceFileName), EmptyStr), ChangeFileExt(ExtractFileName(APasOutFileName), ''), [rfIgnoreCase]));
+  s := StringReplace(s, ChangeFileExt(ExtractFileName(APascalSourceFileName), ''), ChangeFileExt(ExtractFileName(APasOutFileName), ''), [rfIgnoreCase]);
   if FileExists(APasOutFileName) then
     RenameFile(APasOutFileName, ChangeFileExt(APasOutFileName, '.bak'));
-  OutFile := TFileStream.Create(APasOutFileName, fmCreate);
+  OutFile := TStreamWriter.Create(APasOutFileName, {Append} False, TEncoding.UTF8);
   try
-    OutFile.Write(s[1], Length(s));
+    OutFile.Write(s);
     Result := true;
   finally
     OutFile.Free;
@@ -987,7 +958,7 @@ end;
 
 { TDfmToFmxListItem }
 
-constructor TDfmToFmxListItem.Create(AOwner: TDfmToFmxObject; APropertyIdx: integer; AStm: TStream; ADepth: integer);
+constructor TDfmToFmxListItem.Create(AOwner: TDfmToFmxObject; APropertyIdx: integer; AStm: TStreamReader; ADepth: integer);
 var
   Data: String;
   i,LoopCount: integer;
@@ -998,19 +969,19 @@ begin
   FDepth := ADepth;
   Data   := EmptyStr;
   LoopCount := 55;
-  while (LoopCount > 0) and (Pos(AnsiString('end'),Data) <> 1)  do
+  while (LoopCount > 0) and (Pos('end',Data) <> 1)  do
   Begin
     Dec(LoopCount);
-    if Pos(AnsiString('object'), Data) = 1 then
+    if Pos('object', Data) = 1 then
       OwnedObjs.Add(TDfmToFmxObject.Create(Data, AStm, FDepth + 1))
     else
       ReadProperties(Data,AStm,i);
-    Data := Trim(ReadLineFrmStream(AStm));
+    Data := Trim(AStm.ReadLine);
     if (Data <> EmptyStr) then
       LoopCount := 55;
   end;
   SetLength(F2DPropertyArray, FPropertyMax + 1);
-  FHasMore := (Pos(AnsiString('end'),Data)=1) and not (Pos(AnsiString('end>'),Data) = 1);
+  FHasMore := (Pos('end',Data)=1) and not (Pos('end>',Data) = 1);
 end;
 
 end.

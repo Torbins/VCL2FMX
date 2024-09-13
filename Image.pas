@@ -111,20 +111,22 @@ end;
 
 function ImageToHex(Image:FMX.Objects.TImage; LineLen:integer): String;
 var
-  ms:TMemoryStream;
-  s:String;
-  t:Ansistring;
+  ms: TMemoryStream;
+  s, t: String;
+  LineNum: Integer;
 begin
   ms := TMemoryStream.Create;
   try
     image.Bitmap.SaveToStream(ms);
     SetLength(t, ms.Size * 2);
-    BinToHex(ms.Memory^, Pansichar(t), ms.Size);
+    BinToHex(ms.Memory^, PChar(t), ms.Size);
+    LineNum := 0;
     repeat
-      s := Copy(String(t), 1, LineLen);
-      Result := Result + sLineBreak + FPad +'        '+ s;
-      Delete(t, 1, LineLen);
-    until t = '';
+      s := Copy(t, LineLen * LineNum + 1, LineLen);
+      if s <> '' then
+        Result := Result + sLineBreak + FPad + '        ' + s;
+      Inc(LineNum);
+    until Length(s) < LineLen;
   finally
     ms.Free;
   end;

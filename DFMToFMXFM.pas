@@ -48,7 +48,7 @@ type
     Procedure RegIniLoad;
     Procedure RegIniSave;
     Procedure UpdateForm;
-    function MyMessageDialog(const AMessage: string; const ADialogType: TMsgDlgType; const AButtons: TMsgDlgButtons; const ADefaultButton: TMsgDlgBtn): Integer;
+    procedure SaveFiles;
   end;
 
 var
@@ -97,17 +97,15 @@ end;
 procedure TDFMtoFMXConvert.BtnProcessClick(Sender: TObject);
 var
   Data: String;
-  Stm: TStringStream;
+  Stm: TStreamReader;
 begin
   if mmInput.Text <> EmptyStr then
   begin
     FreeAndNil(DFMObj);
     Data := mmInput.Text;
-    Stm := TStringStream.Create;
-    Stm.LoadFromFile(FInDfmFileName);
-    Stm.Seek(0,soFromBeginning);
+    Stm := TStreamReader.Create(FInDfmFileName);
     try
-      Data := Trim(ReadLineFrmStream(Stm));
+      Data := Trim(Stm.ReadLine);
       if Pos('object', Data) = 1 then
         DFMObj := TDfmToFmxObject.Create(Data, Stm, 0);
     finally
@@ -122,30 +120,6 @@ begin
   mmOutput.Text := DFMObj.FMXFile;
   BtnProcess.Enabled := False;
   UpdateForm;
-end;
-
-function TDFMtoFMXConvert.MyMessageDialog(const AMessage: string; const ADialogType: TMsgDlgType; const AButtons: TMsgDlgButtons; const ADefaultButton: TMsgDlgBtn): Integer;
-var
-  mr: TModalResult;
-begin
-  mr := mrNone;
-
-  TDialogService.MessageDialog(
-    AMessage,
-    ADialogType,
-    AButtons,
-    ADefaultButton,
-    0,
-    procedure (const AResult: TModalResult)
-    begin
-      mr := AResult
-    end
-  );
-
-  while mr = mrNone do // wait for modal result
-    Application.ProcessMessages;
-
-  Result := mr;
 end;
 
 procedure TDFMtoFMXConvert.BtnSaveFMXClick(Sender: TObject);
@@ -168,29 +142,37 @@ begin
       FOutFmxFileName := ChangeFileExt(FOutPasFileName, '.fmx');
 
       if FileExists(FOutFmxFileName) or FileExists(FOutPasFileName) then
-      begin
-        if myMessageDialog(
+        TDialogService.MessageDialog(
           'Replace Existing Files: '+ FOutFmxFileName +' and/or '+ FOutPasFileName,
           TMsgDlgType.mtWarning,
           [TMsgDlgBtn.mbOK, TMsgDlgBtn.mbCancel],
-          TMsgDlgBtn.mbOK) = mrOk then
+          TMsgDlgBtn.mbOK, 0, procedure (const AResult: TModalResult)
         begin
-          DeleteFile(FOutFmxFileName);
-          DeleteFile(FOutPasFileName);
-        end;
-      end;
+          if AResult = mrOk then
+          begin
+            DeleteFile(FOutFmxFileName);
+            DeleteFile(FOutPasFileName);
+          end;
 
-      if FileExists(FOutFmxFileName) then
-        raise Exception.Create(FOutFmxFileName + 'Already exists');
-
-      DFMObj.WriteFMXToFile(FOutFmxFileName);
-
-      if FileExists(FOutPasFileName) then
-        raise Exception.Create(FOutPasFileName + 'Already exists');
-
-      DFMObj.WritePasToFile(FOutPasFileName, FInPasFileName);
+          SaveFiles;
+        end)
+        else
+          SaveFiles;
     end;
   end;
+end;
+
+procedure TDFMtoFMXConvert.SaveFiles;
+begin
+  if FileExists(FOutFmxFileName) then
+    raise Exception.Create(FOutFmxFileName + 'Already exists');
+
+  DFMObj.WriteFMXToFile(FOutFmxFileName);
+
+  if FileExists(FOutPasFileName) then
+    raise Exception.Create(FOutPasFileName + 'Already exists');
+
+  DFMObj.WritePasToFile(FOutPasFileName, FInPasFileName);
 end;
 
 procedure TDFMtoFMXConvert.FormClose(Sender: TObject; var Action: TCloseAction);
