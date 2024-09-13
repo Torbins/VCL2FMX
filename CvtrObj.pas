@@ -304,7 +304,7 @@ begin
     Exit(EmptyStr);
 
   // Adiciona BindingsList
-  Result := '    BindingsList: TBindingsList; ';
+  Result := CRLF + '    BindingsList: TBindingsList; ';
 
   // Passa pela lista de controles
   for I := 0 to High(FLinkControlList) do
@@ -538,14 +538,16 @@ begin
 end;
 
 function TDfmToFmxObject.GenPasFile(const APascalSourceFileName: String): String;
+const
+  cUses = 'uses';
+  cUsesLen = Length(cUses);
+  cBindSrc = 'TBindSourceDB;';
+  cBindSrsLen = Length(cBindSrc);
 var
   PasFile: TStreamReader;
   PreUsesString, PostUsesString, UsesString: String;
   UsesArray: TArrayOfStrings;
-  StartChr, EndChar: PChar;
-  Sz: integer;
-  Idx: integer;
-  s: String;
+  StartPos, EndPos, BindInsertPos: Integer;
 begin
   Result := '';
   PostUsesString := '';
@@ -556,26 +558,27 @@ begin
   PasFile := TStreamReader.Create(APascalSourceFileName);
   try
     PreUsesString := PasFile.ReadToEnd;
-    Sz := Length(PreUsesString);
   finally
     PasFile.Free;
   end;
 
-  if Sz > 20 then
+  if Length(PreUsesString) > 20 then
   begin
-    Idx := PosNoCase('uses', String(PreUsesString));
-    StartChr := @PreUsesString[Idx + 4];
-    s := ';';
-    EndChar := StrPos(StartChr, PChar(s));
-    UsesArray := GetArrayFromString(StringReplace(Copy(PreUsesString, Idx + 4, EndChar - StartChr), CRLF, '', [rfReplaceAll]), ',');
-    PostUsesString := Copy(PreUsesString, EndChar - StartChr + Idx + 4, Sz);
+    StartPos := PosNoCase(cUses, PreUsesString) + cUsesLen;
+    EndPos := Pos(';', PreUsesString, StartPos);
+    UsesArray := GetArrayFromString(StringReplace(Copy(PreUsesString, StartPos, EndPos - StartPos), CRLF, '', [rfReplaceAll]), ',');
+    PostUsesString := Copy(PreUsesString, EndPos);
     PostUsesString := ProcessCodeBody(PostUsesString);
 
-    PostUsesString := Copy(PostUsesString, 1, Pos('TBindSourceDB', PostUsesString) + 15) +
-      GetPASLiveBindings +
-      Copy(PostUsesString, Pos('TBindSourceDB', PostUsesString) + 15);
+    BindInsertPos := Pos(cBindSrc, PostUsesString) + cBindSrsLen;
+    if BindInsertPos = cBindSrsLen then
+    begin
+      BindInsertPos := PosNoCase(FDFMClass, PostUsesString);
+      BindInsertPos := Pos(')', PostUsesString, BindInsertPos);
+    end;
+    PostUsesString := Copy(PostUsesString, 1, BindInsertPos) + GetPASLiveBindings + Copy(PostUsesString, BindInsertPos + 1);
 
-    SetLength(PreUsesString, Pred(Idx));
+    SetLength(PreUsesString, Pred(StartPos) - cUsesLen);
     UsesString := ProcessUsesString(UsesArray);
   end;
   Result := PreUsesString + UsesString + PostUsesString;
