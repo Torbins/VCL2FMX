@@ -16,7 +16,7 @@ type
 
 function GetArrayFromString(const S: String; SepVal: Char; ARemoveQuote: Boolean = false; ATrim: Boolean = True; ADropNulls: Boolean = false): TArrayOfStrings; overload;
 function FieldSep(var ss: PChar; SepVal: Char): String; overload;
-function PosNoCase(const ASubstr: String; AFullString: String): Integer; overload;
+function PosNoCase(const ASubstr: String; AFullString: String; Offset: Integer = 1): Integer; overload;
 procedure PopulateStringsFromArray(AStrings: TStrings; AArray: TArrayOfStrings);
 
 const
@@ -146,7 +146,7 @@ begin
     Result := '';
 end;
 
-function PosNoCase(const ASubstr: String; AFullString: String): Integer;
+function PosNoCase(const ASubstr: String; AFullString: String; Offset: Integer = 1): Integer;
 var
   Substr: String;
   S: String;
@@ -158,7 +158,7 @@ begin
   end;
   Substr := AnsiLowerCase(ASubstr);
   S := AnsiLowerCase(AFullString);
-  Result := AnsiPos(Substr, S);
+  Result := Pos(Substr, S, Offset);
 end;
 
 procedure PopulateStringsFromArray(AStrings: TStrings; AArray: TArrayOfStrings);

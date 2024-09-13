@@ -36,6 +36,10 @@ type
   end;
 
   TEnumList = TObjectDictionary<String,TStringList>;
+  TDfmToFmxObject = class;
+  TOwnedObjects = TObjectList<TDfmToFmxObject>;
+  TDfmToFmxListItem = class;
+  TOwnedItems = TObjectList<TDfmToFmxListItem>;
 
   TDfmToFmxObject = class(TObject)
   private
@@ -43,9 +47,10 @@ type
     FLinkGridList: TArray<TLinkGrid>;
     FDFMClass: String;
     FObjName: String;
-    FOwnedObjs: TObjectList;
-    FOwnedItems: TObjectList;
+    FOwnedObjs: TOwnedObjects;
+    FOwnedItems: TOwnedItems;
     FDepth: integer;
+    FGenerated: Boolean;
     F2DPropertyArray: TTwoDArrayOfString;
     FPropertyArraySz, FPropertyMax: integer;
     FIniReplaceValues,
@@ -58,7 +63,7 @@ type
     FEnumList: TEnumList;
     FIni: TMemIniFile;
     FOriginalIni: TMemIniFile;
-    function OwnedObjs: TObjectList;
+    function OwnedObjs: TOwnedObjects;
     function IniObjectTranslations: TStringList;
     function IniSectionValues: TStringlist;
     function UsesTranslation: TStringlist;
@@ -82,8 +87,10 @@ type
     function GetFMXLiveBindings: String;
     function GetPASLiveBindings: String;
     procedure ReadText(Prop: TTwoDArrayOfString; APropertyIdx: integer; AStm: TStreamReader);
+    procedure GenerateObject(ACurrentName, ACurrentValue: String);
   public
     constructor Create(ACreateText: String; AStm: TStreamReader; ADepth: integer);
+    constructor CreateGenerated(AObjName, ADFMClass: String; ADepth: integer; AIni: TMemIniFile);
     destructor Destroy; override;
     procedure LoadInfileDefs(AIniFileName: String);
     class function DFMIsTextBased(ADfmFileName: String): Boolean;
@@ -91,7 +98,7 @@ type
     function FMXFile(APad: String = ''): String;
     function WriteFMXToFile(const AFmxFileName: String): Boolean;
     function WritePasToFile(const APasOutFileName, APascalSourceFileName: String): Boolean;
-    procedure LiveBindings(DfmObject: TObjectList = nil);
+    procedure LiveBindings(DfmObject: TOwnedObjects = nil);
   end;
 
   TDfmToFmxListItem = class(TDfmToFmxObject)
@@ -114,12 +121,11 @@ const
 { DfmToFmxObject }
 
 { Eduardo }
-procedure TDfmToFmxObject.LiveBindings(DfmObject: TObjectList = nil);
+procedure TDfmToFmxObject.LiveBindings(DfmObject: TOwnedObjects = nil);
 var
   I,J: Integer;
   sFields: String;
   obj: TDfmToFmxObject;
-  bItem: Boolean;
   sItem: String;
   slItem: TStringDynArray;
 begin
@@ -132,91 +138,86 @@ begin
   // Passa por todos objetos filhos
   for I := 0 to Pred(DfmObject.Count) do
   begin
-    // Se for de conversão
-    if DfmObject[I] is TDfmToFmxObject then
+    // Obtem o objeto
+    obj := DfmObject[I];
+
+    // Se for uma grid
+    if obj.FDFMClass.Equals('TDBGrid') then
     begin
-      // Obtem o objeto
-      obj := TDfmToFmxObject(DfmObject[I]);
+      // Inicializa
+      sFields := EmptyStr;
 
-      // Se for uma grid
-      if obj.FDFMClass.Equals('TDBGrid') then
+      // Cria um novo item na lista de grids
+      SetLength(FLinkGridList, Succ(Length(FLinkGridList)));
+
+      // Insere o nome da grid
+      FLinkGridList[Pred(Length(FLinkGridList))].GridControl := obj.FObjName;
+
+      // Passa por todas propriedades da grid
+      for J := Low(obj.F2DPropertyArray) to High(obj.F2DPropertyArray) do
       begin
-        // Inicializa
-        sFields := EmptyStr;
+        // Obtem os dados do DataSource
+        if obj.F2DPropertyArray[J, 0].Equals('DataSource') then
+          FLinkGridList[Pred(Length(FLinkGridList))].DataSource := obj.F2DPropertyArray[J, 1];
 
-        // Cria um novo item na lista de grids
-        SetLength(FLinkGridList, Succ(Length(FLinkGridList)));
-
-        // Insere o nome da grid
-        FLinkGridList[Pred(Length(FLinkGridList))].GridControl := obj.FObjName;
-
-        // Passa por todas propriedades da grid
-        for J := Low(obj.F2DPropertyArray) to High(obj.F2DPropertyArray) do
+        // Se for as colunas
+        if obj.F2DPropertyArray[J, 0].Equals('Columns') then
         begin
-          // Obtem os dados do DataSource
-          if obj.F2DPropertyArray[J, 0].Equals('DataSource') then
-            FLinkGridList[Pred(Length(FLinkGridList))].DataSource := obj.F2DPropertyArray[J, 1];
+          // Obtem os dados dos fields
+          sFields := obj.F2DPropertyArray[J, 1];
 
-          // Se for as colunas
-          if obj.F2DPropertyArray[J, 0].Equals('Columns') then
+          slItem := SplitString(sFields, #13);
+          for sItem in slItem do
           begin
-            // Obtem os dados dos fields
-            bItem := False;
-            sFields := obj.F2DPropertyArray[J, 1];
-
-            slItem := SplitString(sFields, #13);
-            for sItem in slItem do
-            begin
-              if sItem = 'item' then
-                SetLength(FLinkGridList[Pred(Length(FLinkGridList))].Columns, Succ(Length(FLinkGridList[Pred(Length(FLinkGridList))].Columns)))
-              else
-              if Trim(SplitString(sItem, '=')[0]) = 'Title.Caption' then
-                FLinkGridList[Pred(Length(FLinkGridList))].Columns[Pred(Length(FLinkGridList[Pred(Length(FLinkGridList))].Columns))].Caption := Trim(SplitString(sItem, '=')[1])
-              else
-              if Trim(SplitString(sItem, '=')[0]) = 'FieldName' then
-                FLinkGridList[Pred(Length(FLinkGridList))].Columns[Pred(Length(FLinkGridList[Pred(Length(FLinkGridList))].Columns))].FieldName := Trim(SplitString(sItem, '=')[1])
-              else
-              if Trim(SplitString(sItem, '=')[0]) = 'Width' then
-                FLinkGridList[Pred(Length(FLinkGridList))].Columns[Pred(Length(FLinkGridList[Pred(Length(FLinkGridList))].Columns))].Width := Trim(SplitString(sItem, '=')[1]);
-            end;
+            if sItem = 'item' then
+              SetLength(FLinkGridList[Pred(Length(FLinkGridList))].Columns, Succ(Length(FLinkGridList[Pred(Length(FLinkGridList))].Columns)))
+            else
+            if Trim(SplitString(sItem, '=')[0]) = 'Title.Caption' then
+              FLinkGridList[Pred(Length(FLinkGridList))].Columns[Pred(Length(FLinkGridList[Pred(Length(FLinkGridList))].Columns))].Caption := Trim(SplitString(sItem, '=')[1])
+            else
+            if Trim(SplitString(sItem, '=')[0]) = 'FieldName' then
+              FLinkGridList[Pred(Length(FLinkGridList))].Columns[Pred(Length(FLinkGridList[Pred(Length(FLinkGridList))].Columns))].FieldName := Trim(SplitString(sItem, '=')[1])
+            else
+            if Trim(SplitString(sItem, '=')[0]) = 'Width' then
+              FLinkGridList[Pred(Length(FLinkGridList))].Columns[Pred(Length(FLinkGridList[Pred(Length(FLinkGridList))].Columns))].Width := Trim(SplitString(sItem, '=')[1]);
           end;
-          
-          // Se ja encontrou tudo, sai do loop
-          if not FLinkGridList[Pred(Length(FLinkGridList))].DataSource.IsEmpty and not sFields.IsEmpty then
-            Break;
         end;
+
+        // Se ja encontrou tudo, sai do loop
+        if not FLinkGridList[Pred(Length(FLinkGridList))].DataSource.IsEmpty and not sFields.IsEmpty then
+          Break;
       end;
-
-      // Se for um dbedit
-      if obj.FDFMClass.Equals('TDBEdit') then
-      begin
-        // Cria um novo item na lista de dbedits
-        SetLength(FLinkControlList, Succ(Length(FLinkControlList)));
-
-        // Insere o nome do dbedit
-        FLinkControlList[Pred(Length(FLinkControlList))].Control := obj.FObjName;
-
-        // Passa por todas propriedades do dbedit
-        for J := Low(obj.F2DPropertyArray) to High(obj.F2DPropertyArray) do
-        begin
-          // Obtem os dados do DataSource
-          if obj.F2DPropertyArray[J, 0].Equals('DataSource') then
-            FLinkControlList[Pred(Length(FLinkControlList))].DataSource := obj.F2DPropertyArray[J, 1];
-
-          // Obtem os dados do field
-          if obj.F2DPropertyArray[J, 0].Equals('DataField') then
-            FLinkControlList[Pred(Length(FLinkControlList))].FieldName := GetArrayFromString(obj.F2DPropertyArray[J, 1], '=', True, True)[0];
-
-          // Se ja encontrou tudo, sai do loop
-          if not FLinkControlList[Pred(Length(FLinkControlList))].DataSource.IsEmpty and not FLinkControlList[Pred(Length(FLinkControlList))].FieldName.IsEmpty then
-            Break;
-        end;
-      end;
-
-      // Se o componente atual possui componentes nele, faz recursão
-      if Assigned(obj.FOwnedObjs) and (obj.FOwnedObjs.Count > 0) then
-        LiveBindings(obj.FOwnedObjs);
     end;
+
+    // Se for um dbedit
+    if obj.FDFMClass.Equals('TDBEdit') then
+    begin
+      // Cria um novo item na lista de dbedits
+      SetLength(FLinkControlList, Succ(Length(FLinkControlList)));
+
+      // Insere o nome do dbedit
+      FLinkControlList[Pred(Length(FLinkControlList))].Control := obj.FObjName;
+
+      // Passa por todas propriedades do dbedit
+      for J := Low(obj.F2DPropertyArray) to High(obj.F2DPropertyArray) do
+      begin
+        // Obtem os dados do DataSource
+        if obj.F2DPropertyArray[J, 0].Equals('DataSource') then
+          FLinkControlList[Pred(Length(FLinkControlList))].DataSource := obj.F2DPropertyArray[J, 1];
+
+        // Obtem os dados do field
+        if obj.F2DPropertyArray[J, 0].Equals('DataField') then
+          FLinkControlList[Pred(Length(FLinkControlList))].FieldName := GetArrayFromString(obj.F2DPropertyArray[J, 1], '=', True, True)[0];
+
+        // Se ja encontrou tudo, sai do loop
+        if not FLinkControlList[Pred(Length(FLinkControlList))].DataSource.IsEmpty and not FLinkControlList[Pred(Length(FLinkControlList))].FieldName.IsEmpty then
+          Break;
+      end;
+    end;
+
+    // Se o componente atual possui componentes nele, faz recursão
+    if Assigned(obj.FOwnedObjs) and (obj.FOwnedObjs.Count > 0) then
+      LiveBindings(obj.FOwnedObjs);
   end;
 end;
 
@@ -366,6 +367,15 @@ begin
   SetLength(F2DPropertyArray, FPropertyMax + 1);
 end;
 
+constructor TDfmToFmxObject.CreateGenerated(AObjName, ADFMClass: String; ADepth: integer; AIni: TMemIniFile);
+begin
+  FDepth := ADepth;
+  FObjName := AObjName;
+  FDFMClass := ADFMClass;
+  FGenerated := True;
+  IniFileLoad(AIni);
+end;
+
 destructor TDfmToFmxObject.Destroy;
 begin
   SetLength(F2DPropertyArray, 0);
@@ -412,9 +422,12 @@ begin
   Result := Result + FMXProperties(APad);
   Result := Result + FMXSubObjects(APad +' ');
   if APad = EmptyStr then
-    Result := Result + GetFMXLiveBindings + CRLF + APad +'end' + CRLF
-  else
-    Result := Result + APad +'end' + CRLF;
+  begin
+    var lb := GetFMXLiveBindings;
+    if lb <> '' then
+      Result := Result + lb + CRLF;
+  end;
+  Result := Result + APad +'end' + CRLF;
 end;
 
 function TDfmToFmxObject.FMXProperties(APad: String): String;
@@ -463,11 +476,68 @@ begin
     Exit;
 
   for I := 0 to Pred(FOwnedObjs.Count) do
-    if FOwnedObjs[I] is TDfmToFmxObject then
-      Result := Result + TDfmToFmxObject(FOwnedObjs[I]).FMXFile(APad +' ');
+    Result := Result + FOwnedObjs[I].FMXFile(APad +' ');
 end;
 
-function TDfmToFmxObject.GenPasFile(const APascalSourceFileName: String): AnsiString;
+procedure TDfmToFmxObject.GenerateObject(ACurrentName, ACurrentValue: String);
+
+  procedure GenerateProperty(ACurrentName, ACurrentValue: String);
+  var
+    PropLine, i: Integer;
+    Obj: TDfmToFmxObject;
+  begin
+    Obj := FOwnedObjs[0];
+
+    PropLine := -1;
+    for i := 0 to High(Obj.F2DPropertyArray) do
+      if (Obj.F2DPropertyArray[i] = nil) or (Obj.F2DPropertyArray[i, 0] = ACurrentName) then
+      begin
+        PropLine := i;
+        Break;
+      end;
+
+    if PropLine = -1 then
+    begin
+      PropLine := Length(Obj.F2DPropertyArray);
+      Obj.PropertyArray(PropLine);
+    end;
+
+    if Obj.F2DPropertyArray[PropLine] = nil then
+    begin
+      SetLength(Obj.F2DPropertyArray[PropLine], 2);
+      Obj.F2DPropertyArray[PropLine, 0] := ACurrentName;
+    end;
+
+    Obj.F2DPropertyArray[PropLine, 1] := ACurrentValue;
+  end;
+
+begin
+  if FDFMClass = 'TPanel' then
+  begin
+    if (OwnedObjs.Count = 0) or not FOwnedObjs[0].FGenerated then
+    begin
+      FOwnedObjs.Insert(0, TDfmToFmxObject.CreateGenerated(FObjName + '_Caption', 'TLabel', FDepth + 1, FIni));
+
+      GenerateProperty('Align', 'alClient');
+      GenerateProperty('TabStop', 'False');
+      GenerateProperty('Alignment', 'taCenter');
+      GenerateProperty('Layout', 'tlCenter');
+    end;
+
+    if ACurrentName = 'ShowCaption' then
+      GenerateProperty('Visible', ACurrentValue)
+    else
+    if ACurrentName = 'VerticalAlignment' then
+    begin
+      if ACurrentValue = 'taAlignBottom' then
+        GenerateProperty('Layout', 'tlBottom'); //Center is default for panel and top - for label
+    end
+    else
+      GenerateProperty(ACurrentName, ACurrentValue);
+  end;
+end;
+
+function TDfmToFmxObject.GenPasFile(const APascalSourceFileName: String): String;
 var
   PasFile: TStreamReader;
   PreUsesString, PostUsesString, UsesString: String;
@@ -497,7 +567,7 @@ begin
     StartChr := @PreUsesString[Idx + 4];
     s := ';';
     EndChar := StrPos(StartChr, PChar(s));
-    UsesArray := GetArrayFromString(StringReplace(Copy(String(PreUsesString), Idx + 4, EndChar - StartChr), CRLF, '', [rfReplaceAll]), ',');
+    UsesArray := GetArrayFromString(StringReplace(Copy(PreUsesString, Idx + 4, EndChar - StartChr), CRLF, '', [rfReplaceAll]), ',');
     PostUsesString := Copy(PreUsesString, EndChar - StartChr + Idx + 4, Sz);
     PostUsesString := ProcessCodeBody(PostUsesString);
 
@@ -612,13 +682,11 @@ begin
   end;
 
   for i := 0 to Pred(OwnedObjs.Count) do
-    if OwnedObjs[i] is TDfmToFmxObject then
-      TDfmToFmxObject(OwnedObjs[i]).IniFileLoad(AIni);
+    FOwnedObjs[i].IniFileLoad(AIni);
 
   if FOwnedItems <> nil then
     for i := 0 to Pred(fOwnedItems.Count) do
-     if fOwnedItems[i] is TDfmToFmxListItem then
-       TDfmToFmxListItem(fOwnedItems[i]).IniFileLoad(AIni);
+      fOwnedItems[i].IniFileLoad(AIni);
 end;
 
 function TDfmToFmxObject.IniIncludeValues: TStringlist;
@@ -655,17 +723,41 @@ begin
   IniFileLoad(FOriginalIni);
 end;
 
-function TDfmToFmxObject.OwnedObjs: TObjectList;
+function TDfmToFmxObject.OwnedObjs: TOwnedObjects;
 begin
   if FOwnedObjs = nil then
-  begin
-    FOwnedObjs := TObjectList.Create;
-    FOwnedObjs.OwnsObjects := true;
-  end;
+    FOwnedObjs := TOwnedObjects.Create({AOwnsObjects} True);
   Result := FOwnedObjs;
 end;
 
 function TDfmToFmxObject.ProcessCodeBody(const ACodeBody: String): String;
+
+  procedure GenerateObjects(AParent: TDfmToFmxObject; var AStr: String);
+  var
+    i, ParentStart, ParentEnd: Integer;
+  begin
+    for I := 0 to Pred(AParent.FOwnedObjs.Count) do
+      if not AParent.FOwnedObjs[I].FGenerated then
+        GenerateObjects(AParent.FOwnedObjs[I], AStr)
+      else
+      begin
+        ParentStart := PosNoCase(AParent.FObjName, AStr);
+        if ParentStart = 0 then
+          raise Exception.Create('Can''t find parent control ' + AParent.FObjName + ' in form class');
+
+        ParentEnd := PosNoCase(CRLF, AStr, ParentStart);
+        if ParentEnd = 0 then
+          ParentEnd := PosNoCase(#13, AStr, ParentStart);
+        if ParentEnd = 0 then
+          ParentEnd := PosNoCase(#10, AStr, ParentStart);
+        if ParentEnd = 0 then
+          ParentEnd := ParentStart;
+
+        Insert(CRLF + '    ' + AParent.FOwnedObjs[I].FObjName + ': ' + AParent.FOwnedObjs[I].FDFMClass + ';', AStr,
+          ParentEnd);
+      end;
+  end;
+
 var
   BdyStr: String;
   Idx: Integer;
@@ -681,6 +773,8 @@ begin
         BdyStr := StringReplace(BdyStr, TransArray[0], TransArray[1], [rfReplaceAll,rfIgnoreCase]);
     end;
   end;
+  GenerateObjects(Self, BdyStr);
+
   Result := BdyStr;
 end;
 
@@ -817,6 +911,8 @@ var
 
     if (EnumName = '') then
       Exit;
+    if not FEnumList.TryGetValue(EnumName, EnumItems) then
+      raise Exception.Create('Required enum ' + EnumName + ' not found');
 
     Item := EnumItems.IndexOfName(ACurrentValue);
     if Item < 0 then
@@ -854,6 +950,12 @@ begin
       else
       if FDFMClass = 'TImageList' then
         Result := StringReplace(s, '#Class#', ProcessImageList(ACurrentValue, APad), [])
+    end
+    else
+    if Pos('#GenerateControl#', s) > 0 then
+    begin
+      GenerateObject(ACurrentName, ACurrentValue);
+      Result := EmptyStr;
     end
     else
     if not ReplaceEnum(Result) then
@@ -901,8 +1003,7 @@ begin
     Exit;
 
   for i := 0 to Pred(FOwnedObjs.Count) do
-    if FOwnedObjs[i] is TDfmToFmxObject then
-      TDfmToFmxObject(FOwnedObjs[i]).UpdateUsesStringList(AUsesList);
+    FOwnedObjs[i].UpdateUsesStringList(AUsesList);
 end;
 
 function TDfmToFmxObject.UsesTranslation: TStringlist;
