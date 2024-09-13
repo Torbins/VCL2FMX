@@ -113,7 +113,7 @@ type
 implementation
 
 uses
-  System.RegularExpressions;
+  System.RegularExpressions, Vcl.Graphics;
 
 const
   ContinueCode: String = '#$Continue$#';
@@ -882,7 +882,7 @@ var
 
   function ReplaceEnum(var ReplacementLine: String): Boolean;
   var
-    EnumNameStart, EnumNameEnd, Item: Integer;
+    EnumNameStart, EnumNameEnd, Item, ColorValue: Integer;
     EnumName, PropName, Value: String;
     EnumItems: TStringList;
   begin
@@ -915,10 +915,29 @@ var
       raise Exception.Create('Required enum ' + EnumName + ' not found');
 
     Item := EnumItems.IndexOfName(ACurrentValue);
-    if Item < 0 then
-      raise Exception.Create('Unknown item ' + ACurrentValue + ' in enum ' + EnumName);
+    if Item >= 0 then
+      Value := EnumItems.ValueFromIndex[Item]
+    else
+    begin
+      Item := EnumItems.IndexOfName('#UnknownValuesAllowed#');
+      if Item < 0 then
+        raise Exception.Create('Unknown item ' + ACurrentValue + ' in enum ' + EnumName)
+      else
+      begin
+        if EnumItems.ValueFromIndex[Item] = '#GenerateColorValue#' then
+          Value := 'x' + IntToHex(StrToUInt(ACurrentValue) or $FF000000)
+        else
+          Value := ACurrentValue;
+      end;
+    end;
 
-    ReplacementLine := PropName + ' = ' + EnumItems.ValueFromIndex[Item];
+    if Value = '#GenerateColorValue#' then
+    begin
+      ColorValue := ColorToRGB(StringToColor(ACurrentValue));
+      Value := 'x' + IntToHex(Cardinal(ColorValue) or $FF000000);
+    end;
+
+    ReplacementLine := PropName + ' = ' + Value;
     Result := True;
   end;
 
