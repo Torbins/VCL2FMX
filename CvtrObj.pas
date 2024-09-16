@@ -703,6 +703,12 @@ begin
       for i := 0 to Pred(CommonProps.Count) do
         if IniAddProperties.IndexOfName(CommonProps.Names[i]) = -1 then
           IniAddProperties.Add(CommonProps[i]);
+
+      CommonProps.Clear;
+      AIni.ReadSectionValues('CommonProperties#DefaultValueProperty', CommonProps);
+      for i := 0 to Pred(CommonProps.Count) do
+        if IniDefaultValueProperties.IndexOfName(CommonProps.Names[i]) = -1 then
+          IniDefaultValueProperties.Add(CommonProps[i]);
     finally
       CommonProps.Free;
       Candidates.Free;
