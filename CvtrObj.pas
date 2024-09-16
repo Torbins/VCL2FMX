@@ -885,7 +885,7 @@ var
 
   function ReplaceEnum(var ReplacementLine: String): Boolean;
   var
-    EnumNameStart, EnumNameEnd, Item, ColorValue: Integer;
+    EnumNameStart, EnumNameEnd, Item, ColorValue, FontSize: Integer;
     EnumName, PropName, Value: String;
     EnumItems: TStringList;
   begin
@@ -909,6 +909,14 @@ var
     begin
       Value := Copy(s, EnumNameEnd + 1);
       ReplacementLine := PropName + ' = ' + Value;
+      Exit(True);
+    end;
+
+    if EnumName = '#ConvertFontSize#' then
+    begin
+      FontSize := StrToInt(ACurrentValue);
+      FontSize := -MulDiv(FontSize, 72, 96);
+      ReplacementLine := PropName + ' = ' + IntToStr(FontSize);
       Exit(True);
     end;
 
