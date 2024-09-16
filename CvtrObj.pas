@@ -431,6 +431,36 @@ begin
 end;
 
 function TDfmToFmxObject.FMXProperties(APad: String): String;
+
+  procedure HandleStyledSettings(AExcludeElement: String; var ACurrentVal: String);
+  var
+    PropPos, SetStart, SetEnd: Integer;
+    SetVal: String;
+  begin
+    SetStart := 0;
+    SetEnd := 0;
+    PropPos := Pos('StyledSettings', ACurrentVal);
+
+    if PropPos = 0 then
+      SetVal := '[Family, Size, Style, FontColor, Other]'
+    else
+    begin
+      SetStart := Pos('[', ACurrentVal, PropPos);
+      SetEnd := Pos(']', ACurrentVal, SetStart);
+      SetVal := Copy(ACurrentVal, SetStart, SetEnd - SetStart + 1);
+    end;
+
+    SetVal := ReplaceStr(SetVal, AExcludeElement, '');
+    SetVal := ReplaceStr(SetVal, '[, ', '[');
+    SetVal := ReplaceStr(SetVal, ', , ', ', ');
+    SetVal := ReplaceStr(SetVal, ', ]', ']');
+
+    if PropPos = 0 then
+      ACurrentVal := ACurrentVal + APad + '  StyledSettings = ' + SetVal + CRLF
+    else
+      ACurrentVal := Copy(ACurrentVal, 1, SetStart - 1) + SetVal + Copy(ACurrentVal, SetEnd + 1);
+  end;
+
 var
   i: Integer;
   sProp: String;
@@ -461,9 +491,18 @@ begin
 
   if IniAddProperties.Count > 0 then
     for i := 0 to Pred(FIniAddProperties.Count) do
-      if (Pos(FIniAddProperties.Names[i], Result) > 0) and
-        (Pos(GetArrayFromString(FIniAddProperties.ValueFromIndex[i], '=')[0], Result) = 0) then
-        Result := Result + APad + '  ' + StringReplace(FIniAddProperties.ValueFromIndex[i], '=', ' = ', []) + CRLF;
+      if (Pos(FIniAddProperties.Names[i], Result) > 0) then
+      begin
+        sProp := FIniAddProperties.ValueFromIndex[i];
+        if sProp.StartsWith('#RemoveFromStyledSettings#') then
+        begin
+          HandleStyledSettings(Copy(sProp, Length('#RemoveFromStyledSettings#') + 1), Result);
+          Continue;
+        end;
+        if (Pos(GetArrayFromString(sProp, '=')[0], Result) = 0) then
+          Result := Result + APad + '  ' + StringReplace(sProp, '=', ' = ', []) + CRLF;
+      end;
+
   if IniDefaultValueProperties.Count > 0 then
     for i := 0 to Pred(FIniDefaultValueProperties.Count) do
       Result := Result + APad + '  ' + StringReplace(FIniDefaultValueProperties.ValueFromIndex[i], '=', ' = ', []) + CRLF;
