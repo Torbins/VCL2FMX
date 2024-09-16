@@ -461,7 +461,9 @@ begin
 
   if IniAddProperties.Count > 0 then
     for i := 0 to Pred(FIniAddProperties.Count) do
-      Result := Result + APad + '  ' + StringReplace(FIniAddProperties[i], '=', ' = ', []) + CRLF;
+      if (Pos(FIniAddProperties.Names[i], Result) > 0) and
+        (Pos(GetArrayFromString(FIniAddProperties.ValueFromIndex[i], '=')[0], Result) = 0) then
+        Result := Result + APad + '  ' + StringReplace(FIniAddProperties.ValueFromIndex[i], '=', ' = ', []) + CRLF;
   if IniDefaultValueProperties.Count > 0 then
     for i := 0 to Pred(FIniDefaultValueProperties.Count) do
       Result := Result + APad + '  ' + StringReplace(FIniDefaultValueProperties.ValueFromIndex[i], '=', ' = ', []) + CRLF;
@@ -624,7 +626,7 @@ begin
     AIni.ReadSectionValues(FDFMClass, IniSectionValues);
     AIni.ReadSectionValues(FDFMClass + '#Replace', IniReplaceValues);
     AIni.ReadSection(FDFMClass + '#Include', IniIncludeValues);
-    AIni.ReadSectionValues(FDFMClass + '#AddProperty', IniAddProperties);
+    AIni.ReadSectionValues(FDFMClass + '#AddIfPresent', IniAddProperties);
     AIni.ReadSectionValues(FDFMClass + '#DefaultValueProperty', IniDefaultValueProperties);
 
     CommonProps := nil;
@@ -658,7 +660,7 @@ begin
         IniSectionValues.Add(Candidates[i]);
 
       CommonProps.Clear;
-      AIni.ReadSectionValues('CommonProperties#AddProperty', CommonProps);
+      AIni.ReadSectionValues('CommonProperties#AddIfPresent', CommonProps);
       for i := 0 to Pred(CommonProps.Count) do
         if IniAddProperties.IndexOfName(CommonProps.Names[i]) = -1 then
           IniAddProperties.Add(CommonProps[i]);
