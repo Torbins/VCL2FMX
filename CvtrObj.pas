@@ -43,6 +43,7 @@ type
 
   TDfmToFmxObject = class(TObject)
   private
+    FParent: TDfmToFmxObject;
     FLinkControlList: TArray<TLinkControl>;
     FLinkGridList: TArray<TLinkGrid>;
     FDFMClass: String;
@@ -89,8 +90,8 @@ type
     procedure ReadText(Prop: TTwoDArrayOfString; APropertyIdx: integer; AStm: TStreamReader);
     procedure GenerateObject(ACurrentName, ACurrentValue: String);
   public
-    constructor Create(ACreateText: String; AStm: TStreamReader; ADepth: integer);
-    constructor CreateGenerated(AObjName, ADFMClass: String; ADepth: integer; AIni: TMemIniFile);
+    constructor Create(AParent: TDfmToFmxObject; ACreateText: String; AStm: TStreamReader; ADepth: integer);
+    constructor CreateGenerated(AParent: TDfmToFmxObject; AObjName, ADFMClass: String; ADepth: integer);
     destructor Destroy; override;
     procedure LoadInfileDefs(AIniFileName: String);
     class function DFMIsTextBased(ADfmFileName: String): Boolean;
@@ -329,13 +330,14 @@ begin
   //Tempary patch
 end;
 
-constructor TDfmToFmxObject.Create(ACreateText: String; AStm: TStreamReader; ADepth: integer);
+constructor TDfmToFmxObject.Create(AParent: TDfmToFmxObject; ACreateText: String; AStm: TStreamReader; ADepth: integer);
 var
   InputArray: TArrayOfStrings;
   Data: String;
   NxtChr: PChar;
   i: integer;
 begin
+  FParent := AParent;
   i := 0;
   FDepth := ADepth;
   if Pos('object', Trim(ACreateText)) = 1 then
@@ -356,7 +358,7 @@ begin
     while Data <> 'end' do
     begin
       if Pos('object', Data) = 1 then
-        OwnedObjs.Add(TDfmToFmxObject.Create(Data, AStm, FDepth + 1))
+        OwnedObjs.Add(TDfmToFmxObject.Create(Self, Data, AStm, FDepth + 1))
       else
         ReadProperties(Data,AStm,i);
       Data := Trim(AStm.ReadLine);
@@ -367,13 +369,14 @@ begin
   SetLength(F2DPropertyArray, FPropertyMax + 1);
 end;
 
-constructor TDfmToFmxObject.CreateGenerated(AObjName, ADFMClass: String; ADepth: integer; AIni: TMemIniFile);
+constructor TDfmToFmxObject.CreateGenerated(AParent: TDfmToFmxObject; AObjName, ADFMClass: String; ADepth: integer);
 begin
+  FParent := AParent;
   FDepth := ADepth;
   FObjName := AObjName;
   FDFMClass := ADFMClass;
   FGenerated := True;
-  IniFileLoad(AIni);
+  IniFileLoad(FParent.FIni);
 end;
 
 destructor TDfmToFmxObject.Destroy;
@@ -461,6 +464,22 @@ function TDfmToFmxObject.FMXProperties(APad: String): String;
       ACurrentVal := Copy(ACurrentVal, 1, SetStart - 1) + SetVal + Copy(ACurrentVal, SetEnd + 1);
   end;
 
+  procedure CopyFromParent(ACopyProp: String; var ACurrentProps: String);
+  var
+    Line: TArrayOfStrings;
+    Prop: String;
+    Regex: TRegEx;
+  begin
+    Regex := TRegex.Create('', [roIgnoreCase, roSingleLine]);
+    for Line in FParent.F2DPropertyArray do
+      if Regex.IsMatch(Line[0], '^' + ACopyProp + '$') then
+      begin
+        Prop := TransformProperty(Line[0], Line[1], APad);
+        if not Prop.IsEmpty then
+          ACurrentProps := ACurrentProps + APad +'  '+ Prop + CRLF;
+      end;
+  end;
+
 var
   i: Integer;
   sProp: String;
@@ -489,23 +508,29 @@ begin
     end;
   end;
 
-  if IniAddProperties.Count > 0 then
-    for i := 0 to Pred(FIniAddProperties.Count) do
-      if (Pos(FIniAddProperties.Names[i], Result) > 0) then
-      begin
-        sProp := FIniAddProperties.ValueFromIndex[i];
-        if sProp.StartsWith('#RemoveFromStyledSettings#') then
-        begin
-          HandleStyledSettings(Copy(sProp, Length('#RemoveFromStyledSettings#') + 1), Result);
-          Continue;
-        end;
-        if (Pos(GetArrayFromString(sProp, '=')[0], Result) = 0) then
-          Result := Result + APad + '  ' + StringReplace(sProp, '=', ' = ', []) + CRLF;
-      end;
+  for i := 0 to Pred(IniDefaultValueProperties.Count) do
+  begin
+    sProp := FIniDefaultValueProperties.ValueFromIndex[i];
+    if sProp.StartsWith('#CopyFromParent#') then
+    begin
+      CopyFromParent(Copy(sProp, Length('#CopyFromParent#') + 1), Result);
+      Continue;
+    end;
+    Result := Result + APad + '  ' + StringReplace(sProp, '=', ' = ', []) + CRLF;
+  end;
 
-  if IniDefaultValueProperties.Count > 0 then
-    for i := 0 to Pred(FIniDefaultValueProperties.Count) do
-      Result := Result + APad + '  ' + StringReplace(FIniDefaultValueProperties.ValueFromIndex[i], '=', ' = ', []) + CRLF;
+  for i := 0 to Pred(IniAddProperties.Count) do
+    if (Pos(FIniAddProperties.Names[i], Result) > 0) then
+    begin
+      sProp := FIniAddProperties.ValueFromIndex[i];
+      if sProp.StartsWith('#RemoveFromStyledSettings#') then
+      begin
+        HandleStyledSettings(Copy(sProp, Length('#RemoveFromStyledSettings#') + 1), Result);
+        Continue;
+      end;
+      if (Pos(GetArrayFromString(sProp, '=')[0], Result) = 0) then
+        Result := Result + APad + '  ' + StringReplace(sProp, '=', ' = ', []) + CRLF;
+    end;
 end;
 
 function TDfmToFmxObject.FMXSubObjects(APad: String): String;
@@ -557,7 +582,7 @@ begin
   begin
     if (OwnedObjs.Count = 0) or not FOwnedObjs[0].FGenerated then
     begin
-      FOwnedObjs.Insert(0, TDfmToFmxObject.CreateGenerated(FObjName + '_Caption', 'TLabel', FDepth + 1, FIni));
+      FOwnedObjs.Insert(0, TDfmToFmxObject.CreateGenerated(Self, FObjName + '_Caption', 'TLabel', FDepth + 1));
 
       GenerateProperty('Align', 'alClient');
       GenerateProperty('TabStop', 'False');
@@ -703,12 +728,6 @@ begin
       for i := 0 to Pred(CommonProps.Count) do
         if IniAddProperties.IndexOfName(CommonProps.Names[i]) = -1 then
           IniAddProperties.Add(CommonProps[i]);
-
-      CommonProps.Clear;
-      AIni.ReadSectionValues('CommonProperties#DefaultValueProperty', CommonProps);
-      for i := 0 to Pred(CommonProps.Count) do
-        if IniDefaultValueProperties.IndexOfName(CommonProps.Names[i]) = -1 then
-          IniDefaultValueProperties.Add(CommonProps[i]);
     finally
       CommonProps.Free;
       Candidates.Free;
@@ -1151,7 +1170,7 @@ begin
   Begin
     Dec(LoopCount);
     if Pos('object', Data) = 1 then
-      OwnedObjs.Add(TDfmToFmxObject.Create(Data, AStm, FDepth + 1))
+      OwnedObjs.Add(TDfmToFmxObject.Create(Self, Data, AStm, FDepth + 1))
     else
       ReadProperties(Data,AStm,i);
     Data := Trim(AStm.ReadLine);

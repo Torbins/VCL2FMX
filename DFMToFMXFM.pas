@@ -107,7 +107,7 @@ begin
     try
       Data := Trim(Stm.ReadLine);
       if Pos('object', Data) = 1 then
-        DFMObj := TDfmToFmxObject.Create(Data, Stm, 0);
+        DFMObj := TDfmToFmxObject.Create(nil, Data, Stm, 0);
     finally
       Stm.Free;
     end;
