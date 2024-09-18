@@ -64,6 +64,7 @@ type
     FEnumList: TEnumList;
     FIni: TMemIniFile;
     FOriginalIni: TMemIniFile;
+    FFMXFileText: String;
     function OwnedObjs: TOwnedObjects;
     function IniObjectTranslations: TStringList;
     function IniSectionValues: TStringlist;
@@ -418,19 +419,23 @@ end;
 
 function TDfmToFmxObject.FMXFile(APad: String = ''): String;
 begin
+  if FFMXFileText <> '' then
+    Exit(FFMXFileText);
+
   if FObjName <> '' then
-    Result := APad +'object '+ FObjName +': '+ FMXClass + CRLF
+    FFMXFileText := APad +'object '+ FObjName +': '+ FMXClass + CRLF
   else
-    Result := APad +'object '+ FMXClass + CRLF;
-  Result := Result + FMXProperties(APad);
-  Result := Result + FMXSubObjects(APad +' ');
+    FFMXFileText := APad +'object '+ FMXClass + CRLF;
+  FFMXFileText := FFMXFileText + FMXProperties(APad);
+  FFMXFileText := FFMXFileText + FMXSubObjects(APad +' ');
   if APad = EmptyStr then
   begin
     var lb := GetFMXLiveBindings;
     if lb <> '' then
-      Result := Result + lb + CRLF;
+      FFMXFileText := FFMXFileText + lb + CRLF;
   end;
-  Result := Result + APad +'end' + CRLF;
+  FFMXFileText := FFMXFileText + APad +'end' + CRLF;
+  Result := FFMXFileText;
 end;
 
 function TDfmToFmxObject.FMXProperties(APad: String): String;
