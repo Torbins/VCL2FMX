@@ -956,7 +956,7 @@ var
 
   function ReplaceEnum(var ReplacementLine: String): Boolean;
   var
-    EnumNameStart, EnumNameEnd, Item, ColorValue, FontSize: Integer;
+    EnumNameStart, EnumNameEnd, Item, FontSize: Integer;
     EnumName, PropName, Value: String;
     EnumItems: TStringList;
   begin
@@ -1007,17 +1007,14 @@ var
       else
       begin
         if EnumItems.ValueFromIndex[Item] = '#GenerateColorValue#' then
-          Value := 'x' + IntToHex(StrToUInt(ACurrentValue) or $FF000000)
+          Value := ConvertColor(StrToUInt(ACurrentValue))
         else
           Value := ACurrentValue;
       end;
     end;
 
     if Value = '#GenerateColorValue#' then
-    begin
-      ColorValue := ColorToRGB(StringToColor(ACurrentValue));
-      Value := 'x' + IntToHex(Cardinal(ColorValue) or $FF000000);
-    end;
+      Value := ConvertColor(ColorToRGB(StringToColor(ACurrentValue)));
 
     ReplacementLine := PropName + ' = ' + Value;
     Result := True;

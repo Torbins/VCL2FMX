@@ -14,6 +14,7 @@ type
   TArrayOfStrings = array of String;
   TTwoDArrayOfString = array of TArrayOfStrings;
 
+function ConvertColor(AColorVal: Cardinal): String;
 function GetArrayFromString(const S: String; SepVal: Char; ARemoveQuote: Boolean = false; ATrim: Boolean = True; ADropNulls: Boolean = false): TArrayOfStrings; overload;
 function FieldSep(var ss: PChar; SepVal: Char): String; overload;
 function PosNoCase(const ASubstr: String; AFullString: String; Offset: Integer = 1): Integer; overload;
@@ -27,6 +28,12 @@ implementation
 
 uses
   System.StrUtils;
+
+function ConvertColor(AColorVal: Cardinal): String;
+begin
+  AColorVal := ((AColorVal and $FF0000) shr 16) or (AColorVal and $FF00) or ((AColorVal and $FF) shl 16);
+  Result := 'x' + IntToHex(AColorVal or $FF000000);
+end;
 
 function GetArrayFromString(const S: String; SepVal: Char; ARemoveQuote: Boolean = false; ATrim: Boolean = True; ADropNulls: Boolean = false): TArrayOfStrings;
 var
