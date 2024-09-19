@@ -1078,7 +1078,10 @@ begin
     begin
       Idx := FIniReplaceValues.IndexOfName(AUsesList[i]);
       if Idx >= 0 then
-        AUsesList[i] := FIniReplaceValues.ValueFromIndex[Idx];
+      begin
+        AUsesList.Delete(i);
+        AUsesList.Add(FIniReplaceValues.ValueFromIndex[Idx]);
+      end;
     end;
   end;
 
