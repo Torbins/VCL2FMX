@@ -985,8 +985,7 @@ var
 
     if EnumName = '#ConvertFontSize#' then
     begin
-      FontSize := StrToInt(ACurrentValue);
-      FontSize := -MulDiv(FontSize, 72, 96);
+      FontSize := Abs(StrToInt(ACurrentValue));
       ReplacementLine := PropName + ' = ' + IntToStr(FontSize);
       Exit(True);
     end;
