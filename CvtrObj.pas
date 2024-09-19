@@ -854,15 +854,24 @@ end;
 
 function TDfmToFmxObject.ProcessUsesString(AOrigUsesArray: TArrayOfStrings): String;
 var
-  i: integer;
+  i, LineLen: integer;
 begin
   PopulateStringsFromArray(UsesTranslation, AOrigUsesArray);
   UpdateUsesStringList(UsesTranslation);
-  Result := 'uses ';
+  Result := 'uses'#13#10'  ';
+  LineLen := 2;
   for i := 0 to Pred(UsesTranslation.Count) do
     if Trim(FUsesTranslation[i]) <> EmptyStr then
-      Result := Result + CRLF +'  '+ FUsesTranslation[i] + ',';
-  SetLength(Result, Pred(Length(Result)));
+    begin
+      LineLen := LineLen + Length(FUsesTranslation[i]) + 2;
+      if LineLen > 80 then
+      begin
+        Result := Result + #13#10'  ';
+        LineLen := 2 + Length(FUsesTranslation[i]) + 2;
+      end;
+      Result := Result + FUsesTranslation[i] + ', ';
+    end;
+  SetLength(Result, Length(Result) - 2);
 end;
 
 function TDfmToFmxObject.PropertyArray(ARow: integer): TArrayOfStrings;
