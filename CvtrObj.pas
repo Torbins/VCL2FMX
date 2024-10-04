@@ -90,6 +90,7 @@ type
     function GetPASLiveBindings: String;
     procedure ReadText(Prop: TTwoDArrayOfString; APropertyIdx: integer; AStm: TStreamReader);
     procedure GenerateObject(ACurrentName, ACurrentValue: String);
+    procedure CalcImageWrapMode(APad: string; var APropsText: String);
   public
     constructor Create(AParent: TDfmToFmxObject; ACreateText: String; AStm: TStreamReader; ADepth: integer);
     constructor CreateGenerated(AParent: TDfmToFmxObject; AObjName, ADFMClass: String; ADepth: integer);
@@ -331,6 +332,42 @@ begin
   //Tempary patch
 end;
 
+procedure TDfmToFmxObject.CalcImageWrapMode(APad: string; var APropsText: String);
+var
+  Center, Proportional, Stretch: Boolean;
+  PropLine: TArrayOfStrings;
+  Value: String;
+begin
+  if Pos('WrapMode', APropsText) > 0 then
+    Exit;
+
+  Center := False;
+  Proportional := False;
+  Stretch := False;
+  for PropLine in F2DPropertyArray do
+  begin
+    if PropLine[0] = 'Center' then
+      Center := True;
+    if PropLine[0] = 'Proportional' then
+      Proportional := True;
+    if PropLine[0] = 'Stretch' then
+      Stretch := True;
+  end;
+
+  if Proportional and Stretch then
+    Value := 'Fit'
+  else
+  if Stretch then
+    Value := 'Stretch'
+  else
+  if Center then
+    Value := 'Center'
+  else
+    Value := 'Original';
+
+  APropsText := APropsText + APad + '  WrapMode = ' + Value + CRLF;
+end;
+
 constructor TDfmToFmxObject.Create(AParent: TDfmToFmxObject; ACreateText: String; AStm: TStreamReader; ADepth: integer);
 var
   InputArray: TArrayOfStrings;
@@ -519,6 +556,11 @@ begin
     if sProp.StartsWith('#CopyFromParent#') then
     begin
       CopyFromParent(Copy(sProp, Length('#CopyFromParent#') + 1), Result);
+      Continue;
+    end;
+    if sProp.StartsWith('#CalcImageWrapMode#') then
+    begin
+      CalcImageWrapMode(APad, Result);
       Continue;
     end;
     Result := Result + APad + '  ' + StringReplace(sProp, '=', ' = ', []) + CRLF;
