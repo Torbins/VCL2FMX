@@ -79,6 +79,7 @@ type
     function ProcessUsesString(AOrigUsesArray: TArrayOfStrings): String;
     function ProcessCodeBody(const ACodeBody: String): String;
     procedure IniFileLoad(AIni: TMemIniFile);
+    procedure LoadCommonProperties(AParamName: String);
     procedure ReadItems(Prop: TTwoDArrayOfString; APropertyIdx: integer; AStm: TStreamReader);
     function FMXClass: String;
     function TransformProperty(ACurrentName, ACurrentValue: String; APad: String = ''): String;
@@ -522,6 +523,30 @@ function TDfmToFmxObject.FMXProperties(APad: String): String;
       end;
   end;
 
+  procedure ReconsiderAfterRemovingRule(ARemoveRule: String; var ACurrentProps: String);
+  var
+    Line: TArrayOfStrings;
+    Prop: String;
+    Regex: TRegEx;
+    i: Integer;
+  begin
+    Regex := TRegex.Create('', [roIgnoreCase, roSingleLine]);
+
+    for i := Pred(FIniSectionValues.Count) downto 0 do
+      if Regex.IsMatch(FIniSectionValues.Names[i], '^' + ARemoveRule + '$') then
+        FIniSectionValues.Delete(i);
+
+    LoadCommonProperties(ARemoveRule);
+
+    for Line in F2DPropertyArray do
+      if Regex.IsMatch(Line[0], '^' + ARemoveRule + '$') then
+      begin
+        Prop := TransformProperty(Line[0], Line[1], APad);
+        if not Prop.IsEmpty then
+          ACurrentProps := ACurrentProps + APad +'  '+ Prop + CRLF;
+      end;
+  end;
+
 var
   i: Integer;
   sProp: String;
@@ -561,6 +586,11 @@ begin
     if sProp.StartsWith('#CalcImageWrapMode#') then
     begin
       CalcImageWrapMode(APad, Result);
+      Continue;
+    end;
+    if sProp.StartsWith('#ReconsiderAfterRemovingRule#') then
+    begin
+      ReconsiderAfterRemovingRule(Copy(sProp, Length('#ReconsiderAfterRemovingRule#') + 1), Result);
       Continue;
     end;
     Result := Result + APad + '  ' + StringReplace(sProp, '=', ' = ', []) + CRLF;
@@ -713,11 +743,9 @@ end;
 
 procedure TDfmToFmxObject.IniFileLoad(AIni: TMemIniFile);
 var
-  i, j: integer;
-  Found: Boolean;
+  i: integer;
   NewClassName: String;
-  Sections, CommonProps, Candidates: TStringList;
-  Regex: TRegEx;
+  Sections: TStringList;
 begin
   if AIni = nil then
     Exit;
@@ -740,45 +768,7 @@ begin
     AIni.ReadSectionValues(FDFMClass + '#AddIfPresent', IniAddProperties);
     AIni.ReadSectionValues(FDFMClass + '#DefaultValueProperty', IniDefaultValueProperties);
 
-    CommonProps := nil;
-    Candidates := nil;
-    try
-      CommonProps := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
-      Candidates := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
-      Regex := TRegex.Create('', [roIgnoreCase, roSingleLine]);
-
-      AIni.ReadSectionValues('CommonProperties', CommonProps);
-      for i := 0 to Pred(CommonProps.Count) do
-        if IniSectionValues.IndexOfName(CommonProps.Names[i]) = -1 then
-        begin
-          Found := False;
-          for j := 0 to Pred(IniSectionValues.Count) do
-            if Regex.IsMatch(IniSectionValues.Names[j], '^' + CommonProps.Names[i] + '$') then
-            begin
-              Found := True;
-              Break;
-            end;
-          if not Found then
-            Candidates.Add(CommonProps[i]);
-        end;
-
-      for i := 0 to Pred(IniSectionValues.Count) do
-        for j := Pred(Candidates.Count) downto 0 do
-          if Regex.IsMatch(Candidates.Names[j], '^' + IniSectionValues.Names[i] + '$') then
-            Candidates.Delete(j);
-
-      for i := 0 to Pred(Candidates.Count) do
-        IniSectionValues.Add(Candidates[i]);
-
-      CommonProps.Clear;
-      AIni.ReadSectionValues('CommonProperties#AddIfPresent', CommonProps);
-      for i := 0 to Pred(CommonProps.Count) do
-        if IniAddProperties.IndexOfName(CommonProps.Names[i]) = -1 then
-          IniAddProperties.Add(CommonProps[i]);
-    finally
-      CommonProps.Free;
-      Candidates.Free;
-    end;
+    LoadCommonProperties('.*');
   end;
 
   Sections := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
@@ -831,6 +821,55 @@ begin
   if FIniSectionValues = nil then
     FIniSectionValues := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
   Result := FIniSectionValues;
+end;
+
+procedure TDfmToFmxObject.LoadCommonProperties(AParamName: String);
+var
+  i, j: integer;
+  Found: Boolean;
+  CommonProps, Candidates: TStringList;
+  Regex: TRegEx;
+begin
+  CommonProps := nil;
+  Candidates := nil;
+  try
+    CommonProps := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
+    Candidates := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
+    Regex := TRegex.Create('', [roIgnoreCase, roSingleLine]);
+
+    FIni.ReadSectionValues('CommonProperties', CommonProps);
+    for i := 0 to Pred(CommonProps.Count) do
+      if Regex.IsMatch(CommonProps.Names[i], '^' + AParamName + '$') and
+        (IniSectionValues.IndexOfName(CommonProps.Names[i]) = -1) then
+      begin
+        Found := False;
+        for j := 0 to Pred(IniSectionValues.Count) do
+          if Regex.IsMatch(IniSectionValues.Names[j], '^' + CommonProps.Names[i] + '$') then
+          begin
+            Found := True;
+            Break;
+          end;
+        if not Found then
+          Candidates.Add(CommonProps[i]);
+      end;
+
+    for i := 0 to Pred(IniSectionValues.Count) do
+      for j := Pred(Candidates.Count) downto 0 do
+        if Regex.IsMatch(Candidates.Names[j], '^' + IniSectionValues.Names[i] + '$') then
+          Candidates.Delete(j);
+
+    for i := 0 to Pred(Candidates.Count) do
+      IniSectionValues.Add(Candidates[i]);
+
+    CommonProps.Clear;
+    FIni.ReadSectionValues('CommonProperties#AddIfPresent', CommonProps);
+    for i := 0 to Pred(CommonProps.Count) do
+      if IniAddProperties.IndexOfName(CommonProps.Names[i]) = -1 then
+        IniAddProperties.Add(CommonProps[i]);
+  finally
+    CommonProps.Free;
+    Candidates.Free;
+  end;
 end;
 
 procedure TDfmToFmxObject.LoadInfileDefs(AIniFileName: String);
@@ -1111,9 +1150,19 @@ begin
 
     if IniDefaultValueProperties.Count > 0 then
     begin
-      DefaultValuePropPos := FIniDefaultValueProperties.IndexOfName(Trim(ACurrentName));
+      DefaultValuePropPos := FIniDefaultValueProperties.IndexOfName(ACurrentName);
       if DefaultValuePropPos >= 0 then
-        FIniDefaultValueProperties.Delete(DefaultValuePropPos);
+        FIniDefaultValueProperties.Delete(DefaultValuePropPos)
+      else
+      begin
+        Regex := TRegex.Create('', [roIgnoreCase, roSingleLine]);
+        for var i := 0 to Pred(FIniDefaultValueProperties.Count) do
+          if Regex.IsMatch(ACurrentName, '^' + FIniDefaultValueProperties.Names[i] + '$') then
+          begin
+            FIniDefaultValueProperties.Delete(i);
+            Break;
+          end;
+      end;
     end;
   end;
 end;
