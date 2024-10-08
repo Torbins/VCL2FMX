@@ -117,7 +117,7 @@ type
 implementation
 
 uses
-  System.RegularExpressions, Vcl.Graphics;
+  System.Masks, Vcl.Graphics;
 
 const
   ContinueCode: String = '#$Continue$#';
@@ -511,40 +511,47 @@ function TDfmToFmxObject.FMXProperties(APad: String): String;
   var
     Line: TArrayOfStrings;
     Prop: String;
-    Regex: TRegEx;
+    Mask: TMask;
   begin
-    Regex := TRegex.Create('', [roIgnoreCase, roSingleLine]);
-    for Line in FParent.F2DPropertyArray do
-      if Regex.IsMatch(Line[0], '^' + ACopyProp + '$') then
-      begin
-        Prop := TransformProperty(Line[0], Line[1], APad);
-        if not Prop.IsEmpty then
-          ACurrentProps := ACurrentProps + APad +'  '+ Prop + CRLF;
-      end;
+    Mask := TMask.Create(ACopyProp);
+    try
+      for Line in FParent.F2DPropertyArray do
+        if Mask.Matches(Line[0]) then
+        begin
+          Prop := TransformProperty(Line[0], Line[1], APad);
+          if not Prop.IsEmpty then
+            ACurrentProps := ACurrentProps + APad +'  '+ Prop + CRLF;
+        end;
+    finally
+      Mask.Free;
+    end;
   end;
 
   procedure ReconsiderAfterRemovingRule(ARemoveRule: String; var ACurrentProps: String);
   var
     Line: TArrayOfStrings;
     Prop: String;
-    Regex: TRegEx;
+    Mask: TMask;
     i: Integer;
   begin
-    Regex := TRegex.Create('', [roIgnoreCase, roSingleLine]);
+    Mask := TMask.Create(ARemoveRule);
+    try
+      for i := Pred(FIniSectionValues.Count) downto 0 do
+        if Mask.Matches(FIniSectionValues.Names[i]) then
+          FIniSectionValues.Delete(i);
 
-    for i := Pred(FIniSectionValues.Count) downto 0 do
-      if Regex.IsMatch(FIniSectionValues.Names[i], '^' + ARemoveRule + '$') then
-        FIniSectionValues.Delete(i);
+      LoadCommonProperties(ARemoveRule);
 
-    LoadCommonProperties(ARemoveRule);
-
-    for Line in F2DPropertyArray do
-      if Regex.IsMatch(Line[0], '^' + ARemoveRule + '$') then
-      begin
-        Prop := TransformProperty(Line[0], Line[1], APad);
-        if not Prop.IsEmpty then
-          ACurrentProps := ACurrentProps + APad +'  '+ Prop + CRLF;
-      end;
+      for Line in F2DPropertyArray do
+        if Mask.Matches(Line[0]) then
+        begin
+          Prop := TransformProperty(Line[0], Line[1], APad);
+          if not Prop.IsEmpty then
+            ACurrentProps := ACurrentProps + APad +'  '+ Prop + CRLF;
+        end;
+    finally
+      Mask.Free;
+    end;
   end;
 
 var
@@ -768,7 +775,7 @@ begin
     AIni.ReadSectionValues(FDFMClass + '#AddIfPresent', IniAddProperties);
     AIni.ReadSectionValues(FDFMClass + '#DefaultValueProperty', IniDefaultValueProperties);
 
-    LoadCommonProperties('.*');
+    LoadCommonProperties('*');
   end;
 
   Sections := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
@@ -828,35 +835,48 @@ var
   i, j: integer;
   Found: Boolean;
   CommonProps, Candidates: TStringList;
-  Regex: TRegEx;
+  ParamMask, CommonPropMask, ExistingPropMask: TMask;
 begin
   CommonProps := nil;
   Candidates := nil;
+  ParamMask := nil;
   try
     CommonProps := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
     Candidates := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
-    Regex := TRegex.Create('', [roIgnoreCase, roSingleLine]);
+    ParamMask := TMask.Create(AParamName);
 
     FIni.ReadSectionValues('CommonProperties', CommonProps);
     for i := 0 to Pred(CommonProps.Count) do
-      if Regex.IsMatch(CommonProps.Names[i], '^' + AParamName + '$') and
+      if ParamMask.Matches(CommonProps.Names[i]) and
         (IniSectionValues.IndexOfName(CommonProps.Names[i]) = -1) then
       begin
         Found := False;
-        for j := 0 to Pred(IniSectionValues.Count) do
-          if Regex.IsMatch(IniSectionValues.Names[j], '^' + CommonProps.Names[i] + '$') then
-          begin
-            Found := True;
-            Break;
-          end;
+        CommonPropMask := TMask.Create(CommonProps.Names[i]);
+        try
+          for j := 0 to Pred(IniSectionValues.Count) do
+            if CommonPropMask.Matches(IniSectionValues.Names[j]) then
+            begin
+              Found := True;
+              Break;
+            end;
+        finally
+          CommonPropMask.Free;
+        end;
         if not Found then
           Candidates.Add(CommonProps[i]);
       end;
 
     for i := 0 to Pred(IniSectionValues.Count) do
-      for j := Pred(Candidates.Count) downto 0 do
-        if Regex.IsMatch(Candidates.Names[j], '^' + IniSectionValues.Names[i] + '$') then
-          Candidates.Delete(j);
+    begin
+      ExistingPropMask := TMask.Create(IniSectionValues.Names[i]);
+      try
+        for j := Pred(Candidates.Count) downto 0 do
+          if ExistingPropMask.Matches(Candidates.Names[j]) then
+            Candidates.Delete(j);
+      finally
+        ExistingPropMask.Free;
+      end;
+    end;
 
     for i := 0 to Pred(Candidates.Count) do
       IniSectionValues.Add(Candidates[i]);
@@ -867,6 +887,7 @@ begin
       if IniAddProperties.IndexOfName(CommonProps.Names[i]) = -1 then
         IniAddProperties.Add(CommonProps[i]);
   finally
+    ParamMask.Free;
     CommonProps.Free;
     Candidates.Free;
   end;
@@ -1041,7 +1062,7 @@ end;
 function TDfmToFmxObject.TransformProperty(ACurrentName, ACurrentValue: String; APad: String = ''): String;
 var
   s: String;
-  Regex: TRegEx;
+  Mask: TMask;
   DefaultValuePropPos: Integer;
 
   function ReplaceEnum(var ReplacementLine: String): Boolean;
@@ -1116,15 +1137,19 @@ begin
   begin
     s := Trim(FIniSectionValues.Values[ACurrentName]);
     if s = EmptyStr then
-    begin
-      Regex := TRegex.Create('', [roIgnoreCase, roSingleLine]);
       for var i := 0 to Pred(FIniSectionValues.Count) do
-        if Regex.IsMatch(ACurrentName, '^' + FIniSectionValues.Names[i] + '$') then
-        begin
-          s := FIniSectionValues.ValueFromIndex[i];
-          Break;
+      begin
+        Mask := TMask.Create(FIniSectionValues.Names[i]);
+        try
+          if Mask.Matches(ACurrentName) then
+          begin
+            s := FIniSectionValues.ValueFromIndex[i];
+            Break;
+          end;
+        finally
+          Mask.Free;
         end;
-    end;
+      end;
     if s = EmptyStr then
       s := ACurrentName;
     if s = '#Delete#' then
@@ -1154,15 +1179,19 @@ begin
       if DefaultValuePropPos >= 0 then
         FIniDefaultValueProperties.Delete(DefaultValuePropPos)
       else
-      begin
-        Regex := TRegex.Create('', [roIgnoreCase, roSingleLine]);
         for var i := 0 to Pred(FIniDefaultValueProperties.Count) do
-          if Regex.IsMatch(ACurrentName, '^' + FIniDefaultValueProperties.Names[i] + '$') then
-          begin
-            FIniDefaultValueProperties.Delete(i);
-            Break;
+        begin
+          Mask := TMask.Create(FIniDefaultValueProperties.Names[i]);
+          try
+            if Mask.Matches(ACurrentName) then
+            begin
+              FIniDefaultValueProperties.Delete(i);
+              Break;
+            end;
+          finally
+            Mask.Free;
           end;
-      end;
+        end;
     end;
   end;
 end;
