@@ -47,6 +47,7 @@ type
     FLinkControlList: TArray<TLinkControl>;
     FLinkGridList: TArray<TLinkGrid>;
     FDFMClass: String;
+    FOldDfmClass: String;
     FObjName: String;
     FOwnedObjs: TOwnedObjects;
     FOwnedItems: TOwnedItems;
@@ -59,14 +60,12 @@ type
     FIniSectionValues,
     FIniAddProperties,
     FIniDefaultValueProperties,
-    FUsesTranslation,
-    FIniObjectTranslations: TStringlist;
+    FUsesTranslation: TStringlist;
     FEnumList: TEnumList;
     FIni: TMemIniFile;
     FOriginalIni: TMemIniFile;
     FFMXFileText: String;
     function OwnedObjs: TOwnedObjects;
-    function IniObjectTranslations: TStringList;
     function IniSectionValues: TStringlist;
     function UsesTranslation: TStringlist;
     function IniReplaceValues: TStringlist;
@@ -79,6 +78,7 @@ type
     function ProcessUsesString(AOrigUsesArray: TArrayOfStrings): String;
     function ProcessCodeBody(const ACodeBody: String): String;
     procedure IniFileLoad(AIni: TMemIniFile);
+    procedure InternalProcessBody(var ABody: String);
     procedure LoadCommonProperties(AParamName: String);
     procedure ReadItems(Prop: TTwoDArrayOfString; APropertyIdx: integer; AStm: TStreamReader);
     function FMXClass: String;
@@ -507,6 +507,29 @@ function TDfmToFmxObject.FMXProperties(APad: String): String;
       ACurrentVal := Copy(ACurrentVal, 1, SetStart - 1) + SetVal + Copy(ACurrentVal, SetEnd + 1);
   end;
 
+  procedure CalcShapeClass;
+  var
+    i: Integer;
+    Shape: String;
+  begin
+    for i := 0 to High(F2DPropertyArray) do
+      if (Length(F2DPropertyArray[i]) > 1) and (F2DPropertyArray[i, 0] = 'Shape') then
+      begin
+        Shape := F2DPropertyArray[i, 1];
+        Break;
+      end;
+
+    FOldDfmClass := FDFMClass;
+    if (Shape = '') or (Shape = 'stRectangle') or (Shape = 'stSquare') then
+      FDFMClass := 'TRectangle';
+    if Shape = 'stCircle' then
+      FDFMClass := 'TCircle';
+    if Shape = 'stEllipse' then
+      FDFMClass := 'TEllipse';
+    if (Shape = 'stRoundRect') or (Shape = 'stRoundSquare') then
+      FDFMClass := 'TRoundRect';
+  end;
+
   procedure CopyFromParent(ACopyProp: String; var ACurrentProps: String);
   var
     Line: TArrayOfStrings;
@@ -593,6 +616,11 @@ begin
     if sProp.StartsWith('#CalcImageWrapMode#') then
     begin
       CalcImageWrapMode(APad, Result);
+      Continue;
+    end;
+    if sProp.StartsWith('#CalcShapeClass#') then
+    begin
+      CalcShapeClass;
       Continue;
     end;
     if sProp.StartsWith('#ReconsiderAfterRemovingRule#') then
@@ -789,7 +817,6 @@ begin
   FIni := AIni;
   if FDepth < 1 then
   begin
-    AIni.ReadSectionValues('ObjectChanges', IniObjectTranslations);
     AIni.ReadSectionValues('TForm', IniSectionValues);
     AIni.ReadSectionValues('TForm#Replace', IniReplaceValues);
     AIni.ReadSection('TForm#Include', IniIncludeValues);
@@ -798,7 +825,10 @@ begin
   begin
     NewClassName := AIni.ReadString('ObjectChanges', FDFMClass, EmptyStr);
     if NewClassName <> EmptyStr then
+    begin
+      FOldDfmClass := FDFMClass;
       FDFMClass := NewClassName;
+    end;
     AIni.ReadSectionValues(FDFMClass, IniSectionValues);
     AIni.ReadSectionValues(FDFMClass + '#Replace', IniReplaceValues);
     AIni.ReadSection(FDFMClass + '#Include', IniIncludeValues);
@@ -839,13 +869,6 @@ begin
   Result := FIniIncludeValues;
 end;
 
-function TDfmToFmxObject.IniObjectTranslations: TStringList;
-begin
-  if FIniObjectTranslations = nil then
-    FIniObjectTranslations := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
-  Result := FIniObjectTranslations;
-end;
-
 function TDfmToFmxObject.IniReplaceValues: TStringlist;
 begin
   if FIniReplaceValues = nil then
@@ -858,6 +881,38 @@ begin
   if FIniSectionValues = nil then
     FIniSectionValues := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
   Result := FIniSectionValues;
+end;
+
+procedure TDfmToFmxObject.InternalProcessBody(var ABody: String);
+var
+  i, NameStart, ClassStart, LineEnd: Integer;
+begin
+  if FOldDfmClass <> '' then
+  begin
+    NameStart := PosNoCase(FObjName, ABody);
+    ClassStart := PosNoCase(FOldDfmClass, ABody, NameStart);
+    ABody := Copy(ABody, 1, NameStart + Length(FObjName) - 1) + ': ' + FDFMClass + Copy(ABody, ClassStart + Length(FOldDfmClass));
+  end;
+
+  if FGenerated then
+  begin
+    NameStart := PosNoCase(FParent.FObjName, ABody);
+    if NameStart = 0 then
+      raise Exception.Create('Can''t find parent control ' + FParent.FObjName + ' in form class');
+
+    LineEnd := Pos(CRLF, ABody, NameStart);
+    if LineEnd = 0 then
+      LineEnd := Pos(#13, ABody, NameStart);
+    if LineEnd = 0 then
+      LineEnd := Pos(#10, ABody, NameStart);
+    if LineEnd = 0 then
+      LineEnd := NameStart;
+
+    Insert(CRLF + '    ' + FObjName + ': ' + FDFMClass + ';', ABody, LineEnd);
+  end;
+
+  for i := 0 to Pred(FOwnedObjs.Count) do
+    FOwnedObjs[i].InternalProcessBody(ABody);
 end;
 
 procedure TDfmToFmxObject.LoadCommonProperties(AParamName: String);
@@ -937,49 +992,12 @@ begin
 end;
 
 function TDfmToFmxObject.ProcessCodeBody(const ACodeBody: String): String;
-
-  procedure GenerateObjects(AParent: TDfmToFmxObject; var AStr: String);
-  var
-    i, ParentStart, ParentEnd: Integer;
-  begin
-    for i := 0 to Pred(AParent.FOwnedObjs.Count) do
-      if not AParent.FOwnedObjs[i].FGenerated then
-        GenerateObjects(AParent.FOwnedObjs[i], AStr)
-      else
-      begin
-        ParentStart := PosNoCase(AParent.FObjName, AStr);
-        if ParentStart = 0 then
-          raise Exception.Create('Can''t find parent control ' + AParent.FObjName + ' in form class');
-
-        ParentEnd := PosNoCase(CRLF, AStr, ParentStart);
-        if ParentEnd = 0 then
-          ParentEnd := PosNoCase(#13, AStr, ParentStart);
-        if ParentEnd = 0 then
-          ParentEnd := PosNoCase(#10, AStr, ParentStart);
-        if ParentEnd = 0 then
-          ParentEnd := ParentStart;
-
-        Insert(CRLF + '    ' + AParent.FOwnedObjs[i].FObjName + ': ' + AParent.FOwnedObjs[i].FDFMClass + ';', AStr,
-          ParentEnd);
-      end;
-  end;
-
 var
   BdyStr: String;
-  Idx: Integer;
-  TransArray: TArrayOfStrings;
 begin
   BdyStr := StringReplace(ACodeBody, '{$R *.DFM}', '{$R *.FMX}', [rfIgnoreCase]);
-  if FIniObjectTranslations <> nil then
-  begin
-    for Idx := 0 to FIniObjectTranslations.Count-1 do
-    begin
-      TransArray := GetArrayFromString(FIniObjectTranslations[Idx], '=');
-      if Length(TransArray) > 1 then
-        BdyStr := StringReplace(BdyStr, TransArray[0], TransArray[1], [rfReplaceAll,rfIgnoreCase]);
-    end;
-  end;
-  GenerateObjects(Self, BdyStr);
+
+  InternalProcessBody(BdyStr);
 
   Result := BdyStr;
 end;
@@ -1234,7 +1252,7 @@ var
 begin
   if FIniReplaceValues <> nil then
   begin
-    for i := 0 to Pred(AUsesList.Count) do
+    for i := Pred(AUsesList.Count) downto 0 do
     begin
       Idx := FIniReplaceValues.IndexOfName(AUsesList[i]);
       if Idx >= 0 then
