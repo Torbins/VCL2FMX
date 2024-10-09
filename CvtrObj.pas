@@ -456,19 +456,21 @@ begin
 end;
 
 function TDfmToFmxObject.FMXFile(APad: String = ''): String;
+var
+  Properties, lb: String;
 begin
   if FFMXFileText <> '' then
     Exit(FFMXFileText);
 
+  Properties := FMXProperties(APad);
   if FObjName <> '' then
     FFMXFileText := APad +'object '+ FObjName +': '+ FMXClass + CRLF
   else
     FFMXFileText := APad +'object '+ FMXClass + CRLF;
-  FFMXFileText := FFMXFileText + FMXProperties(APad);
-  FFMXFileText := FFMXFileText + FMXSubObjects(APad +' ');
+  FFMXFileText := FFMXFileText + Properties + FMXSubObjects(APad +' ');
   if APad = EmptyStr then
   begin
-    var lb := GetFMXLiveBindings;
+    lb := GetFMXLiveBindings;
     if lb <> '' then
       FFMXFileText := FFMXFileText + lb + CRLF;
   end;
@@ -887,13 +889,6 @@ procedure TDfmToFmxObject.InternalProcessBody(var ABody: String);
 var
   i, NameStart, ClassStart, LineEnd: Integer;
 begin
-  if FOldDfmClass <> '' then
-  begin
-    NameStart := PosNoCase(FObjName, ABody);
-    ClassStart := PosNoCase(FOldDfmClass, ABody, NameStart);
-    ABody := Copy(ABody, 1, NameStart + Length(FObjName) - 1) + ': ' + FDFMClass + Copy(ABody, ClassStart + Length(FOldDfmClass));
-  end;
-
   if FGenerated then
   begin
     NameStart := PosNoCase(FParent.FObjName, ABody);
@@ -909,7 +904,14 @@ begin
       LineEnd := NameStart;
 
     Insert(CRLF + '    ' + FObjName + ': ' + FDFMClass + ';', ABody, LineEnd);
-  end;
+  end
+  else
+    if FOldDfmClass <> '' then
+    begin
+      NameStart := PosNoCase(FObjName, ABody);
+      ClassStart := PosNoCase(FOldDfmClass, ABody, NameStart);
+      ABody := Copy(ABody, 1, NameStart + Length(FObjName) - 1) + ': ' + FDFMClass + Copy(ABody, ClassStart + Length(FOldDfmClass));
+    end;
 
   for i := 0 to Pred(FOwnedObjs.Count) do
     FOwnedObjs[i].InternalProcessBody(ABody);
