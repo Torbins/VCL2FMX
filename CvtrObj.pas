@@ -1251,17 +1251,24 @@ procedure TDfmToFmxObject.UpdateUsesStringList(AUsesList: TStrings);
 var
   i: integer;
   Idx: integer;
+  NewUnits: TStringList;
 begin
   if FIniReplaceValues <> nil then
   begin
-    for i := Pred(AUsesList.Count) downto 0 do
-    begin
-      Idx := FIniReplaceValues.IndexOfName(AUsesList[i]);
-      if Idx >= 0 then
+    NewUnits := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
+    try
+      for i := Pred(AUsesList.Count) downto 0 do
       begin
-        AUsesList.Delete(i);
-        AUsesList.Add(FIniReplaceValues.ValueFromIndex[Idx]);
+        Idx := FIniReplaceValues.IndexOfName(AUsesList[i]);
+        if Idx >= 0 then
+        begin
+          AUsesList.Delete(i);
+          NewUnits.Add(FIniReplaceValues.ValueFromIndex[Idx]);
+        end;
       end;
+      AUsesList.AddStrings(NewUnits);
+    finally
+      NewUnits.Free;
     end;
   end;
 
