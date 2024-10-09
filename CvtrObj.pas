@@ -90,7 +90,7 @@ type
     function GetFMXLiveBindings: String;
     function GetPASLiveBindings: String;
     procedure ReadText(Prop: TTwoDArrayOfString; APropertyIdx: integer; AStm: TStreamReader);
-    procedure GenerateObject(ACurrentName, ACurrentValue: String);
+    procedure GenerateObject(AObjType, ACurrentName, ACurrentValue: string);
     procedure CalcImageWrapMode(APad: string; var APropsText: String);
   public
     constructor Create(AParent: TDfmToFmxObject; ACreateText: String; AStm: TStreamReader; ADepth: integer);
@@ -629,18 +629,15 @@ begin
     Result := Result + FOwnedObjs[I].FMXFile(APad +' ');
 end;
 
-procedure TDfmToFmxObject.GenerateObject(ACurrentName, ACurrentValue: String);
+procedure TDfmToFmxObject.GenerateObject(AObjType, ACurrentName, ACurrentValue: string);
 
-  procedure GenerateProperty(ACurrentName, ACurrentValue: String);
+  procedure GenerateProperty(AObj: TDfmToFmxObject; APropName, APropValue: String);
   var
     PropLine, i: Integer;
-    Obj: TDfmToFmxObject;
   begin
-    Obj := FOwnedObjs[0];
-
     PropLine := -1;
-    for i := 0 to High(Obj.F2DPropertyArray) do
-      if (Obj.F2DPropertyArray[i] = nil) or (Obj.F2DPropertyArray[i, 0] = ACurrentName) then
+    for i := 0 to High(AObj.F2DPropertyArray) do
+      if (AObj.F2DPropertyArray[i] = nil) or (AObj.F2DPropertyArray[i, 0] = APropName) then
       begin
         PropLine := i;
         Break;
@@ -648,42 +645,75 @@ procedure TDfmToFmxObject.GenerateObject(ACurrentName, ACurrentValue: String);
 
     if PropLine = -1 then
     begin
-      PropLine := Length(Obj.F2DPropertyArray);
-      Obj.PropertyArray(PropLine);
+      PropLine := Length(AObj.F2DPropertyArray);
+      AObj.PropertyArray(PropLine);
     end;
 
-    if Obj.F2DPropertyArray[PropLine] = nil then
+    if AObj.F2DPropertyArray[PropLine] = nil then
     begin
-      SetLength(Obj.F2DPropertyArray[PropLine], 2);
-      Obj.F2DPropertyArray[PropLine, 0] := ACurrentName;
+      SetLength(AObj.F2DPropertyArray[PropLine], 2);
+      AObj.F2DPropertyArray[PropLine, 0] := APropName;
     end;
 
-    Obj.F2DPropertyArray[PropLine, 1] := ACurrentValue;
+    AObj.F2DPropertyArray[PropLine, 1] := APropValue;
   end;
 
-begin
-  if FDFMClass = 'TPanel' then
-  begin
-    if (OwnedObjs.Count = 0) or not FOwnedObjs[0].FGenerated then
-    begin
-      FOwnedObjs.Insert(0, TDfmToFmxObject.CreateGenerated(Self, FObjName + '_Caption', 'TLabel', FDepth + 1));
+type
+  TProp = record
+    Name, Value: String;
+  end;
 
-      GenerateProperty('Align', 'alClient');
-      GenerateProperty('TabStop', 'False');
-      GenerateProperty('Alignment', 'taCenter');
-      GenerateProperty('Layout', 'tlCenter');
+  function GetObject(AObjName, ADFMClass: String; AInitProps: array of TProp): TDfmToFmxObject;
+  var
+    i: Integer;
+  begin
+    for i := 0 to Pred(OwnedObjs.Count) do
+    begin
+      if not FOwnedObjs[i].FGenerated then
+        Break;
+      if FOwnedObjs[i].FDFMClass = ADFMClass then
+        Exit(FOwnedObjs[i]);
     end;
 
+    Result := TDfmToFmxObject.CreateGenerated(Self, AObjName, ADFMClass, FDepth + 1);
+    FOwnedObjs.Insert(0, Result);
+    for i := 0 to High(AInitProps) do
+      GenerateProperty(Result, AInitProps[i].Name, AInitProps[i].Value);
+  end;
+
+const
+  ColoredRectInitParams: array [0..5] of TProp = ((Name: 'Align'; Value: 'alClient'), (Name: 'Margins.Left'; Value: '1'),
+    (Name: 'Margins.Top'; Value: '1'), (Name: 'Margins.Right'; Value: '1'), (Name: 'Margins.Bottom'; Value: '1'),
+    (Name: 'Pen.Style'; Value: 'psClear'));
+  SeparateCaptionInitParams: array [0..3] of TProp = ((Name: 'Align'; Value: 'alClient'),
+    (Name: 'TabStop'; Value: 'False'), (Name: 'Alignment'; Value: 'taCenter'), (Name: 'Layout'; Value: 'tlCenter'));
+var
+  Obj: TDfmToFmxObject;
+begin
+  if AObjType = 'ColoredRect' then
+  begin
+    Obj := GetObject(FObjName + '_ColoredRect', 'TShape', ColoredRectInitParams);
+
+    if ACurrentName = 'Color' then
+      GenerateProperty(Obj, 'Brush.Color', ACurrentValue)
+    else
+      GenerateProperty(Obj, ACurrentName, ACurrentValue);
+  end;
+
+  if AObjType = 'SeparateCaption' then
+  begin
+    Obj := GetObject(FObjName + '_Caption', 'TLabel', SeparateCaptionInitParams);
+
     if ACurrentName = 'ShowCaption' then
-      GenerateProperty('Visible', ACurrentValue)
+      GenerateProperty(Obj, 'Visible', ACurrentValue)
     else
     if ACurrentName = 'VerticalAlignment' then
     begin
       if ACurrentValue = 'taAlignBottom' then
-        GenerateProperty('Layout', 'tlBottom'); //Center is default for panel and top - for label
+        GenerateProperty(Obj, 'Layout', 'tlBottom'); //Center is default for panel and top - for label
     end
     else
-      GenerateProperty(ACurrentName, ACurrentValue);
+      GenerateProperty(Obj, ACurrentName, ACurrentValue);
   end;
 end;
 
@@ -912,9 +942,9 @@ function TDfmToFmxObject.ProcessCodeBody(const ACodeBody: String): String;
   var
     i, ParentStart, ParentEnd: Integer;
   begin
-    for I := 0 to Pred(AParent.FOwnedObjs.Count) do
-      if not AParent.FOwnedObjs[I].FGenerated then
-        GenerateObjects(AParent.FOwnedObjs[I], AStr)
+    for i := 0 to Pred(AParent.FOwnedObjs.Count) do
+      if not AParent.FOwnedObjs[i].FGenerated then
+        GenerateObjects(AParent.FOwnedObjs[i], AStr)
       else
       begin
         ParentStart := PosNoCase(AParent.FObjName, AStr);
@@ -929,7 +959,7 @@ function TDfmToFmxObject.ProcessCodeBody(const ACodeBody: String): String;
         if ParentEnd = 0 then
           ParentEnd := ParentStart;
 
-        Insert(CRLF + '    ' + AParent.FOwnedObjs[I].FObjName + ': ' + AParent.FOwnedObjs[I].FDFMClass + ';', AStr,
+        Insert(CRLF + '    ' + AParent.FOwnedObjs[i].FObjName + ': ' + AParent.FOwnedObjs[i].FDFMClass + ';', AStr,
           ParentEnd);
       end;
   end;
@@ -1061,7 +1091,7 @@ end;
 
 function TDfmToFmxObject.TransformProperty(ACurrentName, ACurrentValue: String; APad: String = ''): String;
 var
-  s: String;
+  s, GenObjectType: String;
   Mask: TMask;
   DefaultValuePropPos: Integer;
 
@@ -1155,7 +1185,7 @@ begin
     if s = '#Delete#' then
       Result := EmptyStr
     else
-    if Pos('#Class#', s) > 0 then
+    if s = '#Class#' then
     begin
       if FDFMClass = 'TImage' then
         Result := StringReplace(s, '#Class#', ProcessImage(ACurrentValue, APad), [])
@@ -1164,9 +1194,10 @@ begin
         Result := StringReplace(s, '#Class#', ProcessImageList(ACurrentValue, APad), [])
     end
     else
-    if Pos('#GenerateControl#', s) > 0 then
+    if s.StartsWith('#GenerateControl#') then
     begin
-      GenerateObject(ACurrentName, ACurrentValue);
+      GenObjectType := Copy(s, Length('#GenerateControl#') + 1);
+      GenerateObject(GenObjectType, ACurrentName, ACurrentValue);
       Result := EmptyStr;
     end
     else
