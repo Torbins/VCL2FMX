@@ -26,10 +26,10 @@ var
   Stream: TMemoryStream;
   GraphClassName: ShortString;
   Graphic: TGraphic;
-  Pic: TPngImage;
+  Png: TPngImage;
 begin
   Graphic := nil;
-  Pic := nil;
+  Png := nil;
   Stream := TMemoryStream.Create;
   try
     HexToStream(sData, Stream);
@@ -41,16 +41,16 @@ begin
 
     if (Graphic is TPngImage) or (Graphic is TBitmap) or (Graphic is TWICImage) then
     begin
-      Pic := TPngImage.Create;
-      Pic.Assign(Graphic);
+      Png := TPngImage.Create;
+      Png.Assign(Graphic);
     end
     else
     begin
-      Pic := TPngImage.CreateBlank(COLOR_RGB, 8, Graphic.Width, Graphic.Height);
-      Pic.Canvas.Draw(0, 0, Graphic, 255);
+      Png := TPngImage.CreateBlank(COLOR_RGB, 8, Graphic.Width, Graphic.Height);
+      Png.Canvas.Draw(0, 0, Graphic, 255);
     end;
 
-    Pic.SaveToStream(Stream);
+    Png.SaveToStream(Stream);
     Result := StreamToHex(Stream, APad, LineLen);
 
     Result := 'MultiResBitmap = <' +
@@ -61,7 +61,7 @@ begin
       CRLF + APad + '    end>';
   finally
     Stream.Free;
-    Pic.Free;
+    Png.Free;
     Graphic.Free;
   end;
 end;

@@ -13,120 +13,84 @@ function ProcessImageList(sData, APad: String): String;
 implementation
 
 uses
-  System.SysUtils, System.Classes, Vcl.ImgList, Vcl.Graphics, FMX.ImgList, PatchLib;
+  System.SysUtils, System.Classes, System.Generics.Collections, Vcl.ImgList, Vcl.Graphics, Vcl.Imaging.PngImage,
+  PatchLib;
 
 type
-  TCustomImageListAccess = class(Vcl.ImgList.TCustomImageList)
+  TImageListAccess = class(Vcl.ImgList.TCustomImageList)
   end;
+  TPngList = TObjectList<TPngImage>;
 
 function ProcessImageList(sData, APad: String): String;
 var
-  Loutput: TMemoryStream;
-  Lgraphic: TCustomImageListAccess;
-  img1: FMX.ImgList.TImageList;
-  stream: TMemoryStream;
-  stream2: TMemoryStream;
-  bmp: TBitmap;
+  Stream: TMemoryStream;
+  ImgList: TImageListAccess;
+  PngList: TPngList;
+  Png: TPngImage;
+  Bmp: TBitmap;
   I: Integer;
-  sTemp: String;
+  Data: String;
 begin
-  Loutput := TMemoryStream.Create;
+  Stream := TMemoryStream.Create;
+  ImgList := TImageListAccess.Create(nil);
+  PngList := TPngList.Create({AOwnsObjects} True);
   try
-    // Carrega dados para memoria
-    HexToStream(sData, Loutput);
+    HexToStream(sData, Stream);
+    TImageListAccess(ImgList).ReadData(Stream);
 
-    Lgraphic := TCustomImageListAccess.Create(nil);
-    try
-      // Carrega dados para imagem VCL
-      TCustomImageListAccess(Lgraphic).ReadData(Loutput);
-
-      // Cria imagem FMX
-      img1 := FMX.ImgList.TImageList.Create(nil);
+    for I := 0 to Pred(ImgList.Count) do
+    begin
+      Bmp := TBitmap.Create;
       try
-        // Passa por todas imagens VCL
-        for I := 0 to Pred(Lgraphic.Count) do
-        begin
-          // Converte de VCL para FMX
-          stream := TMemoryStream.Create;
-          try
-            bmp := TBitmap.Create;
-            try
-              // Obtem imagem
-              Lgraphic.GetBitmap(I, bmp);
-              // Salva no Stream
-              bmp.SaveToStream(stream);
-//              bmp.SaveToFile('D:\teste.bmp');
-              // Adiciona imagem no FMX
-              stream.Position := 0;
-              img1.Source.Add.MultiResBitmap.Add.Bitmap.LoadFromStream(stream);
-            finally
-              FreeAndNil(bmp);
-            end;
-          finally
-            stream.Free;
-          end;
-        end;
-
-        Result := '  Source = <';
-
-        // Adiciona as imagens
-        for I := 0 to Pred(img1.Source.Count) do
-        begin
-          stream2 := TMemoryStream.Create;
-          try
-            img1.Source.Items[I].MultiResBitmap.Items[0].Bitmap.SaveToStream(stream2);
-
-            sTemp := StreamToHex(stream2, APad, 64);
-
-            Result := Result +
-            sLineBreak + APad +'    item '+
-            sLineBreak + APad +'      MultiResBitmap.Height = '+ img1.Source.Items[I].MultiResBitmap.Items[0].Bitmap.Height.ToString +
-            sLineBreak + APad +'      MultiResBitmap.Width = '+ img1.Source.Items[I].MultiResBitmap.Items[0].Bitmap.Width.ToString +
-            sLineBreak + APad +'      MultiResBitmap = < '+
-            sLineBreak + APad +'        item '+
-            sLineBreak + APad +'          Width = 256 '+
-            sLineBreak + APad +'          Height = 256 '+
-            sLineBreak + APad +'          PNG = {'+ sTemp +'}'+
-            sLineBreak + APad +'          FileName = '+ QuotedStr('') +
-            sLineBreak + APad +'        end>'+
-            sLineBreak + APad +'      Name = '+ QuotedStr('Item '+ I.ToString) +
-            sLineBreak + APad +'    end';
-
-            if Pred(img1.Source.Count) = I then
-              Result := Result +'>';
-          finally
-            FreeAndNil(stream2);
-          end;
-        end;
-
-        Result := Result +
-        sLineBreak + APad +'  Destination = < ';
-
-        // Adiciona os itens
-        for I := 0 to Pred(img1.Source.Count) do
-        begin
-          Result := Result +
-          sLineBreak + APad +'    item '+
-          sLineBreak + APad +'      Layers = < '+
-          sLineBreak + APad +'        item '+
-          sLineBreak + APad +'          Name = '+ QuotedStr('Item '+ I.ToString) +
-          sLineBreak + APad +'            SourceRect.Right = '+ img1.Source.Items[I].MultiResBitmap.Items[0].Bitmap.Width.ToString +
-          sLineBreak + APad +'            SourceRect.Bottom = '+ img1.Source.Items[I].MultiResBitmap.Items[0].Bitmap.Height.ToString +
-          sLineBreak + APad +'        end>'+
-          sLineBreak + APad +'    end';
-
-          if Pred(img1.Source.Count) = I then
-            Result := Result +'>';
-        end;
-
+        ImgList.GetBitmap(I, Bmp);
+        Png := TPngImage.Create;
+        Png.Assign(Bmp);
+        PngList.Add(Png);
       finally
-        img1.Free;
+        FreeAndNil(Bmp);
       end;
-    finally
-      Lgraphic.Free;
     end;
+
+    Result := '  Source = <';
+
+    // Adiciona as imagens
+    for I := 0 to Pred(PngList.Count) do
+    begin
+      Stream.Clear;
+      PngList.Items[I].SaveToStream(Stream);
+      Data := StreamToHex(Stream, APad, 64);
+
+      Result := Result +
+        CRLF + APad + '    item ' +
+        CRLF + APad + '      MultiResBitmap = < ' +
+        CRLF + APad + '        item ' +
+        CRLF + APad + '          Width = ' + PngList.Items[I].Height.ToString +
+        CRLF + APad + '          Height = ' + PngList.Items[I].Width.ToString +
+        CRLF + APad + '          PNG = {' + Data + '}' +
+        CRLF + APad + '        end>' +
+        CRLF + APad + '      Name = ' + QuotedStr('Item ' + I.ToString) +
+        CRLF + APad + '    end';
+    end;
+
+    Result := Result + '>' + CRLF + APad + '  Destination = < ';
+
+    // Adiciona os itens
+    for I := 0 to Pred(PngList.Count) do
+      Result := Result +
+        CRLF + APad + '    item ' +
+        CRLF + APad + '      Layers = < ' +
+        CRLF + APad + '        item ' +
+        CRLF + APad + '          Name = ' + QuotedStr('Item ' + I.ToString) +
+        CRLF + APad + '            SourceRect.Right = ' + PngList.Items[I].Width.ToString +
+        CRLF + APad + '            SourceRect.Bottom = ' + PngList.Items[I].Height.ToString +
+        CRLF + APad + '        end>' +
+        CRLF + APad + '    end';
+
+    Result := Result + '>';
   finally
-    Loutput.Free;
+    PngList.Free;
+    ImgList.Free;
+    Stream.Free;
   end;
 end;
 
