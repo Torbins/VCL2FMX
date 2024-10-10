@@ -23,22 +23,21 @@ function ProcessImage(sData, APad: String): String;
 const
   LineLen = 64;
 var
-  InStream, OutStream: TMemoryStream;
+  Stream: TMemoryStream;
   GraphClassName: ShortString;
   Graphic: TGraphic;
   Pic: TPngImage;
 begin
   Graphic := nil;
   Pic := nil;
-  InStream := TMemoryStream.Create;
-  OutStream := TMemoryStream.Create;
+  Stream := TMemoryStream.Create;
   try
-    HexToStream(sData, InStream);
-    GraphClassName := PShortString(InStream.Memory)^;
+    HexToStream(sData, Stream);
+    GraphClassName := PShortString(Stream.Memory)^;
 
     Graphic := TGraphicClass(FindClass(UTF8ToString(GraphClassName))).Create;
-    InStream.Position := 1 + Length(GraphClassName);
-    TGraphicAccess(Graphic).ReadData(InStream);
+    Stream.Position := 1 + Length(GraphClassName);
+    TGraphicAccess(Graphic).ReadData(Stream);
 
     if (Graphic is TPngImage) or (Graphic is TBitmap) or (Graphic is TWICImage) then
     begin
@@ -51,8 +50,8 @@ begin
       Pic.Canvas.Draw(0, 0, Graphic, 255);
     end;
 
-    Pic.SaveToStream(OutStream);
-    Result := StreamToHex(OutStream, APad, LineLen);
+    Pic.SaveToStream(Stream);
+    Result := StreamToHex(Stream, APad, LineLen);
 
     Result := 'MultiResBitmap = <' +
       CRLF + APad + '    item ' +
@@ -61,8 +60,7 @@ begin
       CRLF + APad + '      PNG = {' + Result + '}' +
       CRLF + APad + '    end>';
   finally
-    OutStream.Free;
-    InStream.Free;
+    Stream.Free;
     Pic.Free;
     Graphic.Free;
   end;

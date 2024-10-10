@@ -192,7 +192,7 @@ begin
   repeat
     Line := Copy(Data, ALineLen * LineNum + 1, ALineLen);
     if Line <> '' then
-      Result := Result + sLineBreak + APad + '            ' + Line;
+      Result := Result + CRLF + APad + '        ' + Line;
     Inc(LineNum);
   until Length(Line) < ALineLen;
 end;
