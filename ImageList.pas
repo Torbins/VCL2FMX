@@ -18,14 +18,13 @@ type
 
 function ProcessImageList(sData, APad: String): String;
 function ImageListDFMtoFMX(sData: String): String;
-procedure StreamToHex(ms:TMemoryStream; LineLen: Integer; var sResult: String);
 
 implementation
 
 uses
   FMX.ImgList,
   Vcl.Graphics,
-  System.SysUtils ;
+  System.SysUtils, PatchLib;
 
 var
   FPad: String;
@@ -38,7 +37,6 @@ end;
 
 function ImageListDFMtoFMX(sData: String): String;
 var
-  Linput: String;
   Loutput: TMemoryStream;
   Lgraphic: TCustomImageListAccess;
   img1: FMX.ImgList.TImageList;
@@ -48,17 +46,10 @@ var
   I: Integer;
   sTemp: String;
 begin
-  // Remove caracteres
-  sData := StringReplace(sData, '{', EmptyStr, []);
-  sData := StringReplace(sData, '}', EmptyStr, []);
-
-  // Inicializa
-  Linput  := sData;
   Loutput := TMemoryStream.Create;
   try
     // Carrega dados para memoria
-    Loutput.Size := Length(Linput) div 2;
-    HexToBin(PChar(Linput), Loutput.Memory^, Loutput.Size);
+    HexToStream(sData, Loutput);
 
     Lgraphic := TCustomImageListAccess.Create(nil);
     try
@@ -101,8 +92,7 @@ begin
           try
             img1.Source.Items[I].MultiResBitmap.Items[0].Bitmap.SaveToStream(stream2);
 
-            sTemp := EmptyStr;
-            StreamToHex(stream2, 64, sTemp);
+            sTemp := StreamToHex(stream2, FPad, 64);
 
             Result := Result +
             sLineBreak + FPad +'    item '+
@@ -154,22 +144,6 @@ begin
   finally
     Loutput.Free;
   end;
-end;
-
-procedure StreamToHex(ms:TMemoryStream; LineLen: Integer; var sResult: String);
-var
-  s, t: String;
-  LineNum: Integer;
-begin
-  SetLength(t, ms.Size * 2);
-  BinToHex(ms.Memory^, PChar(t), ms.Size);
-  LineNum := 0;
-  repeat
-    s := Copy(t, LineLen * LineNum + 1, LineLen);
-    if s <> '' then
-      sResult := sResult + sLineBreak + FPad + '            ' + s;
-    Inc(LineNum);
-  until Length(s) < LineLen;
 end;
 
 end.

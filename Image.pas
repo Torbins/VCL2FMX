@@ -23,29 +23,17 @@ function ProcessImage(sData, APad: String): String;
 const
   LineLen = 64;
 var
-  InStr, OutStr, LineStr: String;
   InStream, OutStream: TMemoryStream;
   GraphClassName: ShortString;
   Graphic: TGraphic;
   Pic: TPngImage;
-  LineNum, DataStart, DataLen: Integer;
 begin
-  if sData.StartsWith('{') then
-    DataStart := 2
-  else
-    DataStart := 1;
-  DataLen := Length(sData) - DataStart + 1;
-  if sData.EndsWith('}') then
-    Dec(DataLen);
-
-  InStr := Copy(sData, DataStart, DataLen);
   Graphic := nil;
   Pic := nil;
   InStream := TMemoryStream.Create;
   OutStream := TMemoryStream.Create;
   try
-    InStream.Size := Length(InStr) div 2;
-    HexToBin(PChar(InStr), InStream.Memory^, InStream.Size);
+    HexToStream(sData, InStream);
     GraphClassName := PShortString(InStream.Memory)^;
 
     Graphic := TGraphicClass(FindClass(UTF8ToString(GraphClassName))).Create;
@@ -64,17 +52,7 @@ begin
     end;
 
     Pic.SaveToStream(OutStream);
-    OutStream.Position := 0;
-    SetLength(OutStr, OutStream.Size * 2);
-    BinToHex(OutStream.Memory^, PChar(OutStr), OutStream.Size);
-
-    LineNum := 0;
-    repeat
-      LineStr := Copy(OutStr, LineLen * LineNum + 1, LineLen);
-      if LineStr <> '' then
-        Result := Result + CRLF + APad + '        ' + LineStr;
-      Inc(LineNum);
-    until Length(LineStr) < LineLen;
+    Result := StreamToHex(OutStream, APad, LineLen);
 
     Result := 'MultiResBitmap = <' +
       CRLF + APad + '    item ' +

@@ -19,6 +19,8 @@ function GetArrayFromString(const S: String; SepVal: Char; ARemoveQuote: Boolean
 function FieldSep(var ss: PChar; SepVal: Char): String; overload;
 function PosNoCase(const ASubstr: String; AFullString: String; Offset: Integer = 1): Integer; overload;
 procedure PopulateStringsFromArray(AStrings: TStrings; AArray: TArrayOfStrings);
+function StreamToHex(AMemStream:TMemoryStream; APad: String; ALineLen: Integer): String;
+procedure HexToStream(AData: string; AMemStream:TMemoryStream);
 
 const
   CRLF = #13#10;
@@ -177,6 +179,40 @@ begin
   AStrings.Clear;
   for i := 0 to high(AArray) do
     AStrings.Add(AArray[i])
+end;
+
+function StreamToHex(AMemStream:TMemoryStream; APad: String; ALineLen: Integer): String;
+var
+  Line, Data: String;
+  LineNum: Integer;
+begin
+  SetLength(Data, AMemStream.Size * 2);
+  BinToHex(AMemStream.Memory^, PChar(Data), AMemStream.Size);
+  LineNum := 0;
+  repeat
+    Line := Copy(Data, ALineLen * LineNum + 1, ALineLen);
+    if Line <> '' then
+      Result := Result + sLineBreak + APad + '            ' + Line;
+    Inc(LineNum);
+  until Length(Line) < ALineLen;
+end;
+
+procedure HexToStream(AData: string; AMemStream:TMemoryStream);
+var
+  InStr: String;
+  DataStart, DataLen: Integer;
+begin
+  if AData.StartsWith('{') then
+    DataStart := 2
+  else
+    DataStart := 1;
+  DataLen := Length(AData) - DataStart + 1;
+  if AData.EndsWith('}') then
+    Dec(DataLen);
+
+  InStr := Copy(AData, DataStart, DataLen);
+  AMemStream.Size := Length(InStr) div 2;
+  HexToBin(PChar(InStr), AMemStream.Memory^, AMemStream.Size);
 end;
 
 end.
