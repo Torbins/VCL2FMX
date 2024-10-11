@@ -50,6 +50,7 @@ begin
       Png.Canvas.Draw(0, 0, Graphic, 255);
     end;
 
+    Stream.Clear;
     Png.SaveToStream(Stream);
     Result := StreamToHex(Stream, APad, LineLen);
 
