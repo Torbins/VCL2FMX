@@ -722,7 +722,7 @@ var
 begin
   if AObjType = 'ColoredRect' then
   begin
-    Obj := GetObject(FObjName + '_ColoredRect', 'TShape', ColoredRectInitParams);
+    Obj := GetObject(FObjName + '_Color', 'TShape', ColoredRectInitParams);
 
     if ACurrentName = 'Color' then
       GenerateProperty(Obj, 'Brush.Color', ACurrentValue)
@@ -1175,6 +1175,12 @@ var
 
     if Value = '#GenerateColorValue#' then
       Value := ConvertColor(ColorToRGB(StringToColor(ACurrentValue)));
+
+    if Value.StartsWith('#SetProperty#', {IgnoreCase} True) then
+    begin
+      ReplacementLine := Copy(Value, Length('#SetProperty#') + 1).Replace('=', ' = ', []);
+      Exit(True);
+    end;
 
     ReplacementLine := PropName + ' = ' + Value;
     Result := True;
