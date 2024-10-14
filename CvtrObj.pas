@@ -645,6 +645,8 @@ begin
       if (Pos(GetArrayFromString(sProp, '=')[0], Result) = 0) then
         Result := Result + APad + '  ' + StringReplace(sProp, '=', ' = ', []) + CRLF;
     end;
+
+  Result := StringReplace(Result, '#CRLFWithPad#', CRLF + APad + '  ', [rfReplaceAll]);
 end;
 
 function TDfmToFmxObject.FMXSubObjects(APad: String): String;
