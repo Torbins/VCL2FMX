@@ -537,16 +537,24 @@ function TDfmToFmxObject.FMXProperties(APad: String): String;
     Line: TArrayOfStrings;
     Prop: String;
     Mask: TMask;
+    Found: Boolean;
+    Parent: TDfmToFmxObject;
   begin
     Mask := TMask.Create(ACopyProp);
     try
-      for Line in FParent.F2DPropertyArray do
-        if Mask.Matches(Line[0]) then
-        begin
-          Prop := TransformProperty(Line[0], Line[1], APad);
-          if not Prop.IsEmpty then
-            ACurrentProps := ACurrentProps + APad +'  '+ Prop + CRLF;
-        end;
+      Found := False;
+      Parent := FParent;
+      repeat
+        for Line in Parent.F2DPropertyArray do
+          if Mask.Matches(Line[0]) then
+          begin
+            Prop := TransformProperty(Line[0], Line[1], APad);
+            if not Prop.IsEmpty then
+              ACurrentProps := ACurrentProps + APad +'  '+ Prop + CRLF;
+            Found := True;
+          end;
+        Parent := Parent.FParent;
+      until Found or not Assigned(Parent);
     finally
       Mask.Free;
     end;
