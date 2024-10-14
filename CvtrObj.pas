@@ -1178,9 +1178,15 @@ var
     if Value = '#GenerateColorValue#' then
       Value := ConvertColor(ColorToRGB(StringToColor(ACurrentValue)));
 
+    if Value = '#IgnoreValue#' then
+    begin
+      ReplacementLine := EmptyStr;
+      Exit(True);
+    end;
+
     if Value.StartsWith('#SetProperty#', {IgnoreCase} True) then
     begin
-      ReplacementLine := Copy(Value, Length('#SetProperty#') + 1).Replace('=', ' = ', []);
+      ReplacementLine := Copy(Value, Length('#SetProperty#') + 1);
       Exit(True);
     end;
 
