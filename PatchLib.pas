@@ -19,7 +19,8 @@ function GetArrayFromString(const S: String; SepVal: Char; ARemoveQuote: Boolean
 function FieldSep(var ss: PChar; SepVal: Char): String; overload;
 function PosNoCase(const ASubstr: String; AFullString: String; Offset: Integer = 1): Integer; overload;
 procedure PopulateStringsFromArray(AStrings: TStrings; AArray: TArrayOfStrings);
-function StreamToHex(AMemStream:TMemoryStream; APad: String; ALineLen: Integer): String;
+function BreakIntoLines(const AData, APad: String; ALineLen: Integer = 64): String;
+function StreamToHex(AMemStream:TMemoryStream): String;
 procedure HexToStream(AData: string; AMemStream:TMemoryStream);
 
 const
@@ -181,18 +182,22 @@ begin
     AStrings.Add(AArray[i])
 end;
 
-function StreamToHex(AMemStream:TMemoryStream; APad: String; ALineLen: Integer): String;
+function StreamToHex(AMemStream:TMemoryStream): String;
+begin
+  SetLength(Result, AMemStream.Size * 2);
+  BinToHex(AMemStream.Memory^, PChar(Result), AMemStream.Size);
+end;
+
+function BreakIntoLines(const AData, APad: String; ALineLen: Integer = 64): String;
 var
-  Line, Data: String;
+  Line: String;
   LineNum: Integer;
 begin
-  SetLength(Data, AMemStream.Size * 2);
-  BinToHex(AMemStream.Memory^, PChar(Data), AMemStream.Size);
   LineNum := 0;
   repeat
-    Line := Copy(Data, ALineLen * LineNum + 1, ALineLen);
+    Line := Copy(AData, ALineLen * LineNum + 1, ALineLen);
     if Line <> '' then
-      Result := Result + CRLF + APad + '        ' + Line;
+      Result := Result + CRLF + APad + '    ' + Line;
     Inc(LineNum);
   until Length(Line) < ALineLen;
 end;

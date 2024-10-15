@@ -1274,7 +1274,12 @@ begin
     end
     else
     if not ReplaceEnum(Result) then
-      Result := s +' = '+ ACurrentValue;
+    begin
+      if ACurrentValue.StartsWith('{') and ACurrentValue.EndsWith('}') then
+        Result := s + ' = {' + BreakIntoLines(Copy(ACurrentValue, 2), APad)
+      else
+        Result := s + ' = ' + ACurrentValue;
+    end;
 
     if IniDefaultValueProperties.Count > 0 then
     begin

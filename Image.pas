@@ -20,8 +20,6 @@ type
   end;
 
 function ProcessImage(sData, APad: String): String;
-const
-  LineLen = 64;
 var
   Stream: TMemoryStream;
   GraphClassName: ShortString;
@@ -52,7 +50,7 @@ begin
 
     Stream.Clear;
     Png.SaveToStream(Stream);
-    Result := StreamToHex(Stream, APad, LineLen);
+    Result := BreakIntoLines(StreamToHex(Stream), APad + '    ');
 
     Result := 'MultiResBitmap = <' +
       CRLF + APad + '    item ' +

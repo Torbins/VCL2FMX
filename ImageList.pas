@@ -58,7 +58,7 @@ begin
     begin
       Stream.Clear;
       PngList.Items[I].SaveToStream(Stream);
-      Data := StreamToHex(Stream, APad, 64);
+      Data := BreakIntoLines(StreamToHex(Stream), APad + '    ');
 
       Result := Result +
         CRLF + APad + '    item ' +
