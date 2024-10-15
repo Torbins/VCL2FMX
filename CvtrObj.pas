@@ -53,6 +53,9 @@ type
     FOwnedItems: TOwnedItems;
     FDepth: integer;
     FGenerated: Boolean;
+    FGenObjectType: String;
+    FGenContinue: Boolean;
+    FGenContinueCount: Integer;
     F2DPropertyArray: TTwoDArrayOfString;
     FPropertyArraySz, FPropertyMax: integer;
     FIniReplaceValues,
@@ -90,7 +93,7 @@ type
     function GetFMXLiveBindings: String;
     function GetPASLiveBindings: String;
     procedure ReadText(Prop: TTwoDArrayOfString; APropertyIdx: integer; AStm: TStreamReader);
-    procedure GenerateObject(AObjType, ACurrentName, ACurrentValue: string);
+    procedure GenerateObject(ACurrentName, ACurrentValue: string);
     procedure CalcImageWrapMode(APad: string; var APropsText: String);
   public
     constructor Create(AParent: TDfmToFmxObject; ACreateText: String; AStm: TStreamReader; ADepth: integer);
@@ -669,7 +672,7 @@ begin
     Result := Result + FOwnedObjs[I].FMXFile(APad +' ');
 end;
 
-procedure TDfmToFmxObject.GenerateObject(AObjType, ACurrentName, ACurrentValue: string);
+procedure TDfmToFmxObject.GenerateObject(ACurrentName, ACurrentValue: string);
 
   procedure GenerateProperty(AObj: TDfmToFmxObject; APropName, APropValue: String);
   var
@@ -703,7 +706,7 @@ type
     Name, Value: String;
   end;
 
-  function GetObject(AObjName, ADFMClass: String; AInitProps: array of TProp): TDfmToFmxObject;
+  function GetObject(AObjName, ADFMClass: String; AInitProps: array of TProp; APosition: Integer = 0): TDfmToFmxObject;
   var
     i: Integer;
   begin
@@ -711,12 +714,12 @@ type
     begin
       if not FOwnedObjs[i].FGenerated then
         Break;
-      if FOwnedObjs[i].FDFMClass = ADFMClass then
+      if (FOwnedObjs[i].FDFMClass = ADFMClass) and (FOwnedObjs[i].FObjName = AObjName) then
         Exit(FOwnedObjs[i]);
     end;
 
     Result := TDfmToFmxObject.CreateGenerated(Self, AObjName, ADFMClass, FDepth + 1);
-    FOwnedObjs.Insert(0, Result);
+    FOwnedObjs.Insert(APosition, Result);
     for i := 0 to High(AInitProps) do
       GenerateProperty(Result, AInitProps[i].Name, AInitProps[i].Value);
   end;
@@ -730,7 +733,12 @@ const
 var
   Obj: TDfmToFmxObject;
 begin
-  if AObjType = 'ColoredRect' then
+  if not FGenContinue then
+    FGenContinueCount := 0
+  else
+    Inc(FGenContinueCount);
+
+  if FGenObjectType = 'ColoredRect' then
   begin
     Obj := GetObject(FObjName + '_Color', 'TShape', ColoredRectInitParams);
 
@@ -740,7 +748,19 @@ begin
       GenerateProperty(Obj, ACurrentName, ACurrentValue);
   end;
 
-  if AObjType = 'SeparateCaption' then
+  if FGenObjectType = 'MultipleTabs' then
+  begin
+    FGenContinue := True;
+    ACurrentValue := ACurrentValue.Trim(['(', ')']);
+
+    if ACurrentValue <> '' then
+    begin
+      Obj := GetObject(FObjName + 'Tab' + FGenContinueCount.ToString, 'TTabSheet', [], FGenContinueCount - 1);
+      GenerateProperty(Obj, 'Caption', ACurrentValue);
+    end;
+  end;
+
+  if FGenObjectType = 'SeparateCaption' then
   begin
     Obj := GetObject(FObjName + '_Caption', 'TLabel', SeparateCaptionInitParams);
 
@@ -1121,7 +1141,7 @@ end;
 
 function TDfmToFmxObject.TransformProperty(ACurrentName, ACurrentValue: String; APad: String = ''): String;
 var
-  s, GenObjectType: String;
+  s: String;
   Mask: TMask;
   DefaultValuePropPos: Integer;
 
@@ -1204,9 +1224,19 @@ var
 
 begin
   if ACurrentName = ContinueCode then
-    Result := '  ' + ACurrentValue
+  begin
+    if not FGenContinue then
+      Result := '  ' + ACurrentValue
+    else
+    begin
+      GenerateObject(ACurrentName, ACurrentValue);
+      Result := EmptyStr;
+    end;
+  end
   else
   begin
+    FGenContinue := False;
+
     s := Trim(FIniSectionValues.Values[ACurrentName]);
     if s = EmptyStr then
       for var i := 0 to Pred(FIniSectionValues.Count) do
@@ -1238,8 +1268,8 @@ begin
     else
     if s.StartsWith('#GenerateControl#') then
     begin
-      GenObjectType := Copy(s, Length('#GenerateControl#') + 1);
-      GenerateObject(GenObjectType, ACurrentName, ACurrentValue);
+      FGenObjectType := Copy(s, Length('#GenerateControl#') + 1);
+      GenerateObject(ACurrentName, ACurrentValue);
       Result := EmptyStr;
     end
     else
