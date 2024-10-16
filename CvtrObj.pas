@@ -3,18 +3,8 @@
 interface
 
 uses
-  PatchLib,
-  System.Classes,
-  System.Types,
-  System.SysUtils,
-  System.StrUtils,
-  Contnrs,
-  Winapi.Windows,
-  System.IniFiles,
-  FMX.Objects,
-  System.Generics.Collections,
-  Image,
-  ImageList;
+  System.Classes, System.Types, System.SysUtils, System.StrUtils, Winapi.Windows, System.IniFiles, FMX.Objects,
+  System.Generics.Collections, PatchLib, CvtrProp, Image, ImageList;
 
 type
   TLinkControl = record
@@ -39,9 +29,9 @@ type
   TDfmToFmxObject = class;
   TOwnedObjects = TObjectList<TDfmToFmxObject>;
   TDfmToFmxListItem = class;
-  TOwnedItems = TObjectList<TDfmToFmxListItem>;
+  TProperties = TObjectList<TDfmToFmxProperty>;
 
-  TDfmToFmxObject = class(TObject)
+  TDfmToFmxObject = class
   private
     FParent: TDfmToFmxObject;
     FRoot: TDfmToFmxObject;
@@ -51,14 +41,10 @@ type
     FOldDfmClass: String;
     FObjName: String;
     FOwnedObjs: TOwnedObjects;
-    FOwnedItems: TOwnedItems;
     FDepth: integer;
     FGenerated: Boolean;
     FGenObjectType: String;
-    FGenContinue: Boolean;
-    FGenContinueCount: Integer;
-    F2DPropertyArray: TTwoDArrayOfString;
-    FPropertyArraySz, FPropertyMax: integer;
+    F2DPropertyArray: TProperties;
     FIniReplaceValues,
     FIniIncludeValues,
     FIniSectionValues,
@@ -69,31 +55,21 @@ type
     FIni: TMemIniFile;
     FOriginalIni: TMemIniFile;
     FFMXFileText: String;
-    function OwnedObjs: TOwnedObjects;
-    function IniSectionValues: TStringlist;
-    function UsesTranslation: TStringlist;
-    function IniReplaceValues: TStringlist;
-    function IniIncludeValues: TStringlist;
-    function IniAddProperties: TStringlist;
-    function IniDefaultValueProperties: TStringlist;
-    function PropertyArray(ARow: integer): TArrayOfStrings;
+    procedure InitObjects;
     procedure UpdateUsesStringList(AUsesList: TStrings);
-    procedure ReadProperties(AData: String; AStm: TStreamReader; var AIdx: Integer);
+    procedure ReadProperties(AData: String; AStm: TStreamReader);
     function ProcessUsesString(AOrigUsesArray: TArrayOfStrings): String;
     function ProcessCodeBody(const ACodeBody: String): String;
     procedure IniFileLoad(AIni: TMemIniFile);
     procedure InternalProcessBody(var ABody: String);
     procedure LoadCommonProperties(AParamName: String);
-    procedure ReadItems(Prop: TTwoDArrayOfString; APropertyIdx: integer; AStm: TStreamReader);
     function FMXClass: String;
     function TransformProperty(ACurrentName, ACurrentValue: String; APad: String = ''): String;
     function AddArrayOfItemProperties(APropertyIdx: Integer; APad: String): String;
     function FMXProperties(APad: String): String;
     function FMXSubObjects(APad: String): String;
-    procedure ReadData(Prop: TTwoDArrayOfString; APropertyIdx: integer; AStm: TStreamReader);
     function GetFMXLiveBindings: String;
     function GetPASLiveBindings: String;
-    procedure ReadText(Prop: TTwoDArrayOfString; APropertyIdx: integer; AStm: TStreamReader);
     procedure GenerateObject(ACurrentName, ACurrentValue: string);
     procedure CalcImageWrapMode(APad: string; var APropsText: String);
   public
@@ -162,17 +138,17 @@ begin
       FLinkGridList[Pred(Length(FLinkGridList))].GridControl := obj.FObjName;
 
       // Passa por todas propriedades da grid
-      for J := Low(obj.F2DPropertyArray) to High(obj.F2DPropertyArray) do
+      for J := 0 to obj.F2DPropertyArray.Count - 1 do
       begin
         // Obtem os dados do DataSource
-        if obj.F2DPropertyArray[J, 0].Equals('DataSource') then
-          FLinkGridList[Pred(Length(FLinkGridList))].DataSource := obj.F2DPropertyArray[J, 1];
+        if obj.F2DPropertyArray[J].Name = 'DataSource' then
+          FLinkGridList[Pred(Length(FLinkGridList))].DataSource := obj.F2DPropertyArray[J].Value;
 
         // Se for as colunas
-        if obj.F2DPropertyArray[J, 0].Equals('Columns') then
+        if obj.F2DPropertyArray[J].Name = 'Columns' then
         begin
           // Obtem os dados dos fields
-          sFields := obj.F2DPropertyArray[J, 1];
+          sFields := obj.F2DPropertyArray[J].Value;
 
           slItem := SplitString(sFields, #13);
           for sItem in slItem do
@@ -314,7 +290,7 @@ end;
 procedure TDfmToFmxObject.CalcImageWrapMode(APad: string; var APropsText: String);
 var
   Center, Proportional, Stretch: Boolean;
-  PropLine: TArrayOfStrings;
+  PropLine: TDfmToFmxProperty;
   Value: String;
 begin
   if Pos('WrapMode', APropsText) > 0 then
@@ -325,11 +301,11 @@ begin
   Stretch := False;
   for PropLine in F2DPropertyArray do
   begin
-    if PropLine[0] = 'Center' then
+    if PropLine.Name = 'Center' then
       Center := True;
-    if PropLine[0] = 'Proportional' then
+    if PropLine.Name = 'Proportional' then
       Proportional := True;
-    if PropLine[0] = 'Stretch' then
+    if PropLine.Name = 'Stretch' then
       Stretch := True;
   end;
 
@@ -352,14 +328,13 @@ var
   InputArray: TArrayOfStrings;
   Data: String;
   NxtChr: PChar;
-  i: integer;
 begin
   FParent := AParent;
   if Assigned(FParent) then
     FRoot := FParent.FRoot
   else
     FRoot := Self;
-  i := 0;
+  InitObjects;
   FDepth := ADepth;
   if Pos('object', Trim(ACreateText)) = 1 then
   begin
@@ -379,15 +354,14 @@ begin
     while Data <> 'end' do
     begin
       if Pos('object', Data) = 1 then
-        OwnedObjs.Add(TDfmToFmxObject.Create(Self, Data, AStm, FDepth + 1))
+        FOwnedObjs.Add(TDfmToFmxObject.Create(Self, Data, AStm, FDepth + 1))
       else
-        ReadProperties(Data,AStm,i);
+        ReadProperties(Data,AStm);
       Data := Trim(AStm.ReadLine);
     end
   end
   else
     raise Exception.Create('Bad Start::' + ACreateText);
-  SetLength(F2DPropertyArray, FPropertyMax + 1);
 end;
 
 constructor TDfmToFmxObject.CreateGenerated(AParent: TDfmToFmxObject; AObjName, ADFMClass: String; ADepth: integer);
@@ -398,14 +372,14 @@ begin
   FObjName := AObjName;
   FDFMClass := ADFMClass;
   FGenerated := True;
+  InitObjects;
   IniFileLoad(FParent.FIni);
 end;
 
 destructor TDfmToFmxObject.Destroy;
 begin
-  SetLength(F2DPropertyArray, 0);
+  F2DPropertyArray.Free;
   FOwnedObjs.Free;
-  FOwnedItems.Free;
   FIniReplaceValues.Free;
   FIniIncludeValues.Free;
   FIniSectionValues.Free;
@@ -497,10 +471,10 @@ function TDfmToFmxObject.FMXProperties(APad: String): String;
     i: Integer;
     Shape: String;
   begin
-    for i := 0 to High(F2DPropertyArray) do
-      if (Length(F2DPropertyArray[i]) > 1) and (F2DPropertyArray[i, 0] = 'Shape') then
+    for i := 0 to F2DPropertyArray.Count - 1 do
+      if F2DPropertyArray[i].Name = 'Shape' then
       begin
-        Shape := F2DPropertyArray[i, 1];
+        Shape := F2DPropertyArray[i].Value;
         Break;
       end;
 
@@ -517,7 +491,7 @@ function TDfmToFmxObject.FMXProperties(APad: String): String;
 
   procedure CopyFromParent(ACopyProp: String; var ACurrentProps: String);
   var
-    Line: TArrayOfStrings;
+    Line: TDfmToFmxProperty;
     Prop: String;
     Mask: TMask;
     Found: Boolean;
@@ -529,9 +503,9 @@ function TDfmToFmxObject.FMXProperties(APad: String): String;
       Parent := FParent;
       repeat
         for Line in Parent.F2DPropertyArray do
-          if Mask.Matches(Line[0]) then
+          if Mask.Matches(Line.Name) then
           begin
-            Prop := TransformProperty(Line[0], Line[1], APad);
+            Prop := TransformProperty(Line.Name, Line.Value, APad);
             if not Prop.IsEmpty then
               ACurrentProps := ACurrentProps + APad +'  '+ Prop + CRLF;
             Found := True;
@@ -545,7 +519,7 @@ function TDfmToFmxObject.FMXProperties(APad: String): String;
 
   procedure ReconsiderAfterRemovingRule(ARemoveRule: String; var ACurrentProps: String);
   var
-    Line: TArrayOfStrings;
+    Line: TDfmToFmxProperty;
     Prop: String;
     Mask: TMask;
     i: Integer;
@@ -559,9 +533,9 @@ function TDfmToFmxObject.FMXProperties(APad: String): String;
       LoadCommonProperties(ARemoveRule);
 
       for Line in F2DPropertyArray do
-        if Mask.Matches(Line[0]) then
+        if Mask.Matches(Line.Name) then
         begin
-          Prop := TransformProperty(Line[0], Line[1], APad);
+          Prop := TransformProperty(Line.Name, Line.Value, APad);
           if not Prop.IsEmpty then
             ACurrentProps := ACurrentProps + APad +'  '+ Prop + CRLF;
         end;
@@ -576,29 +550,27 @@ var
 begin
   Result := EmptyStr;
 
-  for i := Low(F2DPropertyArray) to High(F2DPropertyArray) do
+  for i := 0 to F2DPropertyArray.Count - 1 do
   begin
-    if Length(F2DPropertyArray[i]) = 0 then
-      Continue;
-    if F2DPropertyArray[i, 1] = '<' then
-      Result := Result + APad +'  '+ TransformProperty(F2DPropertyArray[i, 0], F2DPropertyArray[i, 1]) + CRLF + AddArrayOfItemProperties(i, APad +'  ') + CRLF
+    if F2DPropertyArray[i].Value = '<' then
+      Result := Result + APad +'  '+ TransformProperty(F2DPropertyArray[i].Name, F2DPropertyArray[i].Value) + CRLF + AddArrayOfItemProperties(i, APad +'  ') + CRLF
     else
-    if (Length(F2DPropertyArray[i, 1]) > 0) and (F2DPropertyArray[i, 1][1] = '{') then
+    if (Length(F2DPropertyArray[i].Value) > 0) and (F2DPropertyArray[i].Value[1] = '{') then
     begin
-      sProp := TransformProperty(F2DPropertyArray[i, 0], F2DPropertyArray[i, 1], APad);
+      sProp := TransformProperty(F2DPropertyArray[i].Name, F2DPropertyArray[i].Value, APad);
       if not sProp.IsEmpty then
         Result := Result + APad +'  '+ sProp + CRLF;
     end
     else
-    if F2DPropertyArray[i, 0] <> EmptyStr then
+    if F2DPropertyArray[i].Name <> EmptyStr then
     begin
-      sProp := TransformProperty(F2DPropertyArray[i, 0], F2DPropertyArray[i, 1]);
+      sProp := TransformProperty(F2DPropertyArray[i].Name, F2DPropertyArray[i].Value);
       if not sProp.IsEmpty then
         Result := Result + APad +'  '+ sProp + CRLF;
     end;
   end;
 
-  for i := 0 to Pred(IniDefaultValueProperties.Count) do
+  for i := 0 to Pred(FIniDefaultValueProperties.Count) do
   begin
     sProp := FIniDefaultValueProperties.ValueFromIndex[i];
     if sProp.StartsWith('#CopyFromParent#') then
@@ -624,7 +596,7 @@ begin
     Result := Result + APad + '  ' + StringReplace(sProp, '=', ' = ', []) + CRLF;
   end;
 
-  for i := 0 to Pred(IniAddProperties.Count) do
+  for i := 0 to Pred(FIniAddProperties.Count) do
     if (Pos(FIniAddProperties.Names[i], Result) > 0) then
     begin
       sProp := FIniAddProperties.ValueFromIndex[i];
@@ -685,29 +657,24 @@ procedure TDfmToFmxObject.GenerateObject(ACurrentName, ACurrentValue: string);
 
   procedure GenerateProperty(AObj: TDfmToFmxObject; APropName, APropValue: String);
   var
-    PropLine, i: Integer;
+    i: Integer;
+    Prop: TDfmToFmxProperty;
   begin
-    PropLine := -1;
-    for i := 0 to High(AObj.F2DPropertyArray) do
-      if (AObj.F2DPropertyArray[i] = nil) or (AObj.F2DPropertyArray[i, 0] = APropName) then
+    Prop := nil;
+    for i := 0 to AObj.F2DPropertyArray.Count - 1 do
+      if AObj.F2DPropertyArray[i].Name = APropName then
       begin
-        PropLine := i;
+        Prop := F2DPropertyArray[i];
         Break;
       end;
 
-    if PropLine = -1 then
+    if Assigned(Prop) then
+      Prop.Value := APropValue
+    else
     begin
-      PropLine := Length(AObj.F2DPropertyArray);
-      AObj.PropertyArray(PropLine);
+      Prop := TDfmToFmxProperty.Create(APropName, APropValue);
+      AObj.F2DPropertyArray.Add(Prop);
     end;
-
-    if AObj.F2DPropertyArray[PropLine] = nil then
-    begin
-      SetLength(AObj.F2DPropertyArray[PropLine], 2);
-      AObj.F2DPropertyArray[PropLine, 0] := APropName;
-    end;
-
-    AObj.F2DPropertyArray[PropLine, 1] := APropValue;
   end;
 
 type
@@ -719,7 +686,7 @@ type
   var
     i: Integer;
   begin
-    for i := 0 to Pred(OwnedObjs.Count) do
+    for i := 0 to Pred(FOwnedObjs.Count) do
     begin
       if not FOwnedObjs[i].FGenerated then
         Break;
@@ -741,12 +708,9 @@ const
     (Name: 'TabStop'; Value: 'False'), (Name: 'Alignment'; Value: 'taCenter'), (Name: 'Layout'; Value: 'tlCenter'));
 var
   Obj: TDfmToFmxObject;
+  Num: Integer;
+  Caption: String;
 begin
-  if not FGenContinue then
-    FGenContinueCount := 0
-  else
-    Inc(FGenContinueCount);
-
   if FGenObjectType = 'ColoredRect' then
   begin
     Obj := GetObject(FObjName + '_Color', 'TShape', ColoredRectInitParams);
@@ -762,13 +726,14 @@ begin
 
   if FGenObjectType = 'MultipleTabs' then
   begin
-    FGenContinue := True;
-    ACurrentValue := ACurrentValue.Trim(['(', ')']);
+    ACurrentValue := ACurrentValue.Trim(['(', ')', #13, #10]);
+    Num := 1;
 
-    if ACurrentValue <> '' then
+    for Caption in ACurrentValue.Split([#13#10]) do
     begin
-      Obj := GetObject(FObjName + 'Tab' + FGenContinueCount.ToString, 'TTabSheet', [], FGenContinueCount - 1);
-      GenerateProperty(Obj, 'Caption', ACurrentValue);
+      Obj := GetObject(FObjName + 'Tab' + Num.ToString, 'TTabSheet', [], Num - 1);
+      GenerateProperty(Obj, 'Caption', Caption);
+      Inc(Num);
     end;
   end;
 
@@ -836,20 +801,6 @@ begin
   Result := PreUsesString + UsesString + PostUsesString;
 end;
 
-function TDfmToFmxObject.IniAddProperties: TStringlist;
-begin
-  if FIniAddProperties = nil then
-    FIniAddProperties := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
-  Result := FIniAddProperties;
-end;
-
-function TDfmToFmxObject.IniDefaultValueProperties: TStringlist;
-begin
-  if FIniDefaultValueProperties = nil then
-    FIniDefaultValueProperties := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
-  Result := FIniDefaultValueProperties;
-end;
-
 procedure TDfmToFmxObject.IniFileLoad(AIni: TMemIniFile);
 var
   i: integer;
@@ -861,9 +812,9 @@ begin
   FIni := AIni;
   if FDepth < 1 then
   begin
-    AIni.ReadSectionValues('TForm', IniSectionValues);
-    AIni.ReadSectionValues('TForm#Replace', IniReplaceValues);
-    AIni.ReadSection('TForm#Include', IniIncludeValues);
+    AIni.ReadSectionValues('TForm', FIniSectionValues);
+    AIni.ReadSectionValues('TForm#Replace', FIniReplaceValues);
+    AIni.ReadSection('TForm#Include', FIniIncludeValues);
   end
   else
   begin
@@ -873,19 +824,17 @@ begin
       FOldDfmClass := FDFMClass;
       FDFMClass := NewClassName;
     end;
-    AIni.ReadSectionValues(FDFMClass, IniSectionValues);
-    AIni.ReadSectionValues(FDFMClass + '#Replace', IniReplaceValues);
-    AIni.ReadSection(FDFMClass + '#Include', IniIncludeValues);
-    AIni.ReadSectionValues(FDFMClass + '#AddIfPresent', IniAddProperties);
-    AIni.ReadSectionValues(FDFMClass + '#DefaultValueProperty', IniDefaultValueProperties);
+    AIni.ReadSectionValues(FDFMClass, FIniSectionValues);
+    AIni.ReadSectionValues(FDFMClass + '#Replace', FIniReplaceValues);
+    AIni.ReadSection(FDFMClass + '#Include', FIniIncludeValues);
+    AIni.ReadSectionValues(FDFMClass + '#AddIfPresent', FIniAddProperties);
+    AIni.ReadSectionValues(FDFMClass + '#DefaultValueProperty', FIniDefaultValueProperties);
 
     LoadCommonProperties('*');
   end;
 
   Sections := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
   try
-    FEnumList := TEnumList.Create([doOwnsValues]);
-
     AIni.ReadSections(Sections);
     for var Section in Sections do
       if Section.StartsWith('#') and Section.EndsWith('#') then
@@ -898,33 +847,21 @@ begin
     Sections.Free;
   end;
 
-  for i := 0 to Pred(OwnedObjs.Count) do
+  for i := 0 to Pred(FOwnedObjs.Count) do
     FOwnedObjs[i].IniFileLoad(AIni);
-
-  if FOwnedItems <> nil then
-    for i := 0 to Pred(fOwnedItems.Count) do
-      fOwnedItems[i].IniFileLoad(AIni);
 end;
 
-function TDfmToFmxObject.IniIncludeValues: TStringlist;
+procedure TDfmToFmxObject.InitObjects;
 begin
-  if FIniIncludeValues = nil then
-    FIniIncludeValues := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
-  Result := FIniIncludeValues;
-end;
-
-function TDfmToFmxObject.IniReplaceValues: TStringlist;
-begin
-  if FIniReplaceValues = nil then
-    FIniReplaceValues := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
-  Result := FIniReplaceValues;
-end;
-
-function TDfmToFmxObject.IniSectionValues: TStringlist;
-begin
-  if FIniSectionValues = nil then
-    FIniSectionValues := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
-  Result := FIniSectionValues;
+  F2DPropertyArray := TProperties.Create({AOwnsObjects} True);
+  FEnumList := TEnumList.Create([doOwnsValues]);
+  FIniAddProperties := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
+  FIniDefaultValueProperties := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
+  FIniIncludeValues := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
+  FIniReplaceValues := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
+  FIniSectionValues := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
+  FOwnedObjs := TOwnedObjects.Create({AOwnsObjects} True);
+  FUsesTranslation := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
 end;
 
 procedure TDfmToFmxObject.InternalProcessBody(var ABody: String);
@@ -977,13 +914,13 @@ begin
     FIni.ReadSectionValues('CommonProperties', CommonProps);
     for i := 0 to Pred(CommonProps.Count) do
       if ParamMask.Matches(CommonProps.Names[i]) and
-        (IniSectionValues.IndexOfName(CommonProps.Names[i]) = -1) then
+        (FIniSectionValues.IndexOfName(CommonProps.Names[i]) = -1) then
       begin
         Found := False;
         CommonPropMask := TMask.Create(CommonProps.Names[i]);
         try
-          for j := 0 to Pred(IniSectionValues.Count) do
-            if CommonPropMask.Matches(IniSectionValues.Names[j]) then
+          for j := 0 to Pred(FIniSectionValues.Count) do
+            if CommonPropMask.Matches(FIniSectionValues.Names[j]) then
             begin
               Found := True;
               Break;
@@ -995,9 +932,9 @@ begin
           Candidates.Add(CommonProps[i]);
       end;
 
-    for i := 0 to Pred(IniSectionValues.Count) do
+    for i := 0 to Pred(FIniSectionValues.Count) do
     begin
-      ExistingPropMask := TMask.Create(IniSectionValues.Names[i]);
+      ExistingPropMask := TMask.Create(FIniSectionValues.Names[i]);
       try
         for j := Pred(Candidates.Count) downto 0 do
           if ExistingPropMask.Matches(Candidates.Names[j]) then
@@ -1008,13 +945,13 @@ begin
     end;
 
     for i := 0 to Pred(Candidates.Count) do
-      IniSectionValues.Add(Candidates[i]);
+      FIniSectionValues.Add(Candidates[i]);
 
     CommonProps.Clear;
     FIni.ReadSectionValues('CommonProperties#AddIfPresent', CommonProps);
     for i := 0 to Pred(CommonProps.Count) do
-      if IniAddProperties.IndexOfName(CommonProps.Names[i]) = -1 then
-        IniAddProperties.Add(CommonProps[i]);
+      if FIniAddProperties.IndexOfName(CommonProps.Names[i]) = -1 then
+        FIniAddProperties.Add(CommonProps[i]);
   finally
     ParamMask.Free;
     CommonProps.Free;
@@ -1026,13 +963,6 @@ procedure TDfmToFmxObject.LoadInfileDefs(AIniFileName: String);
 begin
   FOriginalIni := TMemIniFile.Create(AIniFileName);
   IniFileLoad(FOriginalIni);
-end;
-
-function TDfmToFmxObject.OwnedObjs: TOwnedObjects;
-begin
-  if FOwnedObjs = nil then
-    FOwnedObjs := TOwnedObjects.Create({AOwnsObjects} True);
-  Result := FOwnedObjs;
 end;
 
 function TDfmToFmxObject.ProcessCodeBody(const ACodeBody: String): String;
@@ -1050,11 +980,11 @@ function TDfmToFmxObject.ProcessUsesString(AOrigUsesArray: TArrayOfStrings): Str
 var
   i, LineLen: integer;
 begin
-  PopulateStringsFromArray(UsesTranslation, AOrigUsesArray);
-  UpdateUsesStringList(UsesTranslation);
+  PopulateStringsFromArray(FUsesTranslation, AOrigUsesArray);
+  UpdateUsesStringList(FUsesTranslation);
   Result := 'uses'#13#10'  ';
   LineLen := 2;
-  for i := 0 to Pred(UsesTranslation.Count) do
+  for i := 0 to Pred(FUsesTranslation.Count) do
     if Trim(FUsesTranslation[i]) <> EmptyStr then
     begin
       LineLen := LineLen + Length(FUsesTranslation[i]) + 2;
@@ -1068,87 +998,43 @@ begin
   SetLength(Result, Length(Result) - 2);
 end;
 
-function TDfmToFmxObject.PropertyArray(ARow: integer): TArrayOfStrings;
-begin
-  while ARow >= FPropertyArraySz do
-  begin
-    inc(FPropertyArraySz, 5);
-    SetLength(F2DPropertyArray, FPropertyArraySz);
-  end;
-  if ARow > FPropertyMax then
-    FPropertyMax := ARow;
-  Result := F2DPropertyArray[ARow];
-end;
-
-{ Eduardo }
-procedure TDfmToFmxObject.ReadItems(Prop: TTwoDArrayOfString; APropertyIdx: integer; AStm: TStreamReader);
+procedure TDfmToFmxObject.ReadProperties(AData: String; AStm: TStreamReader);
 var
-  Data: String;
-  saTemp: Array of String;
-  sTemp: String;
+  Line: TArrayOfStrings;
+  Prop: TDfmToFmxProperty;
 begin
-  Data := Trim(AStm.ReadLine);
-  while not EndsText('>', Data) do
+  Line := GetArrayFromString(AData, '=');
+  if High(Line) < 1 then
   begin
-    SetLength(saTemp, Succ(Length(saTemp)));
-    saTemp[Pred(Length(saTemp))] := Data;
-    Data := Trim(AStm.ReadLine);
-  end;
-  SetLength(saTemp, Succ(Length(saTemp)));
-  saTemp[Pred(Length(saTemp))] := Data;
-  
-  for sTemp in saTemp do
-    Prop[APropertyIdx, 1] := Prop[APropertyIdx, 1] + #13 + sTemp;
-end;
-
-{ Eduardo }
-procedure TDfmToFmxObject.ReadData(Prop: TTwoDArrayOfString; APropertyIdx: integer; AStm: TStreamReader);
-var
-  Data: String;
-begin
-  Data := Trim(AStm.ReadLine);
-  while not EndsText('}', Data) do
-  begin
-    Prop[APropertyIdx, 1] := Prop[APropertyIdx, 1] + Data;
-    Data := Trim(AStm.ReadLine);
-  end;
-  Prop[APropertyIdx, 1] := Prop[APropertyIdx, 1] + Data;
-end;
-
-{ Eduardo }
-procedure TDfmToFmxObject.ReadText(Prop: TTwoDArrayOfString; APropertyIdx: integer; AStm: TStreamReader);
-var
-  Data: String;
-begin
-  Data := Trim(AStm.ReadLine);
-  while EndsText('+', Data) do
-  begin
-    Prop[APropertyIdx, 1] := Prop[APropertyIdx, 1] + Data;
-    Data := Trim(AStm.ReadLine);
-  end;
-  Prop[APropertyIdx, 1] := Prop[APropertyIdx, 1] + Data;
-end;
-
-procedure TDfmToFmxObject.ReadProperties(AData: String; AStm: TStreamReader; var AIdx: Integer);
-begin
-  PropertyArray(AIdx);
-  F2DPropertyArray[AIdx] := GetArrayFromString(AData, '=');
-  if High(F2DPropertyArray[AIdx]) < 1 then
-  begin
-    SetLength(F2DPropertyArray[AIdx], 2);
-    F2DPropertyArray[AIdx, 0] := ContinueCode;
-    F2DPropertyArray[AIdx, 1] := AData;
+    Prop := TDfmToFmxProperty.Create(ContinueCode, AData);
   end
   else
-  if (F2DPropertyArray[AIdx,1] = '<') then
-    ReadItems(F2DPropertyArray, AIdx, AStm)
+  if Line[1] = '(' then
+  begin
+    Prop := TDfmToFmxStringsProp.Create(Line[0], Line[1]);
+    TDfmToFmxStringsProp(Prop).ReadLines(AStm);
+  end
   else
-  if (F2DPropertyArray[AIdx,1] = '{') then
-    ReadData(F2DPropertyArray, AIdx, AStm)
+  if Line[1] = '<' then
+  begin
+    Prop := TDfmToFmxItemsProp.Create(Line[0], Line[1]);
+    TDfmToFmxItemsProp(Prop).ReadItems(AStm);
+  end
   else
-  if (F2DPropertyArray[AIdx,1] = '') then
-    ReadText(F2DPropertyArray, AIdx, AStm);
-  Inc(AIdx);
+  if Line[1] = '{' then
+  begin
+    Prop := TDfmToFmxDataProp.Create(Line[0], Line[1]);
+    TDfmToFmxDataProp(Prop).ReadData(AStm);
+  end
+  else
+  if Line[1] = '' then
+  begin
+    Prop := TDfmToFmxProperty.Create(Line[0], '');
+    Prop.ReadMultiline(AStm);
+  end
+  else
+    Prop := TDfmToFmxProperty.Create(Line[0], Line[1]);
+  F2DPropertyArray.Add(Prop);
 end;
 
 function TDfmToFmxObject.TransformProperty(ACurrentName, ACurrentValue: String; APad: String = ''): String;
@@ -1237,18 +1123,10 @@ var
 begin
   if ACurrentName = ContinueCode then
   begin
-    if not FGenContinue then
-      Result := '  ' + ACurrentValue
-    else
-    begin
-      GenerateObject(ACurrentName, ACurrentValue);
-      Result := EmptyStr;
-    end;
+    Result := '  ' + ACurrentValue;
   end
   else
   begin
-    FGenContinue := False;
-
     s := Trim(FIniSectionValues.Values[ACurrentName]);
     if s = EmptyStr then
       for var i := 0 to Pred(FIniSectionValues.Count) do
@@ -1293,7 +1171,7 @@ begin
         Result := s + ' = ' + ACurrentValue;
     end;
 
-    if IniDefaultValueProperties.Count > 0 then
+    if FIniDefaultValueProperties.Count > 0 then
     begin
       DefaultValuePropPos := FIniDefaultValueProperties.IndexOfName(ACurrentName);
       if DefaultValuePropPos >= 0 then
@@ -1362,13 +1240,6 @@ begin
     FOwnedObjs[i].UpdateUsesStringList(AUsesList);
 end;
 
-function TDfmToFmxObject.UsesTranslation: TStringlist;
-begin
-  if FUsesTranslation = nil then
-    FUsesTranslation := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
-  Result := FUsesTranslation;
-end;
-
 function TDfmToFmxObject.WriteFMXToFile(const AFmxFileName: String): Boolean;
 var
   OutFile: TStreamWriter;
@@ -1418,11 +1289,10 @@ end;
 constructor TDfmToFmxListItem.Create(AOwner: TDfmToFmxObject; APropertyIdx: integer; AStm: TStreamReader; ADepth: integer);
 var
   Data: String;
-  i,LoopCount: integer;
+  LoopCount: integer;
 begin
   FPropertyIndex := APropertyIdx;
   FOwner := AOwner;
-  i := 0;
   FDepth := ADepth;
   Data   := EmptyStr;
   LoopCount := 55;
@@ -1430,14 +1300,13 @@ begin
   Begin
     Dec(LoopCount);
     if Pos('object', Data) = 1 then
-      OwnedObjs.Add(TDfmToFmxObject.Create(Self, Data, AStm, FDepth + 1))
+      FOwnedObjs.Add(TDfmToFmxObject.Create(Self, Data, AStm, FDepth + 1))
     else
-      ReadProperties(Data,AStm,i);
+      ReadProperties(Data,AStm);
     Data := Trim(AStm.ReadLine);
     if (Data <> EmptyStr) then
       LoopCount := 55;
   end;
-  SetLength(F2DPropertyArray, FPropertyMax + 1);
   FHasMore := (Pos('end',Data)=1) and not (Pos('end>',Data) = 1);
 end;
 
