@@ -44,6 +44,7 @@ type
   TDfmToFmxObject = class(TObject)
   private
     FParent: TDfmToFmxObject;
+    FRoot: TDfmToFmxObject;
     FLinkControlList: TArray<TLinkControl>;
     FLinkGridList: TArray<TLinkGrid>;
     FDFMClass: String;
@@ -196,32 +197,6 @@ begin
       end;
     end;
 
-    // Se for um dbedit
-    if obj.FDFMClass.Equals('TDBEdit') then
-    begin
-      // Cria um novo item na lista de dbedits
-      SetLength(FLinkControlList, Succ(Length(FLinkControlList)));
-
-      // Insere o nome do dbedit
-      FLinkControlList[Pred(Length(FLinkControlList))].Control := obj.FObjName;
-
-      // Passa por todas propriedades do dbedit
-      for J := Low(obj.F2DPropertyArray) to High(obj.F2DPropertyArray) do
-      begin
-        // Obtem os dados do DataSource
-        if obj.F2DPropertyArray[J, 0].Equals('DataSource') then
-          FLinkControlList[Pred(Length(FLinkControlList))].DataSource := obj.F2DPropertyArray[J, 1];
-
-        // Obtem os dados do field
-        if obj.F2DPropertyArray[J, 0].Equals('DataField') then
-          FLinkControlList[Pred(Length(FLinkControlList))].FieldName := GetArrayFromString(obj.F2DPropertyArray[J, 1], '=', True, True)[0];
-
-        // Se ja encontrou tudo, sai do loop
-        if not FLinkControlList[Pred(Length(FLinkControlList))].DataSource.IsEmpty and not FLinkControlList[Pred(Length(FLinkControlList))].FieldName.IsEmpty then
-          Break;
-      end;
-    end;
-
     // Se o componente atual possui componentes nele, faz recursão
     if Assigned(obj.FOwnedObjs) and (obj.FOwnedObjs.Count > 0) then
       LiveBindings(obj.FOwnedObjs);
@@ -250,9 +225,9 @@ begin
   begin
     Result := Result +
     CRLF +'    object LinkControlToField'+ I.ToString +': TLinkControlToField '+
-    CRLF +'      Category = '+ QuotedStr('Quick Bindings') +
+    CRLF +'      Category = ''Quick Bindings''' +
     CRLF +'      DataSource = '+ FLinkControlList[I].DataSource +
-    CRLF +'      FieldName = '+ QuotedStr(FLinkControlList[I].FieldName) +
+    CRLF +'      FieldName = '+ FLinkControlList[I].FieldName +
     CRLF +'      Control = '+ FLinkControlList[I].Control +
     CRLF +'      Track = False '+
     CRLF +'    end ';
@@ -263,7 +238,7 @@ begin
   begin
     Result := Result +
     CRLF +'    object LinkGridToDataSourceBindSourceDB'+ I.ToString +': TLinkGridToDataSource '+
-    CRLF +'      Category = '+ QuotedStr('Quick Bindings') +
+    CRLF +'      Category = ''Quick Bindings''' +
     CRLF +'      DataSource = '+ FLinkGridList[I].DataSource +
     CRLF +'      GridControl = '+ FLinkGridList[I].GridControl +
     CRLF +'      Columns = < ';
@@ -380,6 +355,10 @@ var
   i: integer;
 begin
   FParent := AParent;
+  if Assigned(FParent) then
+    FRoot := FParent.FRoot
+  else
+    FRoot := Self;
   i := 0;
   FDepth := ADepth;
   if Pos('object', Trim(ACreateText)) = 1 then
@@ -414,6 +393,7 @@ end;
 constructor TDfmToFmxObject.CreateGenerated(AParent: TDfmToFmxObject; AObjName, ADFMClass: String; ADepth: integer);
 begin
   FParent := AParent;
+  FRoot := FParent.FRoot;
   FDepth := ADepth;
   FObjName := AObjName;
   FDFMClass := ADFMClass;
@@ -674,6 +654,35 @@ end;
 
 procedure TDfmToFmxObject.GenerateObject(ACurrentName, ACurrentValue: string);
 
+  procedure GenerateFieldLink;
+  var
+    i, Len: Integer;
+    CurrentLink: ^TLinkControl;
+  begin
+    CurrentLink := nil;
+
+    for i := 0 to High(FRoot.FLinkControlList) do
+      if FRoot.FLinkControlList[i].Control = FObjName then
+      begin
+        CurrentLink := @(FRoot.FLinkControlList[i]);
+        Break;
+      end;
+
+    if not Assigned(CurrentLink) then
+    begin
+      Len := Length(FRoot.FLinkControlList);
+      SetLength(FRoot.FLinkControlList, Len + 1);
+      CurrentLink := @(FRoot.FLinkControlList[Len]);
+      CurrentLink.Control := FObjName;
+    end;
+
+    if ACurrentName = 'DataField' then
+      CurrentLink.FieldName := ACurrentValue;
+
+    if ACurrentName = 'DataSource' then
+      CurrentLink.DataSource := ACurrentValue;
+  end;
+
   procedure GenerateProperty(AObj: TDfmToFmxObject; APropName, APropValue: String);
   var
     PropLine, i: Integer;
@@ -747,6 +756,9 @@ begin
     else
       GenerateProperty(Obj, ACurrentName, ACurrentValue);
   end;
+
+  if FGenObjectType = 'FieldLink' then
+    GenerateFieldLink;
 
   if FGenObjectType = 'MultipleTabs' then
   begin
