@@ -14,18 +14,19 @@ type
   TArrayOfStrings = array of String;
   TTwoDArrayOfString = array of TArrayOfStrings;
 
+const
+  CRLF = #13#10;
+  ZSISOffset = 0;
+  LineTruncLength = 64;
+
 function ConvertColor(AColorVal: Cardinal): String;
 function GetArrayFromString(const S: String; SepVal: Char; ARemoveQuote: Boolean = false; ATrim: Boolean = True; ADropNulls: Boolean = false): TArrayOfStrings; overload;
 function FieldSep(var ss: PChar; SepVal: Char): String; overload;
 function PosNoCase(const ASubstr: String; AFullString: String; Offset: Integer = 1): Integer; overload;
 procedure PopulateStringsFromArray(AStrings: TStrings; AArray: TArrayOfStrings);
-function BreakIntoLines(const AData, APad: String; ALineLen: Integer = 64): String;
+function BreakIntoLines(const AData, APad: String; ALineLen: Integer = LineTruncLength): String;
 function StreamToHex(AMemStream:TMemoryStream): String;
 procedure HexToStream(AData: string; AMemStream:TMemoryStream);
-
-const
-  CRLF = #13#10;
-  ZSISOffset = 0;
 
 implementation
 
@@ -188,7 +189,7 @@ begin
   BinToHex(AMemStream.Memory^, PChar(Result), AMemStream.Size);
 end;
 
-function BreakIntoLines(const AData, APad: String; ALineLen: Integer = 64): String;
+function BreakIntoLines(const AData, APad: String; ALineLen: Integer = LineTruncLength): String;
 var
   Line: String;
   LineNum: Integer;
@@ -203,21 +204,9 @@ begin
 end;
 
 procedure HexToStream(AData: string; AMemStream:TMemoryStream);
-var
-  InStr: String;
-  DataStart, DataLen: Integer;
 begin
-  if AData.StartsWith('{') then
-    DataStart := 2
-  else
-    DataStart := 1;
-  DataLen := Length(AData) - DataStart + 1;
-  if AData.EndsWith('}') then
-    Dec(DataLen);
-
-  InStr := Copy(AData, DataStart, DataLen);
-  AMemStream.Size := Length(InStr) div 2;
-  HexToBin(PChar(InStr), AMemStream.Memory^, AMemStream.Size);
+  AMemStream.Size := Length(AData) div 2;
+  HexToBin(PChar(AData), AMemStream.Memory^, AMemStream.Size);
 end;
 
 end.

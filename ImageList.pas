@@ -51,7 +51,7 @@ begin
       end;
     end;
 
-    Result := '  Source = <';
+    Result := APad + '  Source = <';
 
     // Adiciona as imagens
     for I := 0 to Pred(PngList.Count) do

@@ -8,7 +8,8 @@ uses
   PatchLib in 'PatchLib.pas',
   CONFIGINI in 'CONFIGINI.pas' {INI},
   Image in 'Image.pas',
-  ImageList in 'ImageList.pas';
+  ImageList in 'ImageList.pas',
+  CvtrProp in 'CvtrProp.pas';
 
 {$R *.res}
 

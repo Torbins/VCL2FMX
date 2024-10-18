@@ -52,7 +52,7 @@ begin
     Png.SaveToStream(Stream);
     Result := BreakIntoLines(StreamToHex(Stream), APad + '    ');
 
-    Result := 'MultiResBitmap = <' +
+    Result := ' = <' +
       CRLF + APad + '    item ' +
       CRLF + APad + '      Width = ' + Graphic.Width.ToString +
       CRLF + APad + '      Height = ' + Graphic.Height.ToString +

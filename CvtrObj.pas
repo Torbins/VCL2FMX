@@ -29,7 +29,6 @@ type
   TDfmToFmxObject = class;
   TOwnedObjects = TObjectList<TDfmToFmxObject>;
   TDfmToFmxListItem = class;
-  TProperties = TObjectList<TDfmToFmxProperty>;
 
   TDfmToFmxObject = class
   private
@@ -44,7 +43,7 @@ type
     FDepth: integer;
     FGenerated: Boolean;
     FGenObjectType: String;
-    F2DPropertyArray: TProperties;
+    F2DPropertyArray: TDfmProperties;
     FIniReplaceValues,
     FIniIncludeValues,
     FIniSectionValues,
@@ -64,14 +63,13 @@ type
     procedure InternalProcessBody(var ABody: String);
     procedure LoadCommonProperties(AParamName: String);
     function FMXClass: String;
-    function TransformProperty(ACurrentName, ACurrentValue: String; APad: String = ''): String;
-    function AddArrayOfItemProperties(APropertyIdx: Integer; APad: String): String;
+    function TransformProperty(AProp: TDfmProperty): TFmxProperty;
     function FMXProperties(APad: String): String;
     function FMXSubObjects(APad: String): String;
     function GetFMXLiveBindings: String;
     function GetPASLiveBindings: String;
-    procedure GenerateObject(ACurrentName, ACurrentValue: string);
-    procedure CalcImageWrapMode(APad: string; var APropsText: String);
+    procedure GenerateObject(AProp: TDfmProperty);
+    procedure CalcImageWrapMode(FmxProps: TFmxProperties);
   public
     constructor Create(AParent: TDfmToFmxObject; ACreateText: String; AStm: TStreamReader; ADepth: integer);
     constructor CreateGenerated(AParent: TDfmToFmxObject; AObjName, ADFMClass: String; ADepth: integer);
@@ -279,21 +277,15 @@ begin
   end;
 end;
 
-function TDfmToFmxObject.AddArrayOfItemProperties(APropertyIdx: Integer; APad: String): String;
-begin
-  Result:=APad+'  item'+ CRLF +
-  APad+ '  Prop1 = 6'+ CRLF +
-  APad+ '  end>'+ CRLF;
-  //Tempary patch
-end;
-
-procedure TDfmToFmxObject.CalcImageWrapMode(APad: string; var APropsText: String);
+procedure TDfmToFmxObject.CalcImageWrapMode(FmxProps: TFmxProperties);
 var
   Center, Proportional, Stretch: Boolean;
-  PropLine: TDfmToFmxProperty;
+  PropLine: TDfmProperty;
+  FmxProp: TFmxProperty;
   Value: String;
 begin
-  if Pos('WrapMode', APropsText) > 0 then
+  FmxProp := FmxProps.FindByName('WrapMode');
+  if Assigned(FmxProp) then
     Exit;
 
   Center := False;
@@ -320,7 +312,7 @@ begin
   else
     Value := 'Original';
 
-  APropsText := APropsText + APad + '  WrapMode = ' + Value + CRLF;
+  FmxProps.AddProp(TFmxProperty.Create('WrapMode', Value));
 end;
 
 constructor TDfmToFmxObject.Create(AParent: TDfmToFmxObject; ACreateText: String; AStm: TStreamReader; ADepth: integer);
@@ -436,47 +428,38 @@ begin
 end;
 
 function TDfmToFmxObject.FMXProperties(APad: String): String;
+var
+  i: Integer;
+  sProp: String;
+  FmxProps: TFmxProperties;
+  ExistingProp: TFmxProperty;
 
-  procedure HandleStyledSettings(AExcludeElement: String; var ACurrentVal: String);
+  procedure HandleStyledSettings(AExcludeElement: String);
   var
-    PropPos, SetStart, SetEnd: Integer;
-    SetVal: String;
+    Prop: TFmxProperty;
   begin
-    SetStart := 0;
-    SetEnd := 0;
-    PropPos := Pos('StyledSettings', ACurrentVal);
+    Prop := FmxProps.FindByName('StyledSettings');
 
-    if PropPos = 0 then
-      SetVal := '[Family, Size, Style, FontColor, Other]'
-    else
+    if not Assigned(Prop) then
     begin
-      SetStart := Pos('[', ACurrentVal, PropPos);
-      SetEnd := Pos(']', ACurrentVal, SetStart);
-      SetVal := Copy(ACurrentVal, SetStart, SetEnd - SetStart + 1);
+      Prop := TFmxProperty.Create('StyledSettings', '[Family, Size, Style, FontColor, Other]');
+      FmxProps.AddProp(Prop);
     end;
 
-    SetVal := ReplaceStr(SetVal, AExcludeElement, '');
-    SetVal := ReplaceStr(SetVal, '[, ', '[');
-    SetVal := ReplaceStr(SetVal, ', , ', ', ');
-    SetVal := ReplaceStr(SetVal, ', ]', ']');
-
-    if PropPos = 0 then
-      ACurrentVal := ACurrentVal + APad + '  StyledSettings = ' + SetVal + CRLF
-    else
-      ACurrentVal := Copy(ACurrentVal, 1, SetStart - 1) + SetVal + Copy(ACurrentVal, SetEnd + 1);
+    Prop.Value := ReplaceStr(Prop.Value, AExcludeElement, '');
+    Prop.Value := ReplaceStr(Prop.Value, '[, ', '[');
+    Prop.Value := ReplaceStr(Prop.Value, ', , ', ', ');
+    Prop.Value := ReplaceStr(Prop.Value, ', ]', ']');
   end;
 
   procedure CalcShapeClass;
   var
-    i: Integer;
     Shape: String;
+    Prop: TDfmProperty;
   begin
-    for i := 0 to F2DPropertyArray.Count - 1 do
-      if F2DPropertyArray[i].Name = 'Shape' then
-      begin
-        Shape := F2DPropertyArray[i].Value;
-        Break;
-      end;
+    Prop := F2DPropertyArray.FindByName('Shape');
+    if Assigned(Prop) then
+      Shape := Prop.Value;
 
     FOldDfmClass := FDFMClass;
     if (Shape = '') or (Shape = 'stRectangle') or (Shape = 'stSquare') then
@@ -489,10 +472,9 @@ function TDfmToFmxObject.FMXProperties(APad: String): String;
       FDFMClass := 'TRoundRect';
   end;
 
-  procedure CopyFromParent(ACopyProp: String; var ACurrentProps: String);
+  procedure CopyFromParent(ACopyProp: String);
   var
-    Line: TDfmToFmxProperty;
-    Prop: String;
+    Line: TDfmProperty;
     Mask: TMask;
     Found: Boolean;
     Parent: TDfmToFmxObject;
@@ -505,9 +487,7 @@ function TDfmToFmxObject.FMXProperties(APad: String): String;
         for Line in Parent.F2DPropertyArray do
           if Mask.Matches(Line.Name) then
           begin
-            Prop := TransformProperty(Line.Name, Line.Value, APad);
-            if not Prop.IsEmpty then
-              ACurrentProps := ACurrentProps + APad +'  '+ Prop + CRLF;
+            FmxProps.AddProp(TransformProperty(Line));
             Found := True;
           end;
         Parent := Parent.FParent;
@@ -517,10 +497,9 @@ function TDfmToFmxObject.FMXProperties(APad: String): String;
     end;
   end;
 
-  procedure ReconsiderAfterRemovingRule(ARemoveRule: String; var ACurrentProps: String);
+  procedure ReconsiderAfterRemovingRule(ARemoveRule: String);
   var
-    Line: TDfmToFmxProperty;
-    Prop: String;
+    Line: TDfmProperty;
     Mask: TMask;
     i: Integer;
   begin
@@ -534,82 +513,68 @@ function TDfmToFmxObject.FMXProperties(APad: String): String;
 
       for Line in F2DPropertyArray do
         if Mask.Matches(Line.Name) then
-        begin
-          Prop := TransformProperty(Line.Name, Line.Value, APad);
-          if not Prop.IsEmpty then
-            ACurrentProps := ACurrentProps + APad +'  '+ Prop + CRLF;
-        end;
+          FmxProps.AddProp(TransformProperty(Line));
     finally
       Mask.Free;
     end;
   end;
 
-var
-  i: Integer;
-  sProp: String;
 begin
   Result := EmptyStr;
+  FmxProps := TFmxProperties.Create({AOwnsObjects} True);
+  try
+    for i := 0 to F2DPropertyArray.Count - 1 do
+      FmxProps.AddProp(TransformProperty(F2DPropertyArray[i]));
 
-  for i := 0 to F2DPropertyArray.Count - 1 do
-  begin
-    if F2DPropertyArray[i].Value = '<' then
-      Result := Result + APad +'  '+ TransformProperty(F2DPropertyArray[i].Name, F2DPropertyArray[i].Value) + CRLF + AddArrayOfItemProperties(i, APad +'  ') + CRLF
-    else
-    if (Length(F2DPropertyArray[i].Value) > 0) and (F2DPropertyArray[i].Value[1] = '{') then
+    for i := 0 to Pred(FIniDefaultValueProperties.Count) do
     begin
-      sProp := TransformProperty(F2DPropertyArray[i].Name, F2DPropertyArray[i].Value, APad);
-      if not sProp.IsEmpty then
-        Result := Result + APad +'  '+ sProp + CRLF;
-    end
-    else
-    if F2DPropertyArray[i].Name <> EmptyStr then
-    begin
-      sProp := TransformProperty(F2DPropertyArray[i].Name, F2DPropertyArray[i].Value);
-      if not sProp.IsEmpty then
-        Result := Result + APad +'  '+ sProp + CRLF;
-    end;
-  end;
-
-  for i := 0 to Pred(FIniDefaultValueProperties.Count) do
-  begin
-    sProp := FIniDefaultValueProperties.ValueFromIndex[i];
-    if sProp.StartsWith('#CopyFromParent#') then
-    begin
-      CopyFromParent(Copy(sProp, Length('#CopyFromParent#') + 1), Result);
-      Continue;
-    end;
-    if sProp.StartsWith('#CalcImageWrapMode#') then
-    begin
-      CalcImageWrapMode(APad, Result);
-      Continue;
-    end;
-    if sProp.StartsWith('#CalcShapeClass#') then
-    begin
-      CalcShapeClass;
-      Continue;
-    end;
-    if sProp.StartsWith('#ReconsiderAfterRemovingRule#') then
-    begin
-      ReconsiderAfterRemovingRule(Copy(sProp, Length('#ReconsiderAfterRemovingRule#') + 1), Result);
-      Continue;
-    end;
-    Result := Result + APad + '  ' + StringReplace(sProp, '=', ' = ', []) + CRLF;
-  end;
-
-  for i := 0 to Pred(FIniAddProperties.Count) do
-    if (Pos(FIniAddProperties.Names[i], Result) > 0) then
-    begin
-      sProp := FIniAddProperties.ValueFromIndex[i];
-      if sProp.StartsWith('#RemoveFromStyledSettings#') then
+      sProp := FIniDefaultValueProperties.ValueFromIndex[i];
+      if sProp.StartsWith('#CopyFromParent#') then
       begin
-        HandleStyledSettings(Copy(sProp, Length('#RemoveFromStyledSettings#') + 1), Result);
+        CopyFromParent(Copy(sProp, Length('#CopyFromParent#') + 1));
         Continue;
       end;
-      if (Pos(GetArrayFromString(sProp, '=')[0], Result) = 0) then
-        Result := Result + APad + '  ' + StringReplace(sProp, '=', ' = ', []) + CRLF;
+      if sProp.StartsWith('#CalcImageWrapMode#') then
+      begin
+        CalcImageWrapMode(FmxProps);
+        Continue;
+      end;
+      if sProp.StartsWith('#CalcShapeClass#') then
+      begin
+        CalcShapeClass;
+        Continue;
+      end;
+      if sProp.StartsWith('#ReconsiderAfterRemovingRule#') then
+      begin
+        ReconsiderAfterRemovingRule(Copy(sProp, Length('#ReconsiderAfterRemovingRule#') + 1));
+        Continue;
+      end;
+      FmxProps.AddProp(TFmxProperty.Create(sProp));
     end;
 
-  Result := StringReplace(Result, '#CRLFWithPad#', CRLF + APad + '  ', [rfReplaceAll]);
+    for i := 0 to Pred(FIniAddProperties.Count) do
+    begin
+      ExistingProp := FmxProps.FindByName(FIniAddProperties.Names[i]);
+      if Assigned(ExistingProp) then
+      begin
+        sProp := FIniAddProperties.ValueFromIndex[i];
+        if sProp.StartsWith('#RemoveFromStyledSettings#') then
+        begin
+          HandleStyledSettings(Copy(sProp, Length('#RemoveFromStyledSettings#') + 1));
+          Continue;
+        end;
+        ExistingProp := FmxProps.FindByName(sProp.Split(['='], 1)[0].Trim);
+        if not Assigned(ExistingProp) then
+          FmxProps.AddProp(TFmxProperty.Create(sProp));
+      end;
+    end;
+
+    for i := 0 to FmxProps.Count - 1 do
+      Result := Result + FmxProps[i].ToString(APad);
+    Result := StringReplace(Result, '#CRLFWithPad#', CRLF + APad + '  ', [rfReplaceAll]);
+  finally
+    FmxProps.Free;
+  end;
 end;
 
 function TDfmToFmxObject.FMXSubObjects(APad: String): String;
@@ -624,7 +589,7 @@ begin
     Result := Result + FOwnedObjs[I].FMXFile(APad +' ');
 end;
 
-procedure TDfmToFmxObject.GenerateObject(ACurrentName, ACurrentValue: string);
+procedure TDfmToFmxObject.GenerateObject(AProp: TDfmProperty);
 
   procedure GenerateFieldLink;
   var
@@ -648,31 +613,24 @@ procedure TDfmToFmxObject.GenerateObject(ACurrentName, ACurrentValue: string);
       CurrentLink.Control := FObjName;
     end;
 
-    if ACurrentName = 'DataField' then
-      CurrentLink.FieldName := ACurrentValue;
+    if AProp.Name = 'DataField' then
+      CurrentLink.FieldName := AProp.Value;
 
-    if ACurrentName = 'DataSource' then
-      CurrentLink.DataSource := ACurrentValue;
+    if AProp.Name = 'DataSource' then
+      CurrentLink.DataSource := AProp.Value;
   end;
 
   procedure GenerateProperty(AObj: TDfmToFmxObject; APropName, APropValue: String);
   var
-    i: Integer;
-    Prop: TDfmToFmxProperty;
+    Prop: TDfmProperty;
   begin
-    Prop := nil;
-    for i := 0 to AObj.F2DPropertyArray.Count - 1 do
-      if AObj.F2DPropertyArray[i].Name = APropName then
-      begin
-        Prop := F2DPropertyArray[i];
-        Break;
-      end;
+    Prop := AObj.F2DPropertyArray.FindByName(APropName);
 
     if Assigned(Prop) then
       Prop.Value := APropValue
     else
     begin
-      Prop := TDfmToFmxProperty.Create(APropName, APropValue);
+      Prop := TDfmProperty.Create(APropName, APropValue);
       AObj.F2DPropertyArray.Add(Prop);
     end;
   end;
@@ -709,16 +667,16 @@ const
 var
   Obj: TDfmToFmxObject;
   Num: Integer;
-  Caption: String;
+  Caption, Val: String;
 begin
   if FGenObjectType = 'ColoredRect' then
   begin
     Obj := GetObject(FObjName + '_Color', 'TShape', ColoredRectInitParams);
 
-    if ACurrentName = 'Color' then
-      GenerateProperty(Obj, 'Brush.Color', ACurrentValue)
+    if AProp.Name = 'Color' then
+      GenerateProperty(Obj, 'Brush.Color', AProp.Value)
     else
-      GenerateProperty(Obj, ACurrentName, ACurrentValue);
+      GenerateProperty(Obj, AProp.Name, AProp.Value);
   end;
 
   if FGenObjectType = 'FieldLink' then
@@ -726,10 +684,10 @@ begin
 
   if FGenObjectType = 'MultipleTabs' then
   begin
-    ACurrentValue := ACurrentValue.Trim(['(', ')', #13, #10]);
+    Val := AProp.Value.Trim(['(', ')', #13, #10]);
     Num := 1;
 
-    for Caption in ACurrentValue.Split([#13#10]) do
+    for Caption in Val.Split([#13#10]) do
     begin
       Obj := GetObject(FObjName + 'Tab' + Num.ToString, 'TTabSheet', [], Num - 1);
       GenerateProperty(Obj, 'Caption', Caption);
@@ -741,16 +699,16 @@ begin
   begin
     Obj := GetObject(FObjName + '_Caption', 'TLabel', SeparateCaptionInitParams);
 
-    if ACurrentName = 'ShowCaption' then
-      GenerateProperty(Obj, 'Visible', ACurrentValue)
+    if AProp.Name = 'ShowCaption' then
+      GenerateProperty(Obj, 'Visible', AProp.Value)
     else
-    if ACurrentName = 'VerticalAlignment' then
+    if AProp.Name = 'VerticalAlignment' then
     begin
-      if ACurrentValue = 'taAlignBottom' then
+      if AProp.Value = 'taAlignBottom' then
         GenerateProperty(Obj, 'Layout', 'tlBottom'); //Center is default for panel and top - for label
     end
     else
-      GenerateProperty(Obj, ACurrentName, ACurrentValue);
+      GenerateProperty(Obj, AProp.Name, AProp.Value);
   end;
 end;
 
@@ -853,7 +811,7 @@ end;
 
 procedure TDfmToFmxObject.InitObjects;
 begin
-  F2DPropertyArray := TProperties.Create({AOwnsObjects} True);
+  F2DPropertyArray := TDfmProperties.Create({AOwnsObjects} True);
   FEnumList := TEnumList.Create([doOwnsValues]);
   FIniAddProperties := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
   FIniDefaultValueProperties := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
@@ -1001,81 +959,91 @@ end;
 procedure TDfmToFmxObject.ReadProperties(AData: String; AStm: TStreamReader);
 var
   Line: TArrayOfStrings;
-  Prop: TDfmToFmxProperty;
+  Prop: TDfmProperty;
 begin
   Line := GetArrayFromString(AData, '=');
-  if High(Line) < 1 then
-  begin
-    Prop := TDfmToFmxProperty.Create(ContinueCode, AData);
-  end
-  else
-  if Line[1] = '(' then
-  begin
-    Prop := TDfmToFmxStringsProp.Create(Line[0], Line[1]);
-    TDfmToFmxStringsProp(Prop).ReadLines(AStm);
-  end
-  else
-  if Line[1] = '<' then
-  begin
-    Prop := TDfmToFmxItemsProp.Create(Line[0], Line[1]);
-    TDfmToFmxItemsProp(Prop).ReadItems(AStm);
-  end
-  else
-  if Line[1] = '{' then
-  begin
-    Prop := TDfmToFmxDataProp.Create(Line[0], Line[1]);
-    TDfmToFmxDataProp(Prop).ReadData(AStm);
-  end
-  else
+  if Length(Line) < 2 then
+    raise Exception.Create('Error parsing properties');
+
   if Line[1] = '' then
   begin
-    Prop := TDfmToFmxProperty.Create(Line[0], '');
+    Prop := TDfmProperty.Create(Line[0], '');
     Prop.ReadMultiline(AStm);
   end
   else
-    Prop := TDfmToFmxProperty.Create(Line[0], Line[1]);
+  if Line[1][1] = '(' then
+  begin
+    Prop := TDfmStringsProp.Create(Line[0], Line[1]);
+    TDfmStringsProp(Prop).ReadLines(AStm);
+  end
+  else
+  if Line[1][1] = '<' then
+  begin
+    Prop := TDfmItemsProp.Create(Line[0], Line[1]);
+    TDfmItemsProp(Prop).ReadItems(AStm);
+  end
+  else
+  if Line[1][1] = '{' then
+  begin
+    Prop := TDfmDataProp.Create(Line[0], Line[1]);
+    TDfmDataProp(Prop).ReadData(AStm);
+  end
+  else
+    Prop := TDfmProperty.Create(Line[0], Line[1]);
   F2DPropertyArray.Add(Prop);
 end;
 
-function TDfmToFmxObject.TransformProperty(ACurrentName, ACurrentValue: String; APad: String = ''): String;
+function TDfmToFmxObject.TransformProperty(AProp: TDfmProperty): TFmxProperty;
 var
-  s: String;
+  NewName: String;
   Mask: TMask;
   DefaultValuePropPos: Integer;
 
-  function ReplaceEnum(var ReplacementLine: String): Boolean;
+  function ReplaceEnum(var ReplacementProp: TFmxProperty): Boolean;
   var
     EnumNameStart, EnumNameEnd, Item, FontSize: Integer;
     EnumName, PropName, Value: String;
     EnumItems: TStringList;
   begin
     Result := False;
-    EnumNameStart := Pos('#', s);
+    EnumNameStart := Pos('#', NewName);
     if EnumNameStart = 0 then
       Exit;
 
     if EnumNameStart > 1 then
-      PropName := Trim(Copy(s, 1, EnumNameStart - 1))
+      PropName := Trim(Copy(NewName, 1, EnumNameStart - 1))
     else
-      PropName := ACurrentName;
+      PropName := AProp.Name;
 
-    EnumNameEnd := Pos('#', s, EnumNameStart + 1);
+    EnumNameEnd := Pos('#', NewName, EnumNameStart + 1);
     if EnumNameEnd = 0 then
       Exit;
 
-    EnumName := Copy(s, EnumNameStart, EnumNameEnd - EnumNameStart + 1);
+    EnumName := Copy(NewName, EnumNameStart, EnumNameEnd - EnumNameStart + 1);
 
     if EnumName = '#SetValue#' then
     begin
-      Value := Copy(s, EnumNameEnd + 1);
-      ReplacementLine := PropName + ' = ' + Value;
+      Value := Copy(NewName, EnumNameEnd + 1);
+      ReplacementProp := TFmxProperty.Create(PropName, Value);
       Exit(True);
     end;
 
     if EnumName = '#ConvertFontSize#' then
     begin
-      FontSize := Abs(StrToInt(ACurrentValue));
-      ReplacementLine := PropName + ' = ' + IntToStr(FontSize);
+      FontSize := Abs(StrToInt(AProp.Value));
+      ReplacementProp := TFmxProperty.Create(PropName, IntToStr(FontSize));
+      Exit(True);
+    end;
+
+    if EnumName = '#ImageData#' then
+    begin
+      ReplacementProp := TFmxImageProp.Create(PropName, AProp.Value);
+      Exit(True);
+    end;
+
+    if EnumName = '#ImageListData#' then
+    begin
+      ReplacementProp := TFmxImageListProp.Create(PropName, AProp.Value);
       Exit(True);
     end;
 
@@ -1084,113 +1052,100 @@ var
     if not FEnumList.TryGetValue(EnumName, EnumItems) then
       raise Exception.Create('Required enum ' + EnumName + ' not found');
 
-    Item := EnumItems.IndexOfName(ACurrentValue);
+    Item := EnumItems.IndexOfName(AProp.Value);
     if Item >= 0 then
       Value := EnumItems.ValueFromIndex[Item]
     else
     begin
       Item := EnumItems.IndexOfName('#UnknownValuesAllowed#');
       if Item < 0 then
-        raise Exception.Create('Unknown item ' + ACurrentValue + ' in enum ' + EnumName)
+        raise Exception.Create('Unknown item ' + AProp.Value + ' in enum ' + EnumName)
       else
       begin
         if EnumItems.ValueFromIndex[Item] = '#GenerateColorValue#' then
-          Value := ConvertColor(StrToUInt(ACurrentValue))
+          Value := ConvertColor(StrToUInt(AProp.Value))
         else
-          Value := ACurrentValue;
+          Value := AProp.Value;
       end;
     end;
 
     if Value = '#GenerateColorValue#' then
-      Value := ConvertColor(ColorToRGB(StringToColor(ACurrentValue)));
+      Value := ConvertColor(ColorToRGB(StringToColor(AProp.Value)));
 
     if Value = '#IgnoreValue#' then
     begin
-      ReplacementLine := EmptyStr;
+      ReplacementProp := nil;
       Exit(True);
     end;
 
     if Value.StartsWith('#SetProperty#', {IgnoreCase} True) then
     begin
-      ReplacementLine := Copy(Value, Length('#SetProperty#') + 1);
+      ReplacementProp := TFmxProperty.Create(Copy(Value, Length('#SetProperty#') + 1));
       Exit(True);
     end;
 
-    ReplacementLine := PropName + ' = ' + Value;
+    ReplacementProp := TFmxProperty.Create(PropName, Value);
     Result := True;
   end;
 
 begin
-  if ACurrentName = ContinueCode then
+  NewName := Trim(FIniSectionValues.Values[AProp.Name]);
+  if NewName = EmptyStr then
+    for var i := 0 to Pred(FIniSectionValues.Count) do
+    begin
+      Mask := TMask.Create(FIniSectionValues.Names[i]);
+      try
+        if Mask.Matches(AProp.Name) then
+        begin
+          NewName := FIniSectionValues.ValueFromIndex[i];
+          Break;
+        end;
+      finally
+        Mask.Free;
+      end;
+    end;
+  if NewName = EmptyStr then
+    NewName := AProp.Name;
+  if NewName = '#Delete#' then
+    Result := nil
+  else
+  if NewName.StartsWith('#GenerateControl#') then
   begin
-    Result := '  ' + ACurrentValue;
+    FGenObjectType := Copy(NewName, Length('#GenerateControl#') + 1);
+    GenerateObject(AProp);
+    Result := nil;
   end
   else
+  if not ReplaceEnum(Result) then
   begin
-    s := Trim(FIniSectionValues.Values[ACurrentName]);
-    if s = EmptyStr then
-      for var i := 0 to Pred(FIniSectionValues.Count) do
+    if AProp is TDfmStringsProp then
+      Result := TFmxStringsProp.Create(NewName, TDfmStringsProp(AProp).Strings)
+    else
+    if AProp is TDfmDataProp then
+      Result := TFmxDataProp.Create(NewName, AProp.Value)
+    else
+      Result := TFmxProperty.Create(NewName, AProp.Value);
+  end;
+
+  if FIniDefaultValueProperties.Count > 0 then
+  begin
+    DefaultValuePropPos := FIniDefaultValueProperties.IndexOfName(AProp.Name);
+    if DefaultValuePropPos >= 0 then
+      FIniDefaultValueProperties.Delete(DefaultValuePropPos)
+    else
+      for var i := 0 to Pred(FIniDefaultValueProperties.Count) do
       begin
-        Mask := TMask.Create(FIniSectionValues.Names[i]);
+        Mask := TMask.Create(FIniDefaultValueProperties.Names[i]);
         try
-          if Mask.Matches(ACurrentName) then
+          if Mask.Matches(AProp.Name) then
           begin
-            s := FIniSectionValues.ValueFromIndex[i];
+            FIniDefaultValueProperties.Delete(i);
             Break;
           end;
         finally
           Mask.Free;
         end;
       end;
-    if s = EmptyStr then
-      s := ACurrentName;
-    if s = '#Delete#' then
-      Result := EmptyStr
-    else
-    if s = '#Class#' then
-    begin
-      if FDFMClass = 'TImage' then
-        Result := StringReplace(s, '#Class#', ProcessImage(ACurrentValue, APad), [])
-      else
-      if FDFMClass = 'TImageList' then
-        Result := StringReplace(s, '#Class#', ProcessImageList(ACurrentValue, APad), [])
-    end
-    else
-    if s.StartsWith('#GenerateControl#') then
-    begin
-      FGenObjectType := Copy(s, Length('#GenerateControl#') + 1);
-      GenerateObject(ACurrentName, ACurrentValue);
-      Result := EmptyStr;
-    end
-    else
-    if not ReplaceEnum(Result) then
-    begin
-      if ACurrentValue.StartsWith('{') and ACurrentValue.EndsWith('}') then
-        Result := s + ' = {' + BreakIntoLines(Copy(ACurrentValue, 2), APad)
-      else
-        Result := s + ' = ' + ACurrentValue;
-    end;
-
-    if FIniDefaultValueProperties.Count > 0 then
-    begin
-      DefaultValuePropPos := FIniDefaultValueProperties.IndexOfName(ACurrentName);
-      if DefaultValuePropPos >= 0 then
-        FIniDefaultValueProperties.Delete(DefaultValuePropPos)
-      else
-        for var i := 0 to Pred(FIniDefaultValueProperties.Count) do
-        begin
-          Mask := TMask.Create(FIniDefaultValueProperties.Names[i]);
-          try
-            if Mask.Matches(ACurrentName) then
-            begin
-              FIniDefaultValueProperties.Delete(i);
-              Break;
-            end;
-          finally
-            Mask.Free;
-          end;
-        end;
-    end;
   end;
 end;
 
