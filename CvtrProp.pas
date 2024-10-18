@@ -156,12 +156,17 @@ procedure TDfmStringsProp.ReadLines(AStm: TStreamReader);
 var
   Data: String;
 begin
+  if FValue.EndsWith(')') then
+    Exit;
+
   Data := Trim(AStm.ReadLine);
+
   while not EndsText(')', Data) do
   begin
     FStrings.Add(Data);
     Data := Trim(AStm.ReadLine);
   end;
+
   FStrings.Add(Data.TrimRight([')']));
 end;
 
@@ -171,6 +176,9 @@ procedure TDfmItemsProp.ReadItems(AStm: TStreamReader);
 var
   Data: String;
 begin
+  if FValue.EndsWith('>') then
+    Exit;
+
   Data := Trim(AStm.ReadLine);
 
   while not EndsText('>', Data) do
@@ -188,13 +196,21 @@ procedure TDfmDataProp.ReadData(AStm: TStreamReader);
 var
   Data: String;
 begin
+  if FValue.EndsWith('}') then
+  begin
+    FValue := FValue.Trim(['{', '}']);
+    Exit;
+  end;
+
   FValue := FValue.TrimLeft(['{']);
   Data := Trim(AStm.ReadLine);
+
   while not EndsText('}', Data) do
   begin
     FValue := FValue + Data;
     Data := Trim(AStm.ReadLine);
   end;
+
   FValue := FValue + Data.TrimRight(['}']);
 end;
 
