@@ -57,7 +57,7 @@ type
     procedure InitObjects;
     procedure UpdateUsesStringList(AUsesList: TStrings);
     procedure ReadProperties(AData: String; AStm: TStreamReader);
-    function ProcessUsesString(AOrigUsesArray: TArrayOfStrings): String;
+    function ProcessUsesString(AOrigUsesArray: TArray<String>): String;
     function ProcessCodeBody(const ACodeBody: String): String;
     procedure IniFileLoad(AIni: TMemIniFile);
     procedure InternalProcessBody(var ABody: String);
@@ -317,9 +317,8 @@ end;
 
 constructor TDfmToFmxObject.Create(AParent: TDfmToFmxObject; ACreateText: String; AStm: TStreamReader; ADepth: integer);
 var
-  InputArray: TArrayOfStrings;
+  InputArray: TArray<String>;
   Data: String;
-  NxtChr: PChar;
 begin
   FParent := AParent;
   if Assigned(FParent) then
@@ -330,11 +329,10 @@ begin
   FDepth := ADepth;
   if Pos('object', Trim(ACreateText)) = 1 then
   begin
-    InputArray := GetArrayFromString(ACreateText, ' ');
+    InputArray := ACreateText.Split([' ']);
     if Length(InputArray) > 2 then
     begin
-      NxtChr := @InputArray[1][1];
-      FObjName := FieldSep(NxtChr, ':');
+      FObjName := InputArray[1].TrimRight([':']);
       FDFMClass := InputArray[2];
     end
     else
@@ -721,7 +719,7 @@ const
 var
   PasFile: TStreamReader;
   PreUsesString, PostUsesString, UsesString: String;
-  UsesArray: TArrayOfStrings;
+  UsesArray: TArray<String>;
   StartPos, EndPos, BindInsertPos: Integer;
 begin
   Result := '';
@@ -741,7 +739,7 @@ begin
   begin
     StartPos := PosNoCase(cUses, PreUsesString) + cUsesLen;
     EndPos := Pos(';', PreUsesString, StartPos);
-    UsesArray := GetArrayFromString(StringReplace(Copy(PreUsesString, StartPos, EndPos - StartPos), CRLF, '', [rfReplaceAll]), ',');
+    UsesArray := StringReplace(Copy(PreUsesString, StartPos, EndPos - StartPos), CRLF, '', [rfReplaceAll]).Split([',']);
     PostUsesString := Copy(PreUsesString, EndPos);
     PostUsesString := ProcessCodeBody(PostUsesString);
 
@@ -934,7 +932,7 @@ begin
   Result := BdyStr;
 end;
 
-function TDfmToFmxObject.ProcessUsesString(AOrigUsesArray: TArrayOfStrings): String;
+function TDfmToFmxObject.ProcessUsesString(AOrigUsesArray: TArray<String>): String;
 var
   i, LineLen: integer;
 begin
@@ -958,38 +956,39 @@ end;
 
 procedure TDfmToFmxObject.ReadProperties(AData: String; AStm: TStreamReader);
 var
-  Line: TArrayOfStrings;
+  PropEqSign: Integer;
+  Name, Value: String;
   Prop: TDfmProperty;
 begin
-  Line := GetArrayFromString(AData, '=');
-  if Length(Line) < 2 then
-    raise Exception.Create('Error parsing properties');
+  PropEqSign := AData.IndexOf('=');
+  Name := AData.Substring(0, PropEqSign).Trim;
+  Value := AData.Substring(PropEqSign + 1).Trim;
 
-  if Line[1] = '' then
+  if Value = '' then
   begin
-    Prop := TDfmProperty.Create(Line[0], '');
+    Prop := TDfmProperty.Create(Name, '');
     Prop.ReadMultiline(AStm);
   end
   else
-  if Line[1][1] = '(' then
+  if Value[1] = '(' then
   begin
-    Prop := TDfmStringsProp.Create(Line[0], Line[1]);
+    Prop := TDfmStringsProp.Create(Name, Value);
     TDfmStringsProp(Prop).ReadLines(AStm);
   end
   else
-  if Line[1][1] = '<' then
+  if Value[1] = '<' then
   begin
-    Prop := TDfmItemsProp.Create(Line[0], Line[1]);
+    Prop := TDfmItemsProp.Create(Name, Value);
     TDfmItemsProp(Prop).ReadItems(AStm);
   end
   else
-  if Line[1][1] = '{' then
+  if Value[1] = '{' then
   begin
-    Prop := TDfmDataProp.Create(Line[0], Line[1]);
+    Prop := TDfmDataProp.Create(Name, Value);
     TDfmDataProp(Prop).ReadData(AStm);
   end
   else
-    Prop := TDfmProperty.Create(Line[0], Line[1]);
+    Prop := TDfmProperty.Create(Name, Value);
   F2DPropertyArray.Add(Prop);
 end;
 
