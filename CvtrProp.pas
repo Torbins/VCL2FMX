@@ -62,6 +62,7 @@ type
   TFmxProperties = class(TObjectList<TFmxProperty>)
   public
     procedure AddProp(AProp: TFmxProperty);
+    procedure AddMultipleProps(APropsText: String);
     function FindByName(AName: String): TFmxProperty;
   end;
 
@@ -275,6 +276,16 @@ begin
 end;
 
 { TFmxProperties }
+
+procedure TFmxProperties.AddMultipleProps(APropsText: String);
+var
+  PropsArray: TArray<String>;
+  Prop: String;
+begin
+  PropsArray := APropsText.Split(['#NextProp#']);
+  for Prop in PropsArray do
+    Add(TFmxProperty.Create(Prop));
+end;
 
 procedure TFmxProperties.AddProp(AProp: TFmxProperty);
 begin

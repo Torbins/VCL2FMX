@@ -44,6 +44,7 @@ type
     FGenerated: Boolean;
     FGenObjectType: String;
     F2DPropertyArray: TDfmProperties;
+    FFmxProps: TFmxProperties;
     FIniReplaceValues,
     FIniIncludeValues,
     FIniSectionValues,
@@ -69,7 +70,7 @@ type
     function GetFMXLiveBindings: String;
     function GetPASLiveBindings: String;
     procedure GenerateObject(AProp: TDfmProperty);
-    procedure CalcImageWrapMode(FmxProps: TFmxProperties);
+    procedure CalcImageWrapMode;
   public
     constructor Create(AParent: TDfmToFmxObject; ACreateText: String; AStm: TStreamReader; ADepth: integer);
     constructor CreateGenerated(AParent: TDfmToFmxObject; AObjName, ADFMClass: String; ADepth: integer);
@@ -277,14 +278,14 @@ begin
   end;
 end;
 
-procedure TDfmToFmxObject.CalcImageWrapMode(FmxProps: TFmxProperties);
+procedure TDfmToFmxObject.CalcImageWrapMode;
 var
   Center, Proportional, Stretch: Boolean;
   PropLine: TDfmProperty;
   FmxProp: TFmxProperty;
   Value: String;
 begin
-  FmxProp := FmxProps.FindByName('WrapMode');
+  FmxProp := FFmxProps.FindByName('WrapMode');
   if Assigned(FmxProp) then
     Exit;
 
@@ -312,7 +313,7 @@ begin
   else
     Value := 'Original';
 
-  FmxProps.AddProp(TFmxProperty.Create('WrapMode', Value));
+  FFmxProps.AddProp(TFmxProperty.Create('WrapMode', Value));
 end;
 
 constructor TDfmToFmxObject.Create(AParent: TDfmToFmxObject; ACreateText: String; AStm: TStreamReader; ADepth: integer);
@@ -368,6 +369,7 @@ end;
 
 destructor TDfmToFmxObject.Destroy;
 begin
+  FFmxProps.Free;
   F2DPropertyArray.Free;
   FOwnedObjs.Free;
   FIniReplaceValues.Free;
@@ -429,19 +431,18 @@ function TDfmToFmxObject.FMXProperties(APad: String): String;
 var
   i: Integer;
   sProp: String;
-  FmxProps: TFmxProperties;
   ExistingProp: TFmxProperty;
 
   procedure HandleStyledSettings(AExcludeElement: String);
   var
     Prop: TFmxProperty;
   begin
-    Prop := FmxProps.FindByName('StyledSettings');
+    Prop := FFmxProps.FindByName('StyledSettings');
 
     if not Assigned(Prop) then
     begin
       Prop := TFmxProperty.Create('StyledSettings', '[Family, Size, Style, FontColor, Other]');
-      FmxProps.AddProp(Prop);
+      FFmxProps.AddProp(Prop);
     end;
 
     Prop.Value := ReplaceStr(Prop.Value, AExcludeElement, '');
@@ -485,7 +486,7 @@ var
         for Line in Parent.F2DPropertyArray do
           if Mask.Matches(Line.Name) then
           begin
-            FmxProps.AddProp(TransformProperty(Line));
+            FFmxProps.AddProp(TransformProperty(Line));
             Found := True;
           end;
         Parent := Parent.FParent;
@@ -511,7 +512,7 @@ var
 
       for Line in F2DPropertyArray do
         if Mask.Matches(Line.Name) then
-          FmxProps.AddProp(TransformProperty(Line));
+          FFmxProps.AddProp(TransformProperty(Line));
     finally
       Mask.Free;
     end;
@@ -519,60 +520,55 @@ var
 
 begin
   Result := EmptyStr;
-  FmxProps := TFmxProperties.Create({AOwnsObjects} True);
-  try
-    for i := 0 to F2DPropertyArray.Count - 1 do
-      FmxProps.AddProp(TransformProperty(F2DPropertyArray[i]));
 
-    for i := 0 to Pred(FIniDefaultValueProperties.Count) do
+  for i := 0 to F2DPropertyArray.Count - 1 do
+    FFmxProps.AddProp(TransformProperty(F2DPropertyArray[i]));
+
+  for i := 0 to Pred(FIniDefaultValueProperties.Count) do
+  begin
+    sProp := FIniDefaultValueProperties.ValueFromIndex[i];
+    if sProp.StartsWith('#CopyFromParent#') then
     begin
-      sProp := FIniDefaultValueProperties.ValueFromIndex[i];
-      if sProp.StartsWith('#CopyFromParent#') then
-      begin
-        CopyFromParent(Copy(sProp, Length('#CopyFromParent#') + 1));
-        Continue;
-      end;
-      if sProp.StartsWith('#CalcImageWrapMode#') then
-      begin
-        CalcImageWrapMode(FmxProps);
-        Continue;
-      end;
-      if sProp.StartsWith('#CalcShapeClass#') then
-      begin
-        CalcShapeClass;
-        Continue;
-      end;
-      if sProp.StartsWith('#ReconsiderAfterRemovingRule#') then
-      begin
-        ReconsiderAfterRemovingRule(Copy(sProp, Length('#ReconsiderAfterRemovingRule#') + 1));
-        Continue;
-      end;
-      FmxProps.AddProp(TFmxProperty.Create(sProp));
+      CopyFromParent(Copy(sProp, Length('#CopyFromParent#') + 1));
+      Continue;
     end;
-
-    for i := 0 to Pred(FIniAddProperties.Count) do
+    if sProp.StartsWith('#CalcImageWrapMode#') then
     begin
-      ExistingProp := FmxProps.FindByName(FIniAddProperties.Names[i]);
-      if Assigned(ExistingProp) then
-      begin
-        sProp := FIniAddProperties.ValueFromIndex[i];
-        if sProp.StartsWith('#RemoveFromStyledSettings#') then
-        begin
-          HandleStyledSettings(Copy(sProp, Length('#RemoveFromStyledSettings#') + 1));
-          Continue;
-        end;
-        ExistingProp := FmxProps.FindByName(sProp.Split(['='], 1)[0].Trim);
-        if not Assigned(ExistingProp) then
-          FmxProps.AddProp(TFmxProperty.Create(sProp));
-      end;
+      CalcImageWrapMode;
+      Continue;
     end;
-
-    for i := 0 to FmxProps.Count - 1 do
-      Result := Result + FmxProps[i].ToString(APad);
-    Result := StringReplace(Result, '#CRLFWithPad#', CRLF + APad + '  ', [rfReplaceAll]);
-  finally
-    FmxProps.Free;
+    if sProp.StartsWith('#CalcShapeClass#') then
+    begin
+      CalcShapeClass;
+      Continue;
+    end;
+    if sProp.StartsWith('#ReconsiderAfterRemovingRule#') then
+    begin
+      ReconsiderAfterRemovingRule(Copy(sProp, Length('#ReconsiderAfterRemovingRule#') + 1));
+      Continue;
+    end;
+    FFmxProps.AddProp(TFmxProperty.Create(sProp));
   end;
+
+  for i := 0 to Pred(FIniAddProperties.Count) do
+  begin
+    ExistingProp := FFmxProps.FindByName(FIniAddProperties.Names[i]);
+    if Assigned(ExistingProp) then
+    begin
+      sProp := FIniAddProperties.ValueFromIndex[i];
+      if sProp.StartsWith('#RemoveFromStyledSettings#') then
+      begin
+        HandleStyledSettings(Copy(sProp, Length('#RemoveFromStyledSettings#') + 1));
+        Continue;
+      end;
+      ExistingProp := FFmxProps.FindByName(sProp.Split(['='], 1)[0].Trim);
+      if not Assigned(ExistingProp) then
+        FFmxProps.AddProp(TFmxProperty.Create(sProp));
+    end;
+  end;
+
+  for i := 0 to FFmxProps.Count - 1 do
+    Result := Result + FFmxProps[i].ToString(APad);
 end;
 
 function TDfmToFmxObject.FMXSubObjects(APad: String): String;
@@ -810,6 +806,7 @@ end;
 procedure TDfmToFmxObject.InitObjects;
 begin
   F2DPropertyArray := TDfmProperties.Create({AOwnsObjects} True);
+  FFmxProps := TFmxProperties.Create({AOwnsObjects} True);
   FEnumList := TEnumList.Create([doOwnsValues]);
   FIniAddProperties := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
   FIniDefaultValueProperties := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
@@ -1022,8 +1019,8 @@ var
 
     if EnumName = '#SetValue#' then
     begin
-      Value := Copy(NewName, EnumNameEnd + 1);
-      ReplacementProp := TFmxProperty.Create(PropName, Value);
+      FFmxProps.AddMultipleProps(NewName.Replace('#SetValue#', '=', [rfIgnoreCase]));
+      ReplacementProp := nil;
       Exit(True);
     end;
 
@@ -1079,7 +1076,8 @@ var
 
     if Value.StartsWith('#SetProperty#', {IgnoreCase} True) then
     begin
-      ReplacementProp := TFmxProperty.Create(Copy(Value, Length('#SetProperty#') + 1));
+      FFmxProps.AddMultipleProps(Copy(Value, Length('#SetProperty#') + 1));
+      ReplacementProp := nil;
       Exit(True);
     end;
 
