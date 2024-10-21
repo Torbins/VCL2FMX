@@ -15,7 +15,7 @@ uses
   FMX.Dialogs,
   FMX.Layouts,
   FMX.Memo,
-  CvtrObj,
+  CvtrObjRoot,
   FMX.StdCtrls,
   FMX.ScrollBox,
   FMX.Controls.Presentation,
@@ -38,7 +38,7 @@ type
     procedure btnConfiguracoesClick(Sender: TObject);
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
   private
-    DFMObj: TDfmToFmxObject;
+    DFMObj: TDfmToFmxObjRoot;
     FIniFileName: String;
     FInPasFileName: String;
     FInDfmFileName: String;
@@ -81,7 +81,7 @@ begin
     FInDfmFileName := ChangeFileExt(FInPasFileName, '.dfm');
     if FileExists(FInDfmFileName) then
     begin
-      if TDfmToFmxObject.DFMIsTextBased(FInDfmFileName) then
+      if TDfmToFmxObjRoot.DFMIsTextBased(FInDfmFileName) then
       begin
         mmInput.Lines.Clear;
         mmInput.Lines.LoadFromFile(FInDfmFileName);
@@ -107,7 +107,7 @@ begin
     try
       Data := Trim(Stm.ReadLine);
       if Pos('object', Data) = 1 then
-        DFMObj := TDfmToFmxObject.Create(nil, Data, Stm, 0);
+        DFMObj := TDfmToFmxObjRoot.Create(nil, Data, Stm);
     finally
       Stm.Free;
     end;
@@ -210,7 +210,7 @@ begin
       FOutFmxFileName := ChangeFileExt(FOutPasFileName, '.fmx');
       dlgAbrir.InitialDir := ExtractFileDir(FOutPasFileName);
     end;
-    if FileExists(FInDfmFileName) and TDfmToFmxObject.DFMIsTextBased(FInDfmFileName) then
+    if FileExists(FInDfmFileName) and TDfmToFmxObjRoot.DFMIsTextBased(FInDfmFileName) then
     begin
       mmInput.Lines.Clear;
       mmInput.Lines.LoadFromFile(FInDfmFileName);

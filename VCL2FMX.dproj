@@ -142,7 +142,7 @@
         <DelphiCompile Include="$(MainSource)">
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
-        <DCCReference Include="CvtrObj.pas"/>
+        <DCCReference Include="CvtrObjRoot.pas"/>
         <DCCReference Include="DFMToFMXFM.pas">
             <Form>DFMtoFMXConvert</Form>
             <FormType>fmx</FormType>
@@ -155,6 +155,7 @@
         <DCCReference Include="Image.pas"/>
         <DCCReference Include="ImageList.pas"/>
         <DCCReference Include="CvtrProp.pas"/>
+        <DCCReference Include="CvtrObject.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

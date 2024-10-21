@@ -3,25 +3,12 @@ unit CvtrProp;
 interface
 
 uses
-  System.Classes, System.Generics.Collections;
+  System.Classes, System.Generics.Collections, CvtrObject;
 
 type
-  TDfmProperty = class
-  private
-    FName: String;
-    FValue: string;
-    function GetValue: String; virtual;
-    procedure SetValue(const Value: String);
+  TDfmProperty = class(TDfmPropertyBase)
   public
-    property Name: String read FName write FName;
-    property Value: String read GetValue write SetValue;
-    constructor Create(const AName, AValue: string); virtual;
     procedure ReadMultiline(AStm: TStreamReader);
-  end;
-
-  TDfmProperties = class(TObjectList<TDfmProperty>)
-  public
-    function FindByName(AName: String): TDfmProperty;
   end;
 
   TDfmDataProp = class(TDfmProperty)
@@ -45,25 +32,9 @@ type
     procedure ReadItems(AStm: TStreamReader);
   end;
 
-  TFmxProperty = class
-  private
-    FName: String;
-    FValue: string;
-    function GetValue: String; virtual;
-    procedure SetValue(const Value: String);
+  TFmxProperty = class(TFmxPropertyBase)
   public
-    property Name: String read FName write FName;
-    property Value: String read GetValue write SetValue;
-    constructor Create(const AName, AValue: string); overload; virtual;
-    constructor Create(const APropLine: string); overload; virtual;
-    function ToString(APad: String): String; reintroduce; virtual;
-  end;
-
-  TFmxProperties = class(TObjectList<TFmxProperty>)
-  public
-    procedure AddProp(AProp: TFmxProperty);
-    procedure AddMultipleProps(APropsText: String);
-    function FindByName(AName: String): TFmxProperty;
+    function ToString(APad: String): String; reintroduce; override;
   end;
 
   TFmxImageProp = class(TFmxProperty)
@@ -96,19 +67,6 @@ implementation
 uses
   System.SysUtils, System.StrUtils, PatchLib, Image, ImageList;
 
-{ TDfmProperty }
-
-constructor TDfmProperty.Create(const AName, AValue: string);
-begin
-  FName := AName;
-  FValue := AValue;
-end;
-
-function TDfmProperty.GetValue: String;
-begin
-  Result := FValue;
-end;
-
 procedure TDfmProperty.ReadMultiline(AStm: TStreamReader);
 var
   Data: String;
@@ -129,11 +87,6 @@ begin
   else
     FValue := FValue + Data.Trim(['+']).Trim;
   FValue := FValue.QuotedString;
-end;
-
-procedure TDfmProperty.SetValue(const Value: String);
-begin
-  FValue := Value;
 end;
 
 { TDfmStringsProp }
@@ -217,33 +170,6 @@ begin
   FValue := FValue + Data.TrimRight(['}']);
 end;
 
-{ TFmxProperty }
-
-constructor TFmxProperty.Create(const AName, AValue: string);
-begin
-  FName := AName;
-  FValue := AValue;
-end;
-
-constructor TFmxProperty.Create(const APropLine: string);
-var
-  PropEqSign: Integer;
-begin
-  PropEqSign := APropLine.IndexOf('=');
-  FName := APropLine.Substring(0, PropEqSign).Trim;
-  FValue := APropLine.Substring(PropEqSign + 1).Trim;
-end;
-
-function TFmxProperty.GetValue: String;
-begin
-  Result := FValue;
-end;
-
-procedure TFmxProperty.SetValue(const Value: String);
-begin
-  FValue := Value;
-end;
-
 function TFmxProperty.ToString(APad: String): String;
 var
   Line, Data: String;
@@ -277,51 +203,11 @@ begin
   Result := Result + ProcessImage(FValue, APad) + CRLF;
 end;
 
-{ TFmxProperties }
-
-procedure TFmxProperties.AddMultipleProps(APropsText: String);
-var
-  PropsArray: TArray<String>;
-  Prop: String;
-begin
-  PropsArray := APropsText.Split(['#NextProp#']);
-  for Prop in PropsArray do
-    Add(TFmxProperty.Create(Prop));
-end;
-
-procedure TFmxProperties.AddProp(AProp: TFmxProperty);
-begin
-  if Assigned(AProp) then
-    Add(AProp);
-end;
-
-function TFmxProperties.FindByName(AName: String): TFmxProperty;
-var
-  i: Integer;
-begin
-  Result := nil;
-  for i := 0 to Count - 1 do
-    if Items[i].Name = AName then
-      Exit(Items[i]);
-end;
-
 { TFmxImageListProp }
 
 function TFmxImageListProp.ToString(APad: String): String;
 begin
   Result := ProcessImageList(FValue, APad) + CRLF;
-end;
-
-{ TDfmProperties }
-
-function TDfmProperties.FindByName(AName: String): TDfmProperty;
-var
-  i: Integer;
-begin
-  Result := nil;
-  for i := 0 to Count - 1 do
-    if Items[i].Name = AName then
-      Exit(Items[i]);
 end;
 
 { TFmxStringsProp }
@@ -330,9 +216,9 @@ constructor TFmxStringsProp.Create(const AName: string; AStrings: TStrings);
 begin
   FName := AName;
   FStrings := TStringList.Create;
-  FStrings.Assign(AStrings);
   if not Assigned(AStrings) then
     raise Exception.Create('AStrings parameter should be assigned');
+  FStrings.Assign(AStrings);
 end;
 
 destructor TFmxStringsProp.Destroy;
