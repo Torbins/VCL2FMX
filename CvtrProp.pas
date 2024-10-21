@@ -78,9 +78,11 @@ type
 
   TFmxStringsProp = class(TFmxProperty)
   private
-    FStrings: TStrings;
+    FStrings: TStringList;
   public
+    property Strings: TStringList read FStrings;
     constructor Create(const AName: string; AStrings: TStrings); overload; virtual;
+    destructor Destroy; override;
     function ToString(APad: String): String; override;
   end;
 
@@ -327,9 +329,16 @@ end;
 constructor TFmxStringsProp.Create(const AName: string; AStrings: TStrings);
 begin
   FName := AName;
-  FStrings := AStrings;
+  FStrings := TStringList.Create;
+  FStrings.Assign(AStrings);
   if not Assigned(AStrings) then
     raise Exception.Create('AStrings parameter should be assigned');
+end;
+
+destructor TFmxStringsProp.Destroy;
+begin
+  FStrings.Free;
+  inherited;
 end;
 
 function TFmxStringsProp.ToString(APad: String): String;
