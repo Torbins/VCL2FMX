@@ -28,7 +28,6 @@ type
   TEnumList = TObjectDictionary<String,TStringList>;
   TDfmToFmxObject = class;
   TOwnedObjects = TObjectList<TDfmToFmxObject>;
-  TDfmToFmxListItem = class;
 
   TDfmToFmxObject = class
   private
@@ -36,8 +35,8 @@ type
     FRoot: TDfmToFmxObject;
     FLinkControlList: TArray<TLinkControl>;
     FLinkGridList: TArray<TLinkGrid>;
-    FDFMClass: String;
-    FOldDfmClass: String;
+    FClassName: String;
+    FOldClassName: String;
     FObjName: String;
     FOwnedObjs: TOwnedObjects;
     FDepth: integer;
@@ -63,7 +62,6 @@ type
     procedure IniFileLoad(AIni: TMemIniFile);
     procedure InternalProcessBody(var ABody: String);
     procedure LoadCommonProperties(AParamName: String);
-    function FMXClass: String;
     function TransformProperty(AProp: TDfmProperty): TFmxProperty;
     function FMXProperties(APad: String): String;
     function FMXSubObjects(APad: String): String;
@@ -73,7 +71,7 @@ type
     procedure CalcImageWrapMode;
   public
     constructor Create(AParent: TDfmToFmxObject; ACreateText: String; AStm: TStreamReader; ADepth: integer);
-    constructor CreateGenerated(AParent: TDfmToFmxObject; AObjName, ADFMClass: String; ADepth: integer);
+    constructor CreateGenerated(AParent: TDfmToFmxObject; AObjName, AClassName: String; ADepth: integer);
     destructor Destroy; override;
     procedure LoadInfileDefs(AIniFileName: String);
     class function DFMIsTextBased(ADfmFileName: String): Boolean;
@@ -83,15 +81,6 @@ type
     function WritePasToFile(const APasOutFileName, APascalSourceFileName: String): Boolean;
     procedure LiveBindings(DfmObject: TOwnedObjects = nil);
   end;
-
-  TDfmToFmxListItem = class(TDfmToFmxObject)
-    FHasMore: Boolean;
-    FPropertyIndex: Integer;
-    FOwner: TDfmToFmxObject;
-    public
-      constructor Create(AOwner: TDfmToFmxObject; APropertyIdx: integer; AStm: TStreamReader; ADepth: integer);
-      property HasMore: Boolean read FHasMore;
-    end;
 
 implementation
 
@@ -125,7 +114,7 @@ begin
     obj := DfmObject[I];
 
     // Se for uma grid
-    if obj.FDFMClass.Equals('TDBGrid') then
+    if obj.FClassName.Equals('TDBGrid') then
     begin
       // Inicializa
       sFields := EmptyStr;
@@ -334,12 +323,12 @@ begin
     if Length(InputArray) > 2 then
     begin
       FObjName := InputArray[1].TrimRight([':']);
-      FDFMClass := InputArray[2];
+      FClassName := InputArray[2];
     end
     else
     begin
       FObjName := '';
-      FDFMClass := InputArray[1];
+      FClassName := InputArray[1];
     end;
     Data := Trim(AStm.ReadLine);
     while Data <> 'end' do
@@ -355,13 +344,13 @@ begin
     raise Exception.Create('Bad Start::' + ACreateText);
 end;
 
-constructor TDfmToFmxObject.CreateGenerated(AParent: TDfmToFmxObject; AObjName, ADFMClass: String; ADepth: integer);
+constructor TDfmToFmxObject.CreateGenerated(AParent: TDfmToFmxObject; AObjName, AClassName: String; ADepth: integer);
 begin
   FParent := AParent;
   FRoot := FParent.FRoot;
   FDepth := ADepth;
   FObjName := AObjName;
-  FDFMClass := ADFMClass;
+  FClassName := AClassName;
   FGenerated := True;
   InitObjects;
   IniFileLoad(FParent.FIni);
@@ -399,11 +388,6 @@ begin
   end;
 end;
 
-function TDfmToFmxObject.FMXClass: String;
-begin
-  Result := FDFMClass;
-end;
-
 function TDfmToFmxObject.FMXFile(APad: String = ''): String;
 var
   Properties, lb: String;
@@ -413,9 +397,9 @@ begin
 
   Properties := FMXProperties(APad);
   if FObjName <> '' then
-    FFMXFileText := APad +'object '+ FObjName +': '+ FMXClass + CRLF
+    FFMXFileText := APad +'object '+ FObjName +': '+ FClassName + CRLF
   else
-    FFMXFileText := APad +'object '+ FMXClass + CRLF;
+    FFMXFileText := APad +'object '+ FClassName + CRLF;
   FFMXFileText := FFMXFileText + Properties + FMXSubObjects(APad +' ');
   if APad = EmptyStr then
   begin
@@ -460,15 +444,15 @@ var
     if Assigned(Prop) then
       Shape := Prop.Value;
 
-    FOldDfmClass := FDFMClass;
+    FOldClassName := FClassName;
     if (Shape = '') or (Shape = 'stRectangle') or (Shape = 'stSquare') then
-      FDFMClass := 'TRectangle';
+      FClassName := 'TRectangle';
     if Shape = 'stCircle' then
-      FDFMClass := 'TCircle';
+      FClassName := 'TCircle';
     if Shape = 'stEllipse' then
-      FDFMClass := 'TEllipse';
+      FClassName := 'TEllipse';
     if (Shape = 'stRoundRect') or (Shape = 'stRoundSquare') then
-      FDFMClass := 'TRoundRect';
+      FClassName := 'TRoundRect';
   end;
 
   procedure CopyFromParent(ACopyProp: String);
@@ -642,7 +626,7 @@ type
     begin
       if not FOwnedObjs[i].FGenerated then
         Break;
-      if (FOwnedObjs[i].FDFMClass = ADFMClass) and (FOwnedObjs[i].FObjName = AObjName) then
+      if (FOwnedObjs[i].FClassName = ADFMClass) and (FOwnedObjs[i].FObjName = AObjName) then
         Exit(FOwnedObjs[i]);
     end;
 
@@ -742,7 +726,7 @@ begin
     BindInsertPos := Pos(cBindSrc, PostUsesString) + cBindSrsLen;
     if BindInsertPos = cBindSrsLen then
     begin
-      BindInsertPos := PosNoCase(FDFMClass, PostUsesString);
+      BindInsertPos := PosNoCase(FClassName, PostUsesString);
       BindInsertPos := Pos(')', PostUsesString, BindInsertPos);
     end;
     PostUsesString := Copy(PostUsesString, 1, BindInsertPos) + GetPASLiveBindings + Copy(PostUsesString, BindInsertPos + 1);
@@ -770,17 +754,17 @@ begin
   end
   else
   begin
-    NewClassName := AIni.ReadString('ObjectChanges', FDFMClass, EmptyStr);
+    NewClassName := AIni.ReadString('ObjectChanges', FClassName, EmptyStr);
     if NewClassName <> EmptyStr then
     begin
-      FOldDfmClass := FDFMClass;
-      FDFMClass := NewClassName;
+      FOldClassName := FClassName;
+      FClassName := NewClassName;
     end;
-    AIni.ReadSectionValues(FDFMClass, FIniSectionValues);
-    AIni.ReadSectionValues(FDFMClass + '#Replace', FIniReplaceValues);
-    AIni.ReadSection(FDFMClass + '#Include', FIniIncludeValues);
-    AIni.ReadSectionValues(FDFMClass + '#AddIfPresent', FIniAddProperties);
-    AIni.ReadSectionValues(FDFMClass + '#DefaultValueProperty', FIniDefaultValueProperties);
+    AIni.ReadSectionValues(FClassName, FIniSectionValues);
+    AIni.ReadSectionValues(FClassName + '#Replace', FIniReplaceValues);
+    AIni.ReadSection(FClassName + '#Include', FIniIncludeValues);
+    AIni.ReadSectionValues(FClassName + '#AddIfPresent', FIniAddProperties);
+    AIni.ReadSectionValues(FClassName + '#DefaultValueProperty', FIniDefaultValueProperties);
 
     LoadCommonProperties('*');
   end;
@@ -835,14 +819,14 @@ begin
     if LineEnd = 0 then
       LineEnd := NameStart;
 
-    Insert(CRLF + '    ' + FObjName + ': ' + FDFMClass + ';', ABody, LineEnd);
+    Insert(CRLF + '    ' + FObjName + ': ' + FClassName + ';', ABody, LineEnd);
   end
   else
-    if FOldDfmClass <> '' then
+    if FOldClassName <> '' then
     begin
       NameStart := PosNoCase(FObjName, ABody);
-      ClassStart := PosNoCase(FOldDfmClass, ABody, NameStart);
-      ABody := Copy(ABody, 1, NameStart + Length(FObjName) - 1) + ': ' + FDFMClass + Copy(ABody, ClassStart + Length(FOldDfmClass));
+      ClassStart := PosNoCase(FOldClassName, ABody, NameStart);
+      ABody := Copy(ABody, 1, NameStart + Length(FObjName) - 1) + ': ' + FClassName + Copy(ABody, ClassStart + Length(FOldClassName));
     end;
 
   for i := 0 to Pred(FOwnedObjs.Count) do
@@ -1234,32 +1218,6 @@ begin
   finally
     OutFile.Free;
   end;
-end;
-
-{ TDfmToFmxListItem }
-
-constructor TDfmToFmxListItem.Create(AOwner: TDfmToFmxObject; APropertyIdx: integer; AStm: TStreamReader; ADepth: integer);
-var
-  Data: String;
-  LoopCount: integer;
-begin
-  FPropertyIndex := APropertyIdx;
-  FOwner := AOwner;
-  FDepth := ADepth;
-  Data   := EmptyStr;
-  LoopCount := 55;
-  while (LoopCount > 0) and (Pos('end',Data) <> 1)  do
-  Begin
-    Dec(LoopCount);
-    if Pos('object', Data) = 1 then
-      FOwnedObjs.Add(TDfmToFmxObject.Create(Self, Data, AStm, FDepth + 1))
-    else
-      ReadProperties(Data,AStm);
-    Data := Trim(AStm.ReadLine);
-    if (Data <> EmptyStr) then
-      LoopCount := 55;
-  end;
-  FHasMore := (Pos('end',Data)=1) and not (Pos('end>',Data) = 1);
 end;
 
 end.
