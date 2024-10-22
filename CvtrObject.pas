@@ -48,6 +48,12 @@ type
     property IniFile: TMemIniFile read GetIniFile;
   end;
 
+  TRule = record
+    NewPropName: String;
+    Action: String;
+    Parameter: String;
+  end;
+
   TDfmToFmxObject = class;
   TOwnedObjects = TObjectList<TDfmToFmxObject>;
   TEnumList = TObjectDictionary<String,TStringList>;
@@ -55,7 +61,6 @@ type
   TDfmToFmxObject = class
   private
     FFMXFileText: String;
-    FGenObjectType: String;
   protected
     FRoot: IDfmToFmxRoot;
     FParent: TDfmToFmxObject;
@@ -75,10 +80,11 @@ type
     function FMXProperties(APad: String): String;
     function FMXSubObjects(APad: String): String;
     function ReadContents(AStm: TStreamReader): String;
+    function GetRule(AProp: TDfmPropertyBase): TRule;
     function TransformProperty(AProp: TDfmPropertyBase): TFmxPropertyBase;
     procedure LoadCommonProperties(AParamName: String);
     procedure LoadEnums;
-    procedure GenerateObject(AProp: TDfmPropertyBase);
+    procedure GenerateObject(AProp: TDfmPropertyBase; AObjectType: string);
     procedure InternalProcessBody(var ABody: String);
     procedure UpdateUsesStringList(AUsesList: TStrings); virtual;
     function GetObjHeader: string; virtual;
@@ -447,7 +453,7 @@ begin
     Result := Result + FOwnedObjs[i].FMXFile(APad +' ');
 end;
 
-procedure TDfmToFmxObject.GenerateObject(AProp: TDfmPropertyBase);
+procedure TDfmToFmxObject.GenerateObject(AProp: TDfmPropertyBase; AObjectType: string);
 
   procedure GenerateProperty(AObj: TDfmToFmxObject; APropName, APropValue: String);
   var
@@ -498,7 +504,7 @@ var
   Num: Integer;
   Caption, Val: String;
 begin
-  if FGenObjectType = 'ColoredRect' then
+  if AObjectType = 'ColoredRect' then
   begin
     Obj := GetObject(FObjName + '_Color', 'TShape', ColoredRectInitParams);
 
@@ -508,10 +514,10 @@ begin
       GenerateProperty(Obj, AProp.Name, AProp.Value);
   end;
 
-  if FGenObjectType = 'FieldLink' then
+  if AObjectType = 'FieldLink' then
     FRoot.AddFieldLink(FObjName, AProp);
 
-  if FGenObjectType = 'MultipleTabs' then
+  if AObjectType = 'MultipleTabs' then
   begin
     Val := AProp.Value.Trim(['(', ')', #13, #10]);
     Num := 1;
@@ -524,7 +530,7 @@ begin
     end;
   end;
 
-  if FGenObjectType = 'SeparateCaption' then
+  if AObjectType = 'SeparateCaption' then
   begin
     Obj := GetObject(FObjName + '_Caption', 'TLabel', SeparateCaptionInitParams);
 
@@ -547,6 +553,49 @@ begin
     Result := 'object ' + FObjName + ': ' + FClassName + CRLF
   else
     Result := 'object ' + FClassName + CRLF;
+end;
+
+function TDfmToFmxObject.GetRule(AProp: TDfmPropertyBase): TRule;
+var
+  RuleLine: String;
+  Mask: TMask;
+  ActionNameStart, ActionNameEnd: Integer;
+begin
+  RuleLine := Trim(FIniSectionValues.Values[AProp.Name]);
+  if RuleLine = '' then
+    for var i := 0 to FIniSectionValues.Count - 1 do
+    begin
+      Mask := TMask.Create(FIniSectionValues.Names[i]);
+      try
+        if Mask.Matches(AProp.Name) then
+        begin
+          RuleLine := FIniSectionValues.ValueFromIndex[i];
+          Break;
+        end;
+      finally
+        Mask.Free;
+      end;
+    end;
+  if RuleLine = '' then
+    Result.NewPropName := AProp.Name
+  else
+  begin
+    ActionNameStart := RuleLine.IndexOf('#');
+
+    case ActionNameStart of
+      -1: Result.NewPropName := RuleLine;
+      0: Result.NewPropName := AProp.Name;
+    else
+      Result.NewPropName := RuleLine.Substring(0, ActionNameStart).Trim;
+    end;
+
+    ActionNameEnd := RuleLine.IndexOf('#', ActionNameStart + 1);
+    if ActionNameEnd = -1 then
+      Exit;
+
+    Result.Action := RuleLine.Substring(ActionNameStart, ActionNameEnd - ActionNameStart + 1);
+    Result.Parameter := RuleLine.Substring(ActionNameEnd + 1);
+  end;
 end;
 
 procedure TDfmToFmxObject.IniFileLoad;
@@ -707,19 +756,12 @@ var
 
   function GetItemsClass: String;
   var
-    Elements: TArray<string>;
+    Rule: TRule;
   begin
-    Result := FIniSectionValues.Values[Name];
-    if Result <> '' then
-    begin
-      if Result.Contains('#') then
-      begin
-        Elements := Result.Split(['#']);
-        Result := Elements[High(Elements)];
-      end
-      else
-        Result := '';
-    end;
+    Result := '';
+    Rule := GetRule(Prop);
+    if (Rule.Action = '#ItemClass#') or (Rule.Action = '#Delete#') then
+      Result := Rule.Parameter;
   end;
 
 begin
@@ -768,69 +810,23 @@ end;
 
 function TDfmToFmxObject.TransformProperty(AProp: TDfmPropertyBase): TFmxPropertyBase;
 var
-  NewName: String;
   Mask: TMask;
   DefaultValuePropPos: Integer;
+  Rule: TRule;
 
   function ReplaceEnum(var ReplacementProp: TFmxPropertyBase): Boolean;
   var
-    EnumNameStart, EnumNameEnd, Item, FontSize: Integer;
-    EnumName, PropName, Value: String;
+    Item: Integer;
+    Value: String;
     EnumItems: TStringList;
   begin
     Result := False;
-    EnumNameStart := Pos('#', NewName);
 
-    if EnumNameStart > 1 then
-      PropName := Trim(Copy(NewName, 1, EnumNameStart - 1))
-    else
-      PropName := AProp.Name;
-
-    if AProp is TDfmItemsProp then
-    begin
-      if EnumNameStart = 0 then
-        PropName := NewName;
-      ReplacementProp := TFmxItemsProp.Create(PropName);
-      TDfmItemsProp(AProp).Transform(TFmxItemsProp(ReplacementProp).Items);
-      Exit(True);
-    end;
-
-    EnumNameEnd := Pos('#', NewName, EnumNameStart + 1);
-    if (EnumNameStart = 0) or (EnumNameEnd = 0) then
+    if (Rule.Action = '') or (Rule.Action = '#ItemClass#') then
       Exit;
 
-    EnumName := Copy(NewName, EnumNameStart, EnumNameEnd - EnumNameStart + 1);
-
-    if EnumName = '#SetValue#' then
-    begin
-      FFmxProps.AddMultipleProps(NewName.Replace('#SetValue#', '=', [rfIgnoreCase]));
-      ReplacementProp := nil;
-      Exit(True);
-    end;
-
-    if EnumName = '#ConvertFontSize#' then
-    begin
-      FontSize := Abs(StrToInt(AProp.Value));
-      ReplacementProp := TFmxProperty.Create(PropName, IntToStr(FontSize));
-      Exit(True);
-    end;
-
-    if EnumName = '#ImageData#' then
-    begin
-      ReplacementProp := TFmxImageProp.Create(PropName, AProp.Value);
-      Exit(True);
-    end;
-
-    if EnumName = '#ImageListData#' then
-    begin
-      ReplacementProp := TFmxImageListProp.Create(PropName, AProp.Value);
-      Exit(True);
-    end;
-
-    if (EnumName = '') then
-      Exit;
-    if not FEnumList.TryGetValue(EnumName, EnumItems) then
-      raise Exception.Create('Required enum ' + EnumName + ' not found');
+    if not FEnumList.TryGetValue(Rule.Action, EnumItems) then
+      raise Exception.Create('Required enum ' + Rule.Action + ' not found');
 
     Item := EnumItems.IndexOfName(AProp.Value);
     if Item >= 0 then
@@ -839,7 +835,7 @@ var
     begin
       Item := EnumItems.IndexOfName('#UnknownValuesAllowed#');
       if Item < 0 then
-        raise Exception.Create('Unknown item ' + AProp.Value + ' in enum ' + EnumName)
+        raise Exception.Create('Unknown item ' + AProp.Value + ' in enum ' + Rule.Action)
       else
       begin
         if EnumItems.ValueFromIndex[Item] = '#GenerateColorValue#' then
@@ -865,51 +861,56 @@ var
       Exit(True);
     end;
 
-    ReplacementProp := TFmxProperty.Create(PropName, Value);
+    ReplacementProp := TFmxProperty.Create(Rule.NewPropName, Value);
     Result := True;
   end;
 
 begin
-  NewName := Trim(FIniSectionValues.Values[AProp.Name]);
-  if NewName = EmptyStr then
-    for var i := 0 to Pred(FIniSectionValues.Count) do
-    begin
-      Mask := TMask.Create(FIniSectionValues.Names[i]);
-      try
-        if Mask.Matches(AProp.Name) then
-        begin
-          NewName := FIniSectionValues.ValueFromIndex[i];
-          Break;
-        end;
-      finally
-        Mask.Free;
-      end;
-    end;
-  if NewName = EmptyStr then
-    NewName := AProp.Name;
-  if NewName.StartsWith('#Delete#') then
+  Rule := GetRule(AProp);
+
+  if Rule.Action = '#ConvertFontSize#' then
+    Result := TFmxProperty.Create(Rule.NewPropName, Abs(AProp.Value.ToInteger).ToString)
+  else
+  if Rule.Action = '#Delete#' then
   begin
     Result := nil;
     if AProp is TDfmItemsProp then
       TDfmItemsProp(AProp).Transform(nil);
   end
   else
-  if NewName.StartsWith('#GenerateControl#') then
+  if Rule.Action = '#GenerateControl#' then
   begin
-    FGenObjectType := Copy(NewName, Length('#GenerateControl#') + 1);
-    GenerateObject(AProp);
+    GenerateObject(AProp, Rule.Parameter);
+    Result := nil;
+  end
+  else
+  if Rule.Action = '#ImageData#' then
+    Result := TFmxImageProp.Create(Rule.NewPropName, AProp.Value)
+  else
+  if Rule.Action = '#ImageListData#' then
+    Result := TFmxImageListProp.Create(Rule.NewPropName, AProp.Value)
+  else
+  if Rule.Action = '#SetValue#' then
+  begin
+    FFmxProps.AddMultipleProps(Rule.NewPropName + '=' + Rule.Parameter);
     Result := nil;
   end
   else
   if not ReplaceEnum(Result) then
   begin
     if AProp is TDfmStringsProp then
-      Result := TFmxStringsProp.Create(NewName, TDfmStringsProp(AProp).Strings)
+      Result := TFmxStringsProp.Create(Rule.NewPropName, TDfmStringsProp(AProp).Strings)
     else
     if AProp is TDfmDataProp then
-      Result := TFmxDataProp.Create(NewName, AProp.Value)
+      Result := TFmxDataProp.Create(Rule.NewPropName, AProp.Value)
     else
-      Result := TFmxProperty.Create(NewName, AProp.Value);
+    if AProp is TDfmItemsProp then
+    begin
+      Result := TFmxItemsProp.Create(Rule.NewPropName);
+      TDfmItemsProp(AProp).Transform(TFmxItemsProp(Result).Items);
+    end
+    else
+      Result := TFmxProperty.Create(Rule.NewPropName, AProp.Value);
   end;
 
   if FIniDefaultValueProperties.Count > 0 then

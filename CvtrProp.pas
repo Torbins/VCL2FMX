@@ -292,11 +292,8 @@ end;
 { TFmxItemsProp }
 
 constructor TFmxItemsProp.Create(const AName: string);
-var
-  Elements: TArray<string>;
 begin
-  Elements := AName.Split(['#']);
-  FName := Elements[High(Elements)];
+  FName := AName;
   FItems := TStringList.Create;
 end;
 
