@@ -17,7 +17,7 @@ type
   end;
 
   TDfmStringsProp = class(TDfmProperty)
-  private
+  protected
     FStrings: TStringList;
     function GetValue: String; override;
   public
@@ -28,8 +28,14 @@ type
   end;
 
   TDfmItemsProp = class(TDfmProperty)
+  protected
+    FItems: TDfmToFmxItems;
   public
-    procedure ReadItems(AStm: TStreamReader);
+    property Items: TDfmToFmxItems read FItems;
+    constructor Create(const AName, AValue: string); override;
+    destructor Destroy; override;
+    procedure ReadItems(AParent: TDfmToFmxObject; AClassName: String; AStm: TStreamReader);
+    procedure Transform(AItemStrings: TStrings);
   end;
 
   TFmxProperty = class(TFmxPropertyBase)
@@ -48,7 +54,7 @@ type
   end;
 
   TFmxStringsProp = class(TFmxProperty)
-  private
+  protected
     FStrings: TStringList;
   public
     property Strings: TStringList read FStrings;
@@ -59,6 +65,16 @@ type
 
   TFmxDataProp = class(TFmxProperty)
   public
+    function ToString(APad: String): String; override;
+  end;
+
+  TFmxItemsProp= class(TFmxProperty)
+  protected
+    FItems: TStringList;
+  public
+    property Items: TStringList read FItems;
+    constructor Create(const AName: string); overload;
+    destructor Destroy; override;
     function ToString(APad: String): String; override;
   end;
 
@@ -128,22 +144,50 @@ end;
 
 { TDfmItemsProp }
 
-procedure TDfmItemsProp.ReadItems(AStm: TStreamReader);
+constructor TDfmItemsProp.Create(const AName, AValue: string);
+begin
+  inherited;
+  FItems := TDfmToFmxItems.Create({AOwnsObjects} True);
+end;
+
+destructor TDfmItemsProp.Destroy;
+begin
+  FItems.Free;
+  inherited;
+end;
+
+procedure TDfmItemsProp.ReadItems(AParent: TDfmToFmxObject; AClassName: String; AStm: TStreamReader);
 var
   Data: String;
+  ClosingBracketFound: Boolean;
 begin
   if FValue.EndsWith('>') then
     Exit;
 
+  ClosingBracketFound := False;
   Data := Trim(AStm.ReadLine);
-
-  while not EndsText('>', Data) do
+  while (not EndsText('>', Data)) and (not ClosingBracketFound) do
   begin
-    FValue := FValue + #13 + Data;
-    Data := Trim(AStm.ReadLine);
+    if Data.StartsWith('item') then
+      FItems.Add(TDfmToFmxItem.CreateItem(AParent, AClassName, AStm, ClosingBracketFound))
+    else
+      raise Exception.Create('Error reading items in ' + AParent.ObjName + '.' + FName);
+    if not ClosingBracketFound then
+      Data := Trim(AStm.ReadLine);
   end;
+end;
 
-  FValue := FValue + #13 + Data;
+procedure TDfmItemsProp.Transform(AItemStrings: TStrings);
+var
+  Item: TDfmToFmxItem;
+  Transformed: String;
+begin
+  for Item in FItems do
+  begin
+    Transformed := Item.FMXFile;
+    if Assigned(AItemStrings) then
+      AItemStrings.Add(Transformed);
+  end;
 end;
 
 { TDfmDataProp }
@@ -243,6 +287,33 @@ function TFmxDataProp.ToString(APad: String): String;
 begin
   Result := APad + '  ' + FName + ' = {';
   Result := Result + BreakIntoLines(FValue, APad) + '}' + CRLF;
+end;
+
+{ TFmxItemsProp }
+
+constructor TFmxItemsProp.Create(const AName: string);
+var
+  Elements: TArray<string>;
+begin
+  Elements := AName.Split(['#']);
+  FName := Elements[High(Elements)];
+  FItems := TStringList.Create;
+end;
+
+destructor TFmxItemsProp.Destroy;
+begin
+  FItems.Free;
+  inherited;
+end;
+
+function TFmxItemsProp.ToString(APad: String): String;
+var
+  i: Integer;
+begin
+  Result := APad + '  ' + FName + ' = <' + CRLF + APad + '    ';
+  for i := 0 to FItems.Count - 1 do
+    Result := Result + FItems[i].Replace(CRLF, CRLF + APad + '    ');
+  Result := Result.TrimRight([#13, #10, ' ']) + '>' + CRLF;
 end;
 
 end.

@@ -107,16 +107,12 @@ begin
     try
       Data := Trim(Stm.ReadLine);
       if Pos('object', Data) = 1 then
-        DFMObj := TDfmToFmxObjRoot.Create(nil, Data, Stm);
+        DFMObj := TDfmToFmxObjRoot.CreateRoot(FIniFileName, Data, Stm);
     finally
       Stm.Free;
     end;
   end;
 
-  DFMObj.LiveBindings;
-
-  DFMObj.LoadInfileDefs(FIniFileName);
-  mmOutput.Text := EmptyStr;
   mmOutput.Text := DFMObj.FMXFile;
   BtnProcess.Enabled := False;
   UpdateForm;

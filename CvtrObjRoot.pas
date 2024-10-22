@@ -43,9 +43,8 @@ type
     function GetFMXLiveBindings: String;
     function GetPASLiveBindings: String;
   public
-    constructor Create(AParent: TDfmToFmxObject; ACreateText: String; AStm: TStreamReader); override;
+    constructor CreateRoot(const AIniConfigFile, ACreateText: String; AStm: TStreamReader);
     destructor Destroy; override;
-    procedure LoadInfileDefs(AIniFileName: String);
     procedure IniFileLoad; override;
     class function DFMIsTextBased(ADfmFileName: String): Boolean;
     function GenPasFile(const APascalSourceFileName: String): String;
@@ -268,10 +267,11 @@ begin
     CurrentLink.DataSource := AProp.Value;
 end;
 
-constructor TDfmToFmxObjRoot.Create(AParent: TDfmToFmxObject; ACreateText: String; AStm: TStreamReader);
+constructor TDfmToFmxObjRoot.CreateRoot(const AIniConfigFile, ACreateText: String; AStm: TStreamReader);
 begin
   FRoot := Self;
-  inherited;
+  FIniFile := TMemIniFile.Create(AIniConfigFile);
+  Create(nil, ACreateText, AStm);
 end;
 
 destructor TDfmToFmxObjRoot.Destroy;
@@ -358,29 +358,18 @@ begin
 end;
 
 procedure TDfmToFmxObjRoot.IniFileLoad;
-var
-  i: integer;
 begin
   FRoot.IniFile.ReadSectionValues('TForm', FIniSectionValues);
   FRoot.IniFile.ReadSectionValues('TForm#Replace', FIniReplaceValues);
   FRoot.IniFile.ReadSection('TForm#Include', FIniIncludeValues);
 
   LoadEnums;
-
-  for i := 0 to Pred(FOwnedObjs.Count) do
-    FOwnedObjs[i].IniFileLoad;
 end;
 
 procedure TDfmToFmxObjRoot.InitObjects;
 begin
   inherited;
   FIniReplaceValues := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
-end;
-
-procedure TDfmToFmxObjRoot.LoadInfileDefs(AIniFileName: String);
-begin
-  FIniFile := TMemIniFile.Create(AIniFileName);
-  IniFileLoad;
 end;
 
 function TDfmToFmxObjRoot.ProcessCodeBody(const ACodeBody: String): String;

@@ -74,19 +74,20 @@ type
     procedure InitObjects; virtual;
     function FMXProperties(APad: String): String;
     function FMXSubObjects(APad: String): String;
-    procedure ReadProperties(AData: String; AStm: TStreamReader);
+    function ReadContents(AStm: TStreamReader): String;
     function TransformProperty(AProp: TDfmPropertyBase): TFmxPropertyBase;
     procedure LoadCommonProperties(AParamName: String);
     procedure LoadEnums;
     procedure GenerateObject(AProp: TDfmPropertyBase);
     procedure InternalProcessBody(var ABody: String);
     procedure UpdateUsesStringList(AUsesList: TStrings); virtual;
+    function GetObjHeader: string; virtual;
   public
     property Root: IDfmToFmxRoot read FRoot;
     property Parent: TDfmToFmxObject read FParent;
     property ObjName: String read FObjName;
     property DfmProps: TDfmProperties read FDfmProps;
-    constructor Create(AParent: TDfmToFmxObject; ACreateText: String; AStm: TStreamReader); virtual;
+    constructor Create(AParent: TDfmToFmxObject; ACreateText: String; AStm: TStreamReader);
     constructor CreateGenerated(AParent: TDfmToFmxObject; AObjName, AClassName: String);
     destructor Destroy; override;
     procedure IniFileLoad; virtual;
@@ -94,7 +95,10 @@ type
   end;
 
   TDfmToFmxItem = class(TDfmToFmxObject)
-
+  protected
+    function GetObjHeader: String; override;
+  public
+    constructor CreateItem(AParent: TDfmToFmxObject; AClassName: String; AStm: TStreamReader; out ListEndFound: Boolean);
   end;
 
   TDfmToFmxItems = class(TObjectList<TDfmToFmxItem>)
@@ -190,7 +194,6 @@ end;
 constructor TDfmToFmxObject.Create(AParent: TDfmToFmxObject; ACreateText: String; AStm: TStreamReader);
 var
   InputArray: TArray<String>;
-  Data: String;
 begin
   FParent := AParent;
   if Assigned(AParent) then
@@ -209,15 +212,8 @@ begin
       FObjName := '';
       FClassName := InputArray[1];
     end;
-    Data := Trim(AStm.ReadLine);
-    while Data <> 'end' do
-    begin
-      if Pos('object', Data) = 1 then
-        FOwnedObjs.Add(TDfmToFmxObject.Create(Self, Data, AStm))
-      else
-        ReadProperties(Data,AStm);
-      Data := Trim(AStm.ReadLine);
-    end
+    IniFileLoad;
+    ReadContents(AStm);
   end
   else
     raise Exception.Create('Bad Start::' + ACreateText);
@@ -255,11 +251,8 @@ begin
     Exit(FFMXFileText);
 
   Properties := FMXProperties(APad); // This can change FClassName, see FMXProperties.CalcShapeClass
-  if FObjName <> '' then
-    FFMXFileText := APad +'object '+ FObjName +': '+ FClassName + CRLF
-  else
-    FFMXFileText := APad +'object '+ FClassName + CRLF;
-  FFMXFileText := FFMXFileText + Properties + FMXSubObjects(APad +' ');
+  FFMXFileText := APad + GetObjHeader;
+  FFMXFileText := FFMXFileText + Properties + FMXSubObjects(APad + ' ');
   FFMXFileText := FFMXFileText + APad +'end' + CRLF;
   Result := FFMXFileText;
 end;
@@ -548,27 +541,34 @@ begin
   end;
 end;
 
+function TDfmToFmxObject.GetObjHeader: string;
+begin
+  if FObjName <> '' then
+    Result := 'object ' + FObjName + ': ' + FClassName + CRLF
+  else
+    Result := 'object ' + FClassName + CRLF;
+end;
+
 procedure TDfmToFmxObject.IniFileLoad;
 var
-  i: integer;
   NewClassName: String;
 begin
-  NewClassName := FRoot.IniFile.ReadString('ObjectChanges', FClassName, EmptyStr);
-  if NewClassName <> EmptyStr then
+  if FClassName <> '' then
   begin
-    FOldClassName := FClassName;
-    FClassName := NewClassName;
+    NewClassName := FRoot.IniFile.ReadString('ObjectChanges', FClassName, EmptyStr);
+    if NewClassName <> EmptyStr then
+    begin
+      FOldClassName := FClassName;
+      FClassName := NewClassName;
+    end;
+    FRoot.IniFile.ReadSectionValues(FClassName, FIniSectionValues);
+    FRoot.IniFile.ReadSection(FClassName + '#Include', FIniIncludeValues);
+    FRoot.IniFile.ReadSectionValues(FClassName + '#AddIfPresent', FIniAddProperties);
+    FRoot.IniFile.ReadSectionValues(FClassName + '#DefaultValueProperty', FIniDefaultValueProperties);
   end;
-  FRoot.IniFile.ReadSectionValues(FClassName, FIniSectionValues);
-  FRoot.IniFile.ReadSection(FClassName + '#Include', FIniIncludeValues);
-  FRoot.IniFile.ReadSectionValues(FClassName + '#AddIfPresent', FIniAddProperties);
-  FRoot.IniFile.ReadSectionValues(FClassName + '#DefaultValueProperty', FIniDefaultValueProperties);
 
   LoadCommonProperties('*');
   LoadEnums;
-
-  for i := 0 to Pred(FOwnedObjs.Count) do
-    FOwnedObjs[i].IniFileLoad;
 end;
 
 procedure TDfmToFmxObject.InitObjects;
@@ -698,42 +698,72 @@ begin
   end;
 end;
 
-procedure TDfmToFmxObject.ReadProperties(AData: String; AStm: TStreamReader);
+function TDfmToFmxObject.ReadContents(AStm: TStreamReader): String;
 var
   PropEqSign: Integer;
   Name, Value: String;
   Prop: TDfmProperty;
-begin
-  PropEqSign := AData.IndexOf('=');
-  Name := AData.Substring(0, PropEqSign).Trim;
-  Value := AData.Substring(PropEqSign + 1).Trim;
+  Data: String;
 
-  if Value = '' then
+  function GetItemsClass: String;
+  var
+    Elements: TArray<string>;
   begin
-    Prop := TDfmProperty.Create(Name, '');
-    Prop.ReadMultiline(AStm);
-  end
-  else
-  if Value[1] = '(' then
+    Result := FIniSectionValues.Values[Name];
+    if Result <> '' then
+    begin
+      if Result.Contains('#') then
+      begin
+        Elements := Result.Split(['#']);
+        Result := Elements[High(Elements)];
+      end
+      else
+        Result := '';
+    end;
+  end;
+
+begin
+  Data := Trim(AStm.ReadLine);
+  while not Data.StartsWith('end') do
   begin
-    Prop := TDfmStringsProp.Create(Name, Value);
-    TDfmStringsProp(Prop).ReadLines(AStm);
-  end
-  else
-  if Value[1] = '<' then
-  begin
-    Prop := TDfmItemsProp.Create(Name, Value);
-    TDfmItemsProp(Prop).ReadItems(AStm);
-  end
-  else
-  if Value[1] = '{' then
-  begin
-    Prop := TDfmDataProp.Create(Name, Value);
-    TDfmDataProp(Prop).ReadData(AStm);
-  end
-  else
-    Prop := TDfmProperty.Create(Name, Value);
-  FDfmProps.Add(Prop);
+    if Pos('object', Data) = 1 then
+      FOwnedObjs.Add(TDfmToFmxObject.Create(Self, Data, AStm))
+    else
+    begin
+      PropEqSign := Data.IndexOf('=');
+      Name := Data.Substring(0, PropEqSign).Trim;
+      Value := Data.Substring(PropEqSign + 1).Trim;
+
+      if Value = '' then
+      begin
+        Prop := TDfmProperty.Create(Name, '');
+        Prop.ReadMultiline(AStm);
+      end
+      else
+      if Value[1] = '(' then
+      begin
+        Prop := TDfmStringsProp.Create(Name, Value);
+        TDfmStringsProp(Prop).ReadLines(AStm);
+      end
+      else
+      if Value[1] = '<' then
+      begin
+        Prop := TDfmItemsProp.Create(Name, Value);
+        TDfmItemsProp(Prop).ReadItems(Self, GetItemsClass, AStm);
+      end
+      else
+      if Value[1] = '{' then
+      begin
+        Prop := TDfmDataProp.Create(Name, Value);
+        TDfmDataProp(Prop).ReadData(AStm);
+      end
+      else
+        Prop := TDfmProperty.Create(Name, Value);
+      FDfmProps.Add(Prop);
+    end;
+    Data := Trim(AStm.ReadLine);
+  end;
+  Result := Data.Substring(3);
 end;
 
 function TDfmToFmxObject.TransformProperty(AProp: TDfmPropertyBase): TFmxPropertyBase;
@@ -750,16 +780,23 @@ var
   begin
     Result := False;
     EnumNameStart := Pos('#', NewName);
-    if EnumNameStart = 0 then
-      Exit;
 
     if EnumNameStart > 1 then
       PropName := Trim(Copy(NewName, 1, EnumNameStart - 1))
     else
       PropName := AProp.Name;
 
+    if AProp is TDfmItemsProp then
+    begin
+      if EnumNameStart = 0 then
+        PropName := NewName;
+      ReplacementProp := TFmxItemsProp.Create(PropName);
+      TDfmItemsProp(AProp).Transform(TFmxItemsProp(ReplacementProp).Items);
+      Exit(True);
+    end;
+
     EnumNameEnd := Pos('#', NewName, EnumNameStart + 1);
-    if EnumNameEnd = 0 then
+    if (EnumNameStart = 0) or (EnumNameEnd = 0) then
       Exit;
 
     EnumName := Copy(NewName, EnumNameStart, EnumNameEnd - EnumNameStart + 1);
@@ -850,8 +887,12 @@ begin
     end;
   if NewName = EmptyStr then
     NewName := AProp.Name;
-  if NewName = '#Delete#' then
-    Result := nil
+  if NewName.StartsWith('#Delete#') then
+  begin
+    Result := nil;
+    if AProp is TDfmItemsProp then
+      TDfmItemsProp(AProp).Transform(nil);
+  end
   else
   if NewName.StartsWith('#GenerateControl#') then
   begin
@@ -910,6 +951,24 @@ begin
 
   for i := 0 to Pred(FOwnedObjs.Count) do
     FOwnedObjs[i].UpdateUsesStringList(AUsesList);
+end;
+
+{ TDfmToFmxItem }
+
+constructor TDfmToFmxItem.CreateItem(AParent: TDfmToFmxObject; AClassName: String; AStm: TStreamReader; out
+    ListEndFound: Boolean);
+begin
+  FParent := AParent;
+  FRoot := FParent.FRoot;
+  FClassName := AClassName;
+  InitObjects;
+  IniFileLoad;
+  ListEndFound := ReadContents(AStm) = '>';
+end;
+
+function TDfmToFmxItem.GetObjHeader: String;
+begin
+  Result := 'item' + CRLF;
 end;
 
 end.
