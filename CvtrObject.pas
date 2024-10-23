@@ -31,7 +31,7 @@ type
     property Name: String read FName;
     property Value: String read GetValue write FValue;
     constructor Create(const AName, AValue: string); overload; virtual;
-    constructor Create(const APropLine: string); overload; virtual;
+    constructor CreateFromLine(const APropLine: string); virtual;
     function ToString(APad: String): String; reintroduce; virtual;
   end;
 
@@ -149,7 +149,7 @@ begin
   FValue := AValue;
 end;
 
-constructor TFmxPropertyBase.Create(const APropLine: string);
+constructor TFmxPropertyBase.CreateFromLine(const APropLine: string);
 var
   PropEqSign: Integer;
 begin
@@ -177,7 +177,7 @@ var
 begin
   PropsArray := APropsText.Split(['#NextProp#']);
   for Prop in PropsArray do
-    Add(TFmxProperty.Create(Prop));
+    Add(TFmxProperty.CreateFromLine(Prop));
 end;
 
 procedure TFmxProperties.AddProp(AProp: TFmxPropertyBase);
@@ -422,7 +422,7 @@ begin
       ReconsiderAfterRemovingRule(Copy(sProp, Length('#ReconsiderAfterRemovingRule#') + 1));
       Continue;
     end;
-    FFmxProps.AddProp(TFmxProperty.Create(sProp));
+    FFmxProps.AddProp(TFmxProperty.CreateFromLine(sProp));
   end;
 
   for i := 0 to Pred(FIniAddProperties.Count) do
@@ -438,7 +438,7 @@ begin
       end;
       ExistingProp := FFmxProps.FindByName(sProp.Split(['='], 1)[0].Trim);
       if not Assigned(ExistingProp) then
-        FFmxProps.AddProp(TFmxProperty.Create(sProp));
+        FFmxProps.AddProp(TFmxProperty.CreateFromLine(sProp));
     end;
   end;
 
@@ -804,6 +804,12 @@ begin
         TDfmDataProp(Prop).ReadData(AStm);
       end
       else
+      if Value[1] = '[' then
+      begin
+        Prop := TDfmSetProp.Create(Name, Value);
+        TDfmSetProp(Prop).ReadSetItems(AStm);
+      end
+      else
         Prop := TDfmProperty.Create(Name, Value);
       FDfmProps.Add(Prop);
     end;
@@ -813,18 +819,20 @@ begin
 end;
 
 function TDfmToFmxObject.TransformProperty(AProp: TDfmPropertyBase): TFmxPropertyBase;
+type
+  TEnumResult = (erNotEnum, erIgnore, erOk);
 var
   Mask: TMask;
   DefaultValuePropPos: Integer;
   Rule: TRule;
+  EnumValue, Item: String;
 
-  function ReplaceEnum(var ReplacementProp: TFmxPropertyBase): Boolean;
+  function ReplaceEnum(const APropValue: String; var AEnumValue: String): TEnumResult;
   var
     Item: Integer;
-    Value: String;
     EnumItems: TStringList;
   begin
-    Result := False;
+    Result := erNotEnum;
 
     if (Rule.Action = '') or (Rule.Action = '#ItemClass#') then
       Exit;
@@ -832,41 +840,40 @@ var
     if not FEnumList.TryGetValue(Rule.Action, EnumItems) then
       raise Exception.Create('Required enum ' + Rule.Action + ' not found');
 
-    Item := EnumItems.IndexOfName(AProp.Value);
+    Item := EnumItems.IndexOfName(APropValue);
     if Item >= 0 then
-      Value := EnumItems.ValueFromIndex[Item]
+      AEnumValue := EnumItems.ValueFromIndex[Item]
     else
     begin
       Item := EnumItems.IndexOfName('#UnknownValuesAllowed#');
       if Item < 0 then
-        raise Exception.Create('Unknown item ' + AProp.Value + ' in enum ' + Rule.Action)
+        raise Exception.Create('Unknown item ' + APropValue + ' in enum ' + Rule.Action)
       else
       begin
         if EnumItems.ValueFromIndex[Item] = '#GenerateColorValue#' then
-          Value := ConvertColor(StrToUInt(AProp.Value))
+          AEnumValue := ConvertColor(StrToUInt(APropValue))
         else
-          Value := AProp.Value;
+          AEnumValue := APropValue;
       end;
     end;
 
-    if Value = '#GenerateColorValue#' then
-      Value := ConvertColor(ColorToRGB(StringToColor(AProp.Value)));
+    if AEnumValue = '#GenerateColorValue#' then
+      AEnumValue := ConvertColor(ColorToRGB(StringToColor(APropValue)));
 
-    if Value = '#IgnoreValue#' then
+    if AEnumValue = '#IgnoreValue#' then
     begin
-      ReplacementProp := nil;
-      Exit(True);
+      AEnumValue := '';
+      Exit(erIgnore);
     end;
 
-    if Value.StartsWith('#SetProperty#', {IgnoreCase} True) then
+    if AEnumValue.StartsWith('#SetProperty#', {IgnoreCase} True) then
     begin
-      FFmxProps.AddMultipleProps(Copy(Value, Length('#SetProperty#') + 1));
-      ReplacementProp := nil;
-      Exit(True);
+      FFmxProps.AddMultipleProps(Copy(AEnumValue, Length('#SetProperty#') + 1));
+      AEnumValue := '';
+      Exit(erIgnore);
     end;
 
-    ReplacementProp := TFmxProperty.Create(Rule.NewPropName, Value);
-    Result := True;
+    Result := erOk;
   end;
 
 begin
@@ -911,21 +918,34 @@ begin
     Result := nil;
   end
   else
-  if not ReplaceEnum(Result) then
+  if AProp is TDfmSetProp then
   begin
-    if AProp is TDfmStringsProp then
-      Result := TFmxStringsProp.Create(Rule.NewPropName, TDfmStringsProp(AProp).Strings)
-    else
-    if AProp is TDfmDataProp then
-      Result := TFmxDataProp.Create(Rule.NewPropName, AProp.Value)
-    else
-    if AProp is TDfmItemsProp then
-    begin
-      Result := TFmxItemsProp.Create(Rule.NewPropName);
-      TDfmItemsProp(AProp).Transform(TFmxItemsProp(Result).Items);
-    end
-    else
-      Result := TFmxProperty.Create(Rule.NewPropName, AProp.Value);
+    Result := TFmxSetProp.Create(Rule.NewPropName);
+    for Item in TDfmSetProp(AProp).Items do
+      case ReplaceEnum(Item, EnumValue) of
+        erOk: TFmxSetProp(Result).Items.Add(EnumValue);
+        erNotEnum: TFmxSetProp(Result).Items.Add(Item);
+      end;
+  end
+  else
+  case ReplaceEnum(AProp.Value, EnumValue) of
+    erOk: Result := TFmxProperty.Create(Rule.NewPropName, EnumValue);
+    erNotEnum:
+      begin
+        if AProp is TDfmStringsProp then
+          Result := TFmxStringsProp.Create(Rule.NewPropName, TDfmStringsProp(AProp).Strings)
+        else
+        if AProp is TDfmDataProp then
+          Result := TFmxDataProp.Create(Rule.NewPropName, AProp.Value)
+        else
+        if AProp is TDfmItemsProp then
+        begin
+          Result := TFmxItemsProp.Create(Rule.NewPropName);
+          TDfmItemsProp(AProp).Transform(TFmxItemsProp(Result).Items);
+        end
+        else
+          Result := TFmxProperty.Create(Rule.NewPropName, AProp.Value);
+      end;
   end;
 
   if FIniDefaultValueProperties.Count > 0 then

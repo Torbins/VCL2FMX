@@ -38,6 +38,16 @@ type
     procedure Transform(AItemStrings: TStrings);
   end;
 
+  TDfmSetProp = class(TDfmProperty)
+  protected
+    FItems: TStringList;
+  public
+    property Items: TStringList read FItems;
+    constructor Create(const AName, AValue: string); override;
+    destructor Destroy; override;
+    procedure ReadSetItems(AStm: TStreamReader);
+  end;
+
   TFmxProperty = class(TFmxPropertyBase)
   public
     function ToString(APad: String): String; reintroduce; override;
@@ -68,7 +78,17 @@ type
     function ToString(APad: String): String; override;
   end;
 
-  TFmxItemsProp= class(TFmxProperty)
+  TFmxItemsProp = class(TFmxProperty)
+  protected
+    FItems: TStringList;
+  public
+    property Items: TStringList read FItems;
+    constructor Create(const AName: string); overload;
+    destructor Destroy; override;
+    function ToString(APad: String): String; override;
+  end;
+
+  TFmxSetProp = class(TFmxProperty)
   protected
     FItems: TStringList;
   public
@@ -311,6 +331,82 @@ begin
   for i := 0 to FItems.Count - 1 do
     Result := Result + FItems[i].Replace(CRLF, CRLF + APad + '    ');
   Result := Result.TrimRight([#13, #10, ' ']) + '>' + CRLF;
+end;
+
+{ TDfmSetProp }
+
+constructor TDfmSetProp.Create(const AName, AValue: string);
+begin
+  inherited;
+  FItems := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
+end;
+
+destructor TDfmSetProp.Destroy;
+begin
+  FItems.Free;
+  inherited;
+end;
+
+procedure TDfmSetProp.ReadSetItems(AStm: TStreamReader);
+var
+  Data: String;
+
+  procedure AddItems(const AItemsLine: String);
+  var
+    ItemsArray: TArray<String>;
+    Item: String;
+  begin
+    ItemsArray := AItemsLine.TrimRight([',']).Split([', ']);
+    for Item in ItemsArray do
+      FItems.Add(Item);
+  end;
+
+begin
+  AddItems(FValue.Trim(['[', ']']));
+  if FValue.EndsWith(']') then
+    Exit;
+
+  Data := Trim(AStm.ReadLine);
+  while not EndsText(']', Data) do
+  begin
+    AddItems(Data);
+    Data := Trim(AStm.ReadLine);
+  end;
+
+  AddItems(Data.TrimRight([']']));
+end;
+
+{ TFmxSetProp }
+
+constructor TFmxSetProp.Create(const AName: string);
+begin
+  FName := AName;
+  FItems := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
+end;
+
+destructor TFmxSetProp.Destroy;
+begin
+  FItems.Free;
+  inherited;
+end;
+
+function TFmxSetProp.ToString(APad: String): String;
+var
+  Item, Line: String;
+begin
+  Result := APad + '  ' + FName + ' = [';
+
+  for Item in FItems do
+  begin
+    Line := Line + Item + ', ';
+    if Line.Length >= LineTruncLength then
+    begin
+      Result := Result + Line + CRLF + APad + '    ';
+      Line := '';
+    end;
+  end;
+
+  Result := Result + Line.TrimRight([',', ' ']) + ']' + CRLF;
 end;
 
 end.
