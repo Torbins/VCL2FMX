@@ -43,6 +43,8 @@ type
   end;
 
   IDfmToFmxRoot = interface
+    procedure AddGridColumns(AObjName: String; AProp: TFmxPropertyBase);
+    procedure AddGridLink(AObjName: String; AProp: TDfmPropertyBase);
     procedure AddFieldLink(AObjName: String; AProp: TDfmPropertyBase);
     function GetIniFile: TMemIniFile;
     property IniFile: TMemIniFile read GetIniFile;
@@ -55,8 +57,8 @@ type
   end;
 
   TDfmToFmxObject = class;
-  TOwnedObjects = TObjectList<TDfmToFmxObject>;
-  TEnumList = TObjectDictionary<String,TStringList>;
+  TOwnedObjects = class(TObjectList<TDfmToFmxObject>);
+  TEnumList = class(TObjectDictionary<String, TStringList>);
 
   TDfmToFmxObject = class
   private
@@ -107,8 +109,7 @@ type
     constructor CreateItem(AParent: TDfmToFmxObject; AClassName: String; AStm: TStreamReader; out ListEndFound: Boolean);
   end;
 
-  TDfmToFmxItems = class(TObjectList<TDfmToFmxItem>)
-  end;
+  TDfmToFmxItems = class(TObjectList<TDfmToFmxItem>);
 
 implementation
 
@@ -517,6 +518,9 @@ begin
   if AObjectType = 'FieldLink' then
     FRoot.AddFieldLink(FObjName, AProp);
 
+  if AObjectType = 'GridLink' then
+    FRoot.AddGridLink(FObjName, AProp);
+
   if AObjectType = 'MultipleTabs' then
   begin
     Val := AProp.Value.Trim(['(', ')', #13, #10]);
@@ -760,7 +764,7 @@ var
   begin
     Result := '';
     Rule := GetRule(Prop);
-    if (Rule.Action = '#ItemClass#') or (Rule.Action = '#Delete#') then
+    if (Rule.Action = '#ItemClass#') or (Rule.Action = '#Delete#') or (Rule.Action = '#GenerateLinkColumns#') then
       Result := Rule.Parameter;
   end;
 
@@ -876,6 +880,17 @@ begin
     Result := nil;
     if AProp is TDfmItemsProp then
       TDfmItemsProp(AProp).Transform(nil);
+  end
+  else
+  if Rule.Action = '#GenerateLinkColumns#' then
+  begin
+    if not (AProp is TDfmItemsProp) then
+      raise Exception.Create('#GenerateColumns# can be used only with object list properties');
+
+    Result := TFmxItemsProp.Create(Rule.NewPropName);
+    TDfmItemsProp(AProp).Transform(TFmxItemsProp(Result).Items);
+    FRoot.AddGridColumns(FObjName, Result);
+    Result := nil;
   end
   else
   if Rule.Action = '#GenerateControl#' then

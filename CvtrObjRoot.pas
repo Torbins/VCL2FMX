@@ -7,34 +7,33 @@ uses
   System.Generics.Collections, PatchLib, CvtrObject;
 
 type
-  TLinkControl = record
-    DataSource : String;
-    FieldName : String;
-    Control : String;
+  TLinkControl = class
+    DataSource: String;
+    FieldName: String;
+    Control: String;
   end;
+  TLinkControlList = class(TObjectList<TLinkControl>);
 
-  TLinkGridColumn = record
-    Caption : String;
-    FieldName : String;
-    Width : String;
+  TLinkGrid = class
+    DataSource: String;
+    GridControl: String;
+    Columns: TFmxPropertyBase;
+    destructor Destroy; override;
   end;
-
-  TLinkGrid = record
-    DataSource : String;
-    GridControl : String;
-    Columns : TArray<TLinkGridColumn>;
-  end;
+  TLinkGridList = class(TObjectList<TLinkGrid>);
 
   TDfmToFmxObjRoot = class(TDfmToFmxObject, IDfmToFmxRoot)
   protected
-    FLinkControlList: TArray<TLinkControl>;
-    FLinkGridList: TArray<TLinkGrid>;
+    FLinkControlList: TLinkControlList;
+    FLinkGridList: TLinkGridList;
     FIniReplaceValues: TStringlist;
     FIniFile: TMemIniFile;
     function QueryInterface(const IID: TGUID; out Obj): HResult; stdcall;
     function _AddRef: Integer; stdcall;
     function _Release: Integer; stdcall;
     procedure AddFieldLink(AObjName: String; AProp: TDfmPropertyBase);
+    procedure AddGridLink(AObjName: String; AProp: TDfmPropertyBase);
+    procedure AddGridColumns(AObjName: String; AProp: TFmxPropertyBase);
     function GetIniFile: TMemIniFile;
     procedure InitObjects; override;
     procedure UpdateUsesStringList(AUsesList: TStrings); override;
@@ -51,160 +50,47 @@ type
     function FMXFile(APad: String = ''): String; override;
     function WriteFMXToFile(const AFmxFileName: String): Boolean;
     function WritePasToFile(const APasOutFileName, APascalSourceFileName: String): Boolean;
-    procedure LiveBindings(DfmObject: TOwnedObjects = nil);
   end;
 
 implementation
 
-{ DfmToFmxObject }
-
-{ Eduardo }
-procedure TDfmToFmxObjRoot.LiveBindings(DfmObject: TOwnedObjects = nil);
-var
-  I,J: Integer;
-  sFields: String;
-  obj: TDfmToFmxObject;
-  sItem: String;
-  slItem: TStringDynArray;
-begin
-  // Se não informou um objeto, obtem o inicial
-  if DfmObject = nil then
-    DfmObject := FOwnedObjs;
-  if DfmObject = nil then
-    Exit;
-
-  // Passa por todos objetos filhos
-  for I := 0 to Pred(DfmObject.Count) do
-  begin
-    // Obtem o objeto
-    obj := DfmObject[I];
-
-    // Se for uma grid
-//    if obj.FClassName.Equals('TDBGrid') then
-    begin
-      // Inicializa
-      sFields := EmptyStr;
-
-      // Cria um novo item na lista de grids
-//      SetLength(FLinkGridList, Succ(Length(FLinkGridList)));
-
-      // Insere o nome da grid
-//      FLinkGridList[Pred(Length(FLinkGridList))].GridControl := obj.FObjName;
-
-      // Passa por todas propriedades da grid
-//      for J := 0 to obj.FDfmProps.Count - 1 do
-//      begin
-//        // Obtem os dados do DataSource
-//        if obj.FDfmProps[J].Name = 'DataSource' then
-//          FLinkGridList[Pred(Length(FLinkGridList))].DataSource := obj.FDfmProps[J].Value;
-//
-//        // Se for as colunas
-//        if obj.FDfmProps[J].Name = 'Columns' then
-//        begin
-//          // Obtem os dados dos fields
-//          sFields := obj.FDfmProps[J].Value;
-//
-//          slItem := SplitString(sFields, #13);
-//          for sItem in slItem do
-//          begin
-//            if sItem = 'item' then
-//              SetLength(FLinkGridList[Pred(Length(FLinkGridList))].Columns, Succ(Length(FLinkGridList[Pred(Length(FLinkGridList))].Columns)))
-//            else
-//            if Trim(SplitString(sItem, '=')[0]) = 'Title.Caption' then
-//              FLinkGridList[Pred(Length(FLinkGridList))].Columns[Pred(Length(FLinkGridList[Pred(Length(FLinkGridList))].Columns))].Caption := Trim(SplitString(sItem, '=')[1])
-//            else
-//            if Trim(SplitString(sItem, '=')[0]) = 'FieldName' then
-//              FLinkGridList[Pred(Length(FLinkGridList))].Columns[Pred(Length(FLinkGridList[Pred(Length(FLinkGridList))].Columns))].FieldName := Trim(SplitString(sItem, '=')[1])
-//            else
-//            if Trim(SplitString(sItem, '=')[0]) = 'Width' then
-//              FLinkGridList[Pred(Length(FLinkGridList))].Columns[Pred(Length(FLinkGridList[Pred(Length(FLinkGridList))].Columns))].Width := Trim(SplitString(sItem, '=')[1]);
-//          end;
-//        end;
-//
-//        // Se ja encontrou tudo, sai do loop
-//        if not FLinkGridList[Pred(Length(FLinkGridList))].DataSource.IsEmpty and not sFields.IsEmpty then
-//          Break;
-//      end;
-    end;
-
-    // Se o componente atual possui componentes nele, faz recursão
-//    if Assigned(obj.FOwnedObjs) and (obj.FOwnedObjs.Count > 0) then
-//      LiveBindings(obj.FOwnedObjs);
-  end;
-end;
-
-{ Eduardo }
 function TDfmToFmxObjRoot.GetFMXLiveBindings: String;
 var
-  I: Integer;
-  J: Integer;
+  I, J: Integer;
 begin
-  if (Length(FLinkControlList) = 0) and (Length(FLinkGridList) = 0) then
+  if (FLinkControlList.Count = 0) and (FLinkGridList.Count = 0) then
     Exit(EmptyStr);
 
-  // Adiciona BindingsList
-  Result :=
-        '  object BindingsList: TBindingsList '+
-  CRLF +'    Methods = <> '+
-  CRLF +'    OutputConverters = <> '+
-  CRLF +'    Left = 20 '+
-  CRLF +'    Top = 5 ';
+  Result := '  object BindingsList: TBindingsList' +
+    CRLF + '    Methods = <>' +
+    CRLF + '    OutputConverters = <>' +
+    CRLF + '    Left = 20' +
+    CRLF + '    Top = 5';
 
-  // Passa pela lista de controles
-  for I := 0 to High(FLinkControlList) do
+  for I := 0 to FLinkControlList.Count - 1 do
   begin
     Result := Result +
-    CRLF +'    object LinkControlToField'+ I.ToString +': TLinkControlToField '+
-    CRLF +'      Category = ''Quick Bindings''' +
-    CRLF +'      DataSource = '+ FLinkControlList[I].DataSource +
-    CRLF +'      FieldName = '+ FLinkControlList[I].FieldName +
-    CRLF +'      Control = '+ FLinkControlList[I].Control +
-    CRLF +'      Track = False '+
-    CRLF +'    end ';
+      CRLF + '    object LinkControlToField' + I.ToString + ': TLinkControlToField' +
+      CRLF + '      Category = ''Quick Bindings''' +
+      CRLF + '      DataSource = ' + FLinkControlList[I].DataSource +
+      CRLF + '      FieldName = ' + FLinkControlList[I].FieldName +
+      CRLF + '      Control = ' + FLinkControlList[I].Control +
+      CRLF + '      Track = False' +
+      CRLF + '    end';
   end;
 
-  // Passa pela lista de grids
-  for I := 0 to High(FLinkGridList) do
+  for I := 0 to FLinkGridList.Count - 1 do
   begin
     Result := Result +
-    CRLF +'    object LinkGridToDataSourceBindSourceDB'+ I.ToString +': TLinkGridToDataSource '+
-    CRLF +'      Category = ''Quick Bindings''' +
-    CRLF +'      DataSource = '+ FLinkGridList[I].DataSource +
-    CRLF +'      GridControl = '+ FLinkGridList[I].GridControl +
-    CRLF +'      Columns = < ';
+      CRLF + '    object LinkGridToDataSourceBindSourceDB' + I.ToString + ': TLinkGridToDataSource' +
+      CRLF + '      Category = ''Quick Bindings''' +
+      CRLF + '      DataSource = ' + FLinkGridList[I].DataSource +
+      CRLF + '      GridControl = ' + FLinkGridList[I].GridControl + CRLF;
 
-    // Passa pela lista de colunas da grid
-    for J := 0 to High(FLinkGridList[I].Columns) do
-    begin
-      Result := Result +
-      CRLF +'        item '+
-      CRLF +'          MemberName = '+ FLinkGridList[I].Columns[J].FieldName;
-      
-      // Se tem Caption
-      if not FLinkGridList[I].Columns[J].Caption.IsEmpty then
-      begin
-        Result := Result +
-        CRLF +'          Header = '+ FLinkGridList[I].Columns[J].Caption;      
-      end;
-      
-      // Se tem Width
-      if not FLinkGridList[I].Columns[J].Width.IsEmpty then
-      begin
-        Result := Result +
-        CRLF +'          Width = '+ FLinkGridList[I].Columns[J].Width;      
-      end;
-      
-      Result := Result +
-      CRLF +'        end ';
-    end;
-
-    Result := Result +
-    CRLF +'        > '+
-    CRLF +'    end ';
+    Result := Result + FLinkGridList[I].Columns.ToString('    ') + '    end';
   end;
 
-  Result := Result +
-  CRLF +'  end ';
+  Result := Result + CRLF + '  end';
 end;
 
 function TDfmToFmxObjRoot.GetIniFile: TMemIniFile;
@@ -212,52 +98,41 @@ begin
   Result := FIniFile;
 end;
 
-{ Eduardo }
 function TDfmToFmxObjRoot.GetPASLiveBindings: String;
 var
   I: Integer;
 begin
-  if (Length(FLinkControlList) = 0) and (Length(FLinkGridList) = 0) then
+  if (FLinkControlList.Count = 0) and (FLinkGridList.Count = 0) then
     Exit(EmptyStr);
 
-  // Adiciona BindingsList
-  Result := CRLF + '    BindingsList: TBindingsList; ';
+  Result := CRLF + '    BindingsList: TBindingsList;';
 
-  // Passa pela lista de controles
-  for I := 0 to High(FLinkControlList) do
-  begin
-    Result := Result +
-    CRLF +'    LinkControlToField'+ I.ToString +': TLinkControlToField; ';
-  end;
+  for I := 0 to FLinkControlList.Count - 1 do
+    Result := Result + CRLF + '    LinkControlToField' + I.ToString + ': TLinkControlToField;';
 
-  // Passa pela lista de grids
-  for I := 0 to High(FLinkGridList) do
-  begin
-    Result := Result +
-    CRLF +'    LinkGridToDataSourceBindSourceDB'+ I.ToString +': TLinkGridToDataSource; ';
-  end;
+  for I := 0 to FLinkGridList.Count - 1 do
+    Result := Result + CRLF + '    LinkGridToDataSourceBindSourceDB' + I.ToString + ': TLinkGridToDataSource;';
 end;
 
 procedure TDfmToFmxObjRoot.AddFieldLink(AObjName: String; AProp: TDfmPropertyBase);
 var
-  i, Len: Integer;
-  CurrentLink: ^TLinkControl;
+  i: Integer;
+  CurrentLink: TLinkControl;
 begin
   CurrentLink := nil;
 
-  for i := 0 to High(FLinkControlList) do
+  for i := 0 to FLinkControlList.Count - 1 do
     if FLinkControlList[i].Control = AObjName then
     begin
-      CurrentLink := @(FLinkControlList[i]);
+      CurrentLink := FLinkControlList[i];
       Break;
     end;
 
   if not Assigned(CurrentLink) then
   begin
-    Len := Length(FLinkControlList);
-    SetLength(FLinkControlList, Len + 1);
-    CurrentLink := @(FLinkControlList[Len]);
+    CurrentLink := TLinkControl.Create;
     CurrentLink.Control := AObjName;
+    FLinkControlList.Add(CurrentLink);
   end;
 
   if AProp.Name = 'DataField' then
@@ -265,6 +140,37 @@ begin
 
   if AProp.Name = 'DataSource' then
     CurrentLink.DataSource := AProp.Value;
+end;
+
+procedure TDfmToFmxObjRoot.AddGridColumns(AObjName: String; AProp: TFmxPropertyBase);
+var
+  i: Integer;
+  CurrentLink: TLinkGrid;
+begin
+  CurrentLink := nil;
+
+  for i := 0 to FLinkGridList.Count - 1 do
+    if FLinkGridList[i].GridControl = AObjName then
+    begin
+      CurrentLink := FLinkGridList[i];
+      Break;
+    end;
+
+  if not Assigned(CurrentLink) then
+    raise Exception.Create('Grid ' + AObjName + ' not found in the list');
+
+  CurrentLink.Columns := AProp;
+end;
+
+procedure TDfmToFmxObjRoot.AddGridLink(AObjName: String; AProp: TDfmPropertyBase);
+var
+  Link: TLinkGrid;
+begin
+  Link := TLinkGrid.Create;
+  Link.GridControl := AObjName;
+  Link.DataSource := AProp.Value;
+
+  FLinkGridList.Add(Link);
 end;
 
 constructor TDfmToFmxObjRoot.CreateRoot(const AIniConfigFile, ACreateText: String; AStm: TStreamReader);
@@ -276,6 +182,8 @@ end;
 
 destructor TDfmToFmxObjRoot.Destroy;
 begin
+  FLinkControlList.Free;
+  FLinkGridList.Free;
   FIniReplaceValues.Free;
   FIniFile.Free;
   inherited;
@@ -370,6 +278,8 @@ procedure TDfmToFmxObjRoot.InitObjects;
 begin
   inherited;
   FIniReplaceValues := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
+  FLinkControlList := TLinkControlList.Create;
+  FLinkGridList := TLinkGridList.Create;
 end;
 
 function TDfmToFmxObjRoot.ProcessCodeBody(const ACodeBody: String): String;
@@ -503,6 +413,14 @@ end;
 function TDfmToFmxObjRoot._Release: Integer;
 begin
   Result := -1;
+end;
+
+{ TLinkGrid }
+
+destructor TLinkGrid.Destroy;
+begin
+  Columns.Free;
+  inherited;
 end;
 
 end.
