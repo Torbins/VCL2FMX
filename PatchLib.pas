@@ -56,7 +56,7 @@ begin
     raise Exception.Create('PopulateStringsFromArray');
   AStrings.Clear;
   for i := 0 to high(AArray) do
-    AStrings.Add(AArray[i])
+    AStrings.Add(AArray[i].Trim);
 end;
 
 function StreamToHex(AMemStream:TMemoryStream): String;
