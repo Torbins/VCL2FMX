@@ -257,7 +257,8 @@ begin
       BindInsertPos := PosNoCase(FClassName, PostUsesString);
       BindInsertPos := Pos(')', PostUsesString, BindInsertPos);
     end;
-    PostUsesString := Copy(PostUsesString, 1, BindInsertPos) + GetPASLiveBindings + Copy(PostUsesString, BindInsertPos + 1);
+    PostUsesString := Copy(PostUsesString, 1, BindInsertPos - 1) + GetPASLiveBindings +
+      Copy(PostUsesString, BindInsertPos);
 
     SetLength(PreUsesString, Pred(StartPos) - cUsesLen);
     UsesString := ProcessUsesString(UsesArray);
