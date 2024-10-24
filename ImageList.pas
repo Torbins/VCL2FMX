@@ -81,8 +81,8 @@ begin
         CRLF + APad + '      Layers = < ' +
         CRLF + APad + '        item ' +
         CRLF + APad + '          Name = ' + QuotedStr('Item ' + I.ToString) +
-        CRLF + APad + '            SourceRect.Right = ' + PngList.Items[I].Width.ToString +
-        CRLF + APad + '            SourceRect.Bottom = ' + PngList.Items[I].Height.ToString +
+        CRLF + APad + '          SourceRect.Right = ' + PngList.Items[I].Width.ToString +
+        CRLF + APad + '          SourceRect.Bottom = ' + PngList.Items[I].Height.ToString +
         CRLF + APad + '        end>' +
         CRLF + APad + '    end';
 
