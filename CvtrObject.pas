@@ -498,12 +498,14 @@ const
   ColoredRectInitParams: array [0..5] of TProp = ((Name: 'Align'; Value: 'alClient'), (Name: 'Margins.Left'; Value: '1'),
     (Name: 'Margins.Top'; Value: '1'), (Name: 'Margins.Right'; Value: '1'), (Name: 'Margins.Bottom'; Value: '1'),
     (Name: 'Pen.Style'; Value: 'psClear'));
+  RadioButtonInitParams: array [0..2] of TProp = ((Name: 'Height'; Value: '19'), (Name: 'Left'; Value: '8'),
+    (Name: 'Width'; Value: '50'));
   SeparateCaptionInitParams: array [0..3] of TProp = ((Name: 'Align'; Value: 'alClient'),
     (Name: 'TabStop'; Value: 'False'), (Name: 'Alignment'; Value: 'taCenter'), (Name: 'Layout'; Value: 'tlCenter'));
 var
   Obj: TDfmToFmxObject;
-  Num: Integer;
-  Caption, Val: String;
+  Num, i: Integer;
+  Caption: String;
 begin
   if AObjectType = 'ColoredRect' then
   begin
@@ -521,17 +523,39 @@ begin
   if AObjectType = 'GridLink' then
     FRoot.AddGridLink(FObjName, AProp);
 
+  if AObjectType = 'MultipleRadioButtons' then
+  begin
+    Num := 0;
+
+    for Caption in (AProp as TDfmStringsProp).Strings do
+    begin
+      Obj := GetObject(FObjName + '_RadioButton' + (Num + 1).ToString, 'TRadioButton', RadioButtonInitParams, Num);
+      GenerateProperty(Obj, 'Caption', Caption);
+      GenerateProperty(Obj, 'TabOrder', Num.ToString);
+      GenerateProperty(Obj, 'Top', (16 + Num * 20).ToString);
+      Inc(Num);
+    end;
+  end;
+
   if AObjectType = 'MultipleTabs' then
   begin
-    Val := AProp.Value.Trim(['(', ')', #13, #10]);
     Num := 1;
 
-    for Caption in Val.Split([#13#10]) do
+    for Caption in (AProp as TDfmStringsProp).Strings do
     begin
       Obj := GetObject(FObjName + 'Tab' + Num.ToString, 'TTabSheet', [], Num - 1);
       GenerateProperty(Obj, 'Caption', Caption);
       Inc(Num);
     end;
+  end;
+
+  if AObjectType = 'SelectRadioButton' then
+  begin
+    Num := AProp.Value.ToInteger;
+    Obj := nil;
+    for i := 0 to Num do
+      Obj := GetObject(FObjName + '_RadioButton' + (i + 1).ToString, 'TRadioButton', RadioButtonInitParams, i);
+    GenerateProperty(Obj, 'Checked', 'True');
   end;
 
   if AObjectType = 'SeparateCaption' then
