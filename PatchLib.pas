@@ -5,15 +5,16 @@ unit PatchLib;
 interface
 
 uses
-  System.Classes, System.UITypes,
-  System.IOUtils,
-  Winapi.Windows,
-  System.SysUtils;
+  System.Classes, System.UITypes, System.IOUtils, Winapi.Windows, System.SysUtils, System.Generics.Collections,
+  Vcl.Imaging.PngImage;
 
 const
   CRLF = #13#10;
   ZSISOffset = 0;
   LineTruncLength = 64;
+
+type
+  TImageList = class(TObjectList<TPngImage>);
 
 function ConvertColor(AColorVal: Cardinal): String;
 function PosNoCase(const ASubstr: String; AFullString: String; Offset: Integer = 1): Integer;
@@ -70,6 +71,7 @@ var
   Line: String;
   LineNum: Integer;
 begin
+  Result := '';
   LineNum := 0;
   repeat
     Line := Copy(AData, ALineLen * LineNum + 1, ALineLen);

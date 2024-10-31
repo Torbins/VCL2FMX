@@ -4,7 +4,7 @@ interface
 
 uses
   System.Classes, System.Types, System.SysUtils, System.StrUtils, Winapi.Windows, System.IniFiles, FMX.Objects,
-  System.Generics.Collections, PatchLib, CvtrObject;
+  System.Generics.Collections, Vcl.Imaging.PngImage, PatchLib, CvtrObject;
 
 type
   TLinkControl = class
@@ -26,6 +26,7 @@ type
   protected
     FLinkControlList: TLinkControlList;
     FLinkGridList: TLinkGridList;
+    FImageList: TImageList;
     FIniReplaceValues: TStringlist;
     FIniFile: TMemIniFile;
     function QueryInterface(const IID: TGUID; out Obj): HResult; stdcall;
@@ -34,13 +35,14 @@ type
     procedure AddFieldLink(AObjName: String; AProp: TDfmPropertyBase);
     procedure AddGridLink(AObjName: String; AProp: TDfmPropertyBase);
     procedure AddGridColumns(AObjName: String; AProp: TFmxPropertyBase);
+    function AddImageItem(APng: TPngImage): Integer;
     function GetIniFile: TMemIniFile;
     procedure InitObjects; override;
     procedure UpdateUsesStringList(AUsesList: TStrings); override;
     function ProcessUsesString(AOrigUsesArray: TArray<String>): String;
     function ProcessCodeBody(const ACodeBody: String): String;
-    function GetFMXLiveBindings: String;
-    function GetPASLiveBindings: String;
+    function GetFMXSingletons: String;
+    function GetPASSingletons: String;
   public
     constructor CreateRoot(const AIniConfigFile, ACreateText: String; AStm: TStreamReader);
     destructor Destroy; override;
@@ -54,14 +56,25 @@ type
 
 implementation
 
-function TDfmToFmxObjRoot.GetFMXLiveBindings: String;
-var
-  I, J: Integer;
-begin
-  if (FLinkControlList.Count = 0) and (FLinkGridList.Count = 0) then
-    Exit(EmptyStr);
+uses
+  ImageList;
 
-  Result := '  object BindingsList: TBindingsList' +
+function TDfmToFmxObjRoot.GetFMXSingletons: String;
+var
+  I: Integer;
+begin
+  Result := '';
+  if FImageList.Count > 0 then
+  begin
+    Result := '  object SingletoneImageList: TImageList' + CRLF;
+    Result := Result + EncodeImageList(FImageList, '  ') + CRLF;
+    Result := Result + '    Left = 40' + CRLF + '    Top = 5' + CRLF + '  end' + CRLF;
+  end;
+
+  if (FLinkControlList.Count = 0) and (FLinkGridList.Count = 0) then
+    Exit(Result.TrimRight([#13, #10]));
+
+  Result := Result + '  object SingletoneBindingsList: TBindingsList' +
     CRLF + '    Methods = <>' +
     CRLF + '    OutputConverters = <>' +
     CRLF + '    Left = 20' +
@@ -98,14 +111,20 @@ begin
   Result := FIniFile;
 end;
 
-function TDfmToFmxObjRoot.GetPASLiveBindings: String;
+function TDfmToFmxObjRoot.GetPASSingletons: String;
 var
   I: Integer;
 begin
-  if (FLinkControlList.Count = 0) and (FLinkGridList.Count = 0) then
-    Exit(EmptyStr);
+  Result := '';
+  if FImageList.Count > 0 then
+  begin
+    Result := CRLF + '    SingletoneImageList: TImageList;';
+  end;
 
-  Result := CRLF + '    BindingsList: TBindingsList;';
+  if (FLinkControlList.Count = 0) and (FLinkGridList.Count = 0) then
+    Exit;
+
+  Result := Result + CRLF + '    SingletoneBindingsList: TBindingsList;';
 
   for I := 0 to FLinkControlList.Count - 1 do
     Result := Result + CRLF + '    LinkControlToField' + I.ToString + ': TLinkControlToField;';
@@ -173,6 +192,11 @@ begin
   FLinkGridList.Add(Link);
 end;
 
+function TDfmToFmxObjRoot.AddImageItem(APng: TPngImage): Integer;
+begin
+  Result := FImageList.Add(APng);
+end;
+
 constructor TDfmToFmxObjRoot.CreateRoot(const AIniConfigFile, ACreateText: String; AStm: TStreamReader);
 begin
   FRoot := Self;
@@ -184,6 +208,7 @@ destructor TDfmToFmxObjRoot.Destroy;
 begin
   FLinkControlList.Free;
   FLinkGridList.Free;
+  FImageList.Free;
   FIniReplaceValues.Free;
   FIniFile.Free;
   inherited;
@@ -212,7 +237,7 @@ var
 begin
   Result := inherited;
   Result := Result.Substring(0, Result.Length - 5);
-  LB := GetFMXLiveBindings;
+  LB := GetFMXSingletons;
   if LB <> '' then
     Result := Result + LB + CRLF;
   Result := Result + APad +'end' + CRLF;
@@ -251,13 +276,13 @@ begin
     PostUsesString := Copy(PreUsesString, EndPos);
     PostUsesString := ProcessCodeBody(PostUsesString);
 
-    BindInsertPos := Pos(cBindSrc, PostUsesString) + cBindSrsLen;
+    BindInsertPos := PosNoCase(cBindSrc, PostUsesString) + cBindSrsLen;
     if BindInsertPos = cBindSrsLen then
     begin
       BindInsertPos := PosNoCase(FClassName, PostUsesString);
-      BindInsertPos := Pos(')', PostUsesString, BindInsertPos);
+      BindInsertPos := Pos(')', PostUsesString, BindInsertPos) + 1;
     end;
-    PostUsesString := Copy(PostUsesString, 1, BindInsertPos - 1) + GetPASLiveBindings +
+    PostUsesString := Copy(PostUsesString, 1, BindInsertPos - 1) + GetPASSingletons +
       Copy(PostUsesString, BindInsertPos);
 
     SetLength(PreUsesString, Pred(StartPos) - cUsesLen);
@@ -278,6 +303,7 @@ end;
 procedure TDfmToFmxObjRoot.InitObjects;
 begin
   inherited;
+  FImageList := TImageList.Create;
   FIniReplaceValues := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
   FLinkControlList := TLinkControlList.Create;
   FLinkGridList := TLinkGridList.Create;

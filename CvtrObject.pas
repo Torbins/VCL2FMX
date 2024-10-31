@@ -3,7 +3,7 @@ unit CvtrObject;
 interface
 
 uses
-  System.Classes, System.SysUtils, System.Generics.Collections, System.IniFiles;
+  System.Classes, System.SysUtils, System.Generics.Collections, System.IniFiles, Vcl.Imaging.PngImage;
 
 type
   TDfmPropertyBase = class
@@ -46,6 +46,7 @@ type
     procedure AddGridColumns(AObjName: String; AProp: TFmxPropertyBase);
     procedure AddGridLink(AObjName: String; AProp: TDfmPropertyBase);
     procedure AddFieldLink(AObjName: String; AProp: TDfmPropertyBase);
+    function AddImageItem(APng: TPngImage): Integer;
     function GetIniFile: TMemIniFile;
     property IniFile: TMemIniFile read GetIniFile;
   end;
@@ -494,6 +495,42 @@ type
       GenerateProperty(Result, AInitProps[i].Name, AInitProps[i].Value);
   end;
 
+  procedure ConvertGlyph;
+  var
+    NumGlyphsProp: TDfmPropertyBase;
+    NumGlyphs, Index: Integer;
+    GlyphBmp: TBitmap;
+    Stream: TMemoryStream;
+    PngImage: TPngImage;
+  begin
+    NumGlyphsProp := FDfmProps.FindByName('NumGlyphs');
+    if Assigned(NumGlyphsProp) then
+      NumGlyphs := NumGlyphsProp.Value.ToInteger
+    else
+      NumGlyphs := 1;
+
+    GlyphBmp := nil;
+    Stream := nil;
+    try
+      GlyphBmp := TBitmap.Create;
+      Stream := TMemoryStream.Create;
+
+      HexToStream(AProp.Value, Stream);
+      Stream.Position := 4; // Skip length
+      GlyphBmp.LoadFromStream(Stream);
+
+      PngImage := TPngImage.CreateBlank(COLOR_RGB, 8, GlyphBmp.Width div NumGlyphs, GlyphBmp.Height);
+      PngImage.Canvas.Draw(0, 0, GlyphBmp);
+      Index := FRoot.AddImageItem(PngImage);
+    finally
+      GlyphBmp.Free;
+      Stream.Free;
+    end;
+
+    FFmxProps.AddProp(TFmxProperty.Create('Images', 'SingletoneImageList'));
+    FFmxProps.AddProp(TFmxProperty.Create('ImageIndex', Index.ToString));
+  end;
+
 const
   ColoredRectInitParams: array [0..5] of TProp = ((Name: 'Align'; Value: 'alClient'), (Name: 'Margins.Left'; Value: '1'),
     (Name: 'Margins.Top'; Value: '1'), (Name: 'Margins.Right'; Value: '1'), (Name: 'Margins.Bottom'; Value: '1'),
@@ -519,6 +556,9 @@ begin
 
   if AObjectType = 'FieldLink' then
     FRoot.AddFieldLink(FObjName, AProp);
+
+  if AObjectType = 'GlyphImage' then
+    ConvertGlyph;
 
   if AObjectType = 'GridLink' then
     FRoot.AddGridLink(FObjName, AProp);
