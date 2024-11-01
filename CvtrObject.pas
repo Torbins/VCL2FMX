@@ -84,7 +84,7 @@ type
     function FMXProperties(APad: String): String;
     function FMXSubObjects(APad: String): String;
     function ReadContents(AStm: TStreamReader): String;
-    function GetRule(AProp: TDfmPropertyBase): TRule;
+    function GetRule(const APropName: string; APropList: TStringList = nil): TRule;
     function TransformProperty(AProp: TDfmPropertyBase): TFmxPropertyBase;
     procedure LoadCommonProperties(AParamName: String);
     procedure LoadEnums;
@@ -280,7 +280,7 @@ end;
 function TDfmToFmxObject.FMXProperties(APad: String): String;
 var
   i: Integer;
-  sProp: String;
+  Rule: TRule;
   ExistingProp: TFmxPropertyBase;
 
   procedure HandleStyledSettings(AExcludeElement: String);
@@ -414,28 +414,28 @@ begin
 
   for i := 0 to Pred(FIniDefaultValueProperties.Count) do
   begin
-    sProp := FIniDefaultValueProperties.ValueFromIndex[i];
-    if sProp.StartsWith('#CopyFromParent#') then
+    Rule := GetRule(FIniDefaultValueProperties.Names[i], FIniDefaultValueProperties);
+    if Rule.Action = '#CopyFromParent#' then
     begin
-      CopyFromParent(Copy(sProp, Length('#CopyFromParent#') + 1));
+      CopyFromParent(Rule.Parameter);
       Continue;
     end;
-    if sProp.StartsWith('#CalcImageWrapMode#') then
+    if Rule.Action = '#CalcImageWrapMode#' then
     begin
       CalcImageWrapMode;
       Continue;
     end;
-    if sProp.StartsWith('#CalcShapeClass#') then
+    if Rule.Action = '#CalcShapeClass#' then
     begin
       CalcShapeClass;
       Continue;
     end;
-    if sProp.StartsWith('#ReconsiderAfterRemovingRule#') then
+    if Rule.Action = '#ReconsiderAfterRemovingRule#' then
     begin
-      ReconsiderAfterRemovingRule(Copy(sProp, Length('#ReconsiderAfterRemovingRule#') + 1));
+      ReconsiderAfterRemovingRule(Rule.Parameter);
       Continue;
     end;
-    FFmxProps.AddProp(TFmxProperty.CreateFromLine(sProp));
+    FFmxProps.AddProp(TFmxProperty.CreateFromLine(Rule.Parameter));
   end;
 
   for i := 0 to Pred(FIniAddProperties.Count) do
@@ -443,15 +443,20 @@ begin
     ExistingProp := FFmxProps.FindByName(FIniAddProperties.Names[i]);
     if Assigned(ExistingProp) then
     begin
-      sProp := FIniAddProperties.ValueFromIndex[i];
-      if sProp.StartsWith('#RemoveFromStyledSettings#') then
+      Rule := GetRule(FIniAddProperties.Names[i], FIniAddProperties);
+      if Rule.Action = '#RemoveFromStyledSettings#' then
       begin
-        HandleStyledSettings(Copy(sProp, Length('#RemoveFromStyledSettings#') + 1));
+        HandleStyledSettings(Rule.Parameter);
         Continue;
       end;
-      ExistingProp := FFmxProps.FindByName(sProp.Split(['='], 1)[0].Trim);
+      ExistingProp := FFmxProps.FindByName(Rule.Parameter.Split(['='], 1)[0].Trim);
       if not Assigned(ExistingProp) then
-        FFmxProps.AddProp(TFmxProperty.CreateFromLine(sProp));
+      begin
+        if Rule.Action = '#PutToTheTop#' then
+          FFmxProps.Insert(0, TFmxProperty.CreateFromLine(Rule.Parameter))
+        else
+          FFmxProps.AddProp(TFmxProperty.CreateFromLine(Rule.Parameter));
+      end;
     end;
   end;
 
@@ -642,46 +647,59 @@ begin
     Result := 'object ' + FClassName + CRLF;
 end;
 
-function TDfmToFmxObject.GetRule(AProp: TDfmPropertyBase): TRule;
+function TDfmToFmxObject.GetRule(const APropName: string; APropList: TStringList = nil): TRule;
 var
   RuleLine: String;
   Mask: TMask;
   ActionNameStart, ActionNameEnd: Integer;
 begin
-  RuleLine := Trim(FIniSectionValues.Values[AProp.Name]);
-  if RuleLine = '' then
-    for var i := 0 to FIniSectionValues.Count - 1 do
-    begin
-      Mask := TMask.Create(FIniSectionValues.Names[i]);
-      try
-        if Mask.Matches(AProp.Name) then
-        begin
-          RuleLine := FIniSectionValues.ValueFromIndex[i];
-          Break;
+  if not Assigned(APropList) then
+  begin
+    RuleLine := FIniSectionValues.Values[APropName].Trim;
+    if RuleLine = '' then
+      for var i := 0 to FIniSectionValues.Count - 1 do
+      begin
+        Mask := TMask.Create(FIniSectionValues.Names[i]);
+        try
+          if Mask.Matches(APropName) then
+          begin
+            RuleLine := FIniSectionValues.ValueFromIndex[i];
+            Break;
+          end;
+        finally
+          Mask.Free;
         end;
-      finally
-        Mask.Free;
       end;
-    end;
+  end
+  else
+    RuleLine := APropList.Values[APropName].Trim;
+
   if RuleLine = '' then
-    Result.NewPropName := AProp.Name
+    Result.NewPropName := APropName
   else
   begin
     ActionNameStart := RuleLine.IndexOf('#');
 
     case ActionNameStart of
       -1: Result.NewPropName := RuleLine;
-      0: Result.NewPropName := AProp.Name;
+      0: Result.NewPropName := APropName;
     else
       Result.NewPropName := RuleLine.Substring(0, ActionNameStart).Trim;
     end;
 
-    ActionNameEnd := RuleLine.IndexOf('#', ActionNameStart + 1);
-    if ActionNameEnd = -1 then
-      Exit;
-
-    Result.Action := RuleLine.Substring(ActionNameStart, ActionNameEnd - ActionNameStart + 1);
-    Result.Parameter := RuleLine.Substring(ActionNameEnd + 1);
+    if ActionNameStart > -1 then
+    begin
+      ActionNameEnd := RuleLine.IndexOf('#', ActionNameStart + 1);
+      if ActionNameEnd > -1 then
+      begin
+        Result.Action := RuleLine.Substring(ActionNameStart, ActionNameEnd - ActionNameStart + 1);
+        Result.Parameter := RuleLine.Substring(ActionNameEnd + 1);
+      end
+      else
+        Result.Parameter := RuleLine.Substring(ActionNameStart + 1);
+    end
+    else
+      Result.Parameter := RuleLine;
   end;
 end;
 
@@ -846,7 +864,7 @@ var
     Rule: TRule;
   begin
     Result := '';
-    Rule := GetRule(Prop);
+    Rule := GetRule(Name);
     if (Rule.Action = '#ItemClass#') or (Rule.Action = '#Delete#') or (Rule.Action = '#GenerateLinkColumns#') then
       Result := Rule.Parameter;
   end;
@@ -960,7 +978,8 @@ var
   end;
 
 begin
-  Rule := GetRule(AProp);
+  Result := nil;
+  Rule := GetRule(AProp.Name);
 
   if Rule.Action = '#ConvertFontSize#' then
     Result := TFmxProperty.Create(Rule.NewPropName, Abs(AProp.Value.ToInteger).ToString)
