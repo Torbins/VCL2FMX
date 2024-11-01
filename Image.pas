@@ -8,18 +8,70 @@ unit Image;
 
 interface
 
-function ProcessImage(sData, APad: String): String;
+uses
+  Vcl.Imaging.PngImage;
+
+function CreateGlyphPng(const AData: String; ANumGlyphs: Integer): TPngImage;
+function EncodePicture(APng: TPngImage): String;
+function ProcessImage(const AData, APad: String): String;
 
 implementation
 
 uses
-  System.Classes, System.SysUtils, Vcl.Graphics, Vcl.Imaging.Jpeg, Vcl.Imaging.GIFImg, Vcl.Imaging.PngImage, PatchLib;
+  System.Classes, System.SysUtils, Vcl.Graphics, Vcl.Imaging.Jpeg, Vcl.Imaging.GIFImg, PatchLib;
 
 type
   TGraphicAccess = class(Vcl.Graphics.TGraphic)
   end;
 
-function ProcessImage(sData, APad: String): String;
+function CreateGlyphPng(const AData: String; ANumGlyphs: Integer): TPngImage;
+const
+  StreamLenghtFieldLen = 4;
+var
+  GlyphBmp: TBitmap;
+  Stream: TMemoryStream;
+begin
+  GlyphBmp := nil;
+  Stream := nil;
+  try
+    GlyphBmp := TBitmap.Create;
+    Stream := TMemoryStream.Create;
+
+    HexToStream(AData, Stream);
+    Stream.Position := StreamLenghtFieldLen;
+    GlyphBmp.LoadFromStream(Stream);
+
+    Result := TPngImage.CreateBlank(COLOR_RGB, 8, GlyphBmp.Width div ANumGlyphs, GlyphBmp.Height);
+    Result.Canvas.Draw(0, 0, GlyphBmp);
+  finally
+    GlyphBmp.Free;
+    Stream.Free;
+  end;
+end;
+
+function EncodePicture(APng: TPngImage): String;
+const
+  PicClass = 'TPngImage';
+var
+  Stream: TMemoryStream;
+  Len: Integer;
+  Bytes: TBytes;
+begin
+  Stream := TMemoryStream.Create;
+  try
+    Bytes := TEncoding.UTF8.GetBytes(PicClass);
+    Len := Length(Bytes);
+    Stream.Write(Len, 1);
+    Stream.Write(Bytes, Len);
+    APng.SaveToStream(Stream);
+
+    Result := StreamToHex(Stream);
+  finally
+    Stream.Free;
+  end;
+end;
+
+function ProcessImage(const AData, APad: String): String;
 var
   Stream: TMemoryStream;
   GraphClassName: ShortString;
@@ -30,7 +82,7 @@ begin
   Png := nil;
   Stream := TMemoryStream.Create;
   try
-    HexToStream(sData, Stream);
+    HexToStream(AData, Stream);
     GraphClassName := PShortString(Stream.Memory)^;
 
     Graphic := TGraphicClass(FindClass(UTF8ToString(GraphClassName))).Create;

@@ -19,7 +19,8 @@ type
 
   TDfmProperties = class(TObjectList<TDfmPropertyBase>)
   public
-    function FindByName(AName: String): TDfmPropertyBase;
+    function FindByName(const AName: String): TDfmPropertyBase;
+    function GetIntValueDef(const AName: String; ADef: Integer): Integer;
   end;
 
   TFmxPropertyBase = class
@@ -115,7 +116,7 @@ type
 implementation
 
 uses
-  System.Masks, Vcl.Graphics, CvtrProp, PatchLib;
+  System.Masks, Vcl.Graphics, CvtrProp, Image, PatchLib;
 
 { TDfmPropertyBase }
 
@@ -132,7 +133,7 @@ end;
 
 { TDfmProperties }
 
-function TDfmProperties.FindByName(AName: String): TDfmPropertyBase;
+function TDfmProperties.FindByName(const AName: String): TDfmPropertyBase;
 var
   i: Integer;
 begin
@@ -140,6 +141,17 @@ begin
   for i := 0 to Count - 1 do
     if Items[i].Name = AName then
       Exit(Items[i]);
+end;
+
+function TDfmProperties.GetIntValueDef(const AName: String; ADef: Integer): Integer;
+var
+  Prop: TDfmPropertyBase;
+begin
+  Prop := FindByName(AName);
+  if Assigned(Prop) then
+    Result := StrToIntDef(Prop.Value, ADef)
+  else
+    Result := ADef;
 end;
 
 { TFmxPropertyBase }
@@ -497,41 +509,42 @@ type
 
   procedure ConvertGlyph;
   var
-    NumGlyphsProp: TDfmPropertyBase;
     NumGlyphs, Index: Integer;
-    GlyphBmp: TBitmap;
-    Stream: TMemoryStream;
-    PngImage: TPngImage;
   begin
-    NumGlyphsProp := FDfmProps.FindByName('NumGlyphs');
-    if Assigned(NumGlyphsProp) then
-      NumGlyphs := NumGlyphsProp.Value.ToInteger
-    else
-      NumGlyphs := 1;
-
-    GlyphBmp := nil;
-    Stream := nil;
-    try
-      GlyphBmp := TBitmap.Create;
-      Stream := TMemoryStream.Create;
-
-      HexToStream(AProp.Value, Stream);
-      Stream.Position := 4; // Skip length
-      GlyphBmp.LoadFromStream(Stream);
-
-      PngImage := TPngImage.CreateBlank(COLOR_RGB, 8, GlyphBmp.Width div NumGlyphs, GlyphBmp.Height);
-      PngImage.Canvas.Draw(0, 0, GlyphBmp);
-      Index := FRoot.AddImageItem(PngImage);
-    finally
-      GlyphBmp.Free;
-      Stream.Free;
-    end;
+    NumGlyphs := FDfmProps.GetIntValueDef('NumGlyphs', 1);
+    Index := FRoot.AddImageItem(CreateGlyphPng(AProp.Value, NumGlyphs));
 
     FFmxProps.AddProp(TFmxProperty.Create('Images', 'SingletoneImageList'));
     FFmxProps.AddProp(TFmxProperty.Create('ImageIndex', Index.ToString));
   end;
 
+  procedure InitChildImage(AObj: TDfmToFmxObject);
+  var
+    Png: TPngImage;
+    NumGlyphs, Width, Height: Integer;
+  begin
+    NumGlyphs := FDfmProps.GetIntValueDef('NumGlyphs', 1);
+    Width := FDfmProps.GetIntValueDef('Width', 23);
+    Height := FDfmProps.GetIntValueDef('Height', 22);
+
+    Png := CreateGlyphPng(AProp.Value, NumGlyphs);
+    try
+      Width := (Width - Png.Width) div 2;
+      Height := (Height - Png.Height) div 2;
+      GenerateProperty(AObj, 'Margins.Left', Width.ToString);
+      GenerateProperty(AObj, 'Margins.Right', Width.ToString);
+      GenerateProperty(AObj, 'Margins.Top', Height.ToString);
+      GenerateProperty(AObj, 'Margins.Bottom', Height.ToString);
+
+      GenerateProperty(AObj, 'Picture.Data', EncodePicture(Png));
+    finally
+      Png.Free;
+    end;
+  end;
+
 const
+  ChildImageInitParams: array [0..3] of TProp = ((Name: 'Align'; Value: 'alClient'), (Name: 'HitTest'; Value: 'False'),
+    (Name: 'Stretch'; Value: 'True'), (Name: 'Proportional'; Value: 'True'));
   ColoredRectInitParams: array [0..5] of TProp = ((Name: 'Align'; Value: 'alClient'), (Name: 'Margins.Left'; Value: '1'),
     (Name: 'Margins.Top'; Value: '1'), (Name: 'Margins.Right'; Value: '1'), (Name: 'Margins.Bottom'; Value: '1'),
     (Name: 'Pen.Style'; Value: 'psClear'));
@@ -544,6 +557,12 @@ var
   Num, i: Integer;
   Caption: String;
 begin
+  if AObjectType = 'ChildImage' then
+  begin
+    Obj := GetObject(FObjName + '_Glyph', 'TImage', ChildImageInitParams);
+    InitChildImage(Obj);
+  end;
+
   if AObjectType = 'ColoredRect' then
   begin
     Obj := GetObject(FObjName + '_Color', 'TShape', ColoredRectInitParams);
@@ -557,7 +576,7 @@ begin
   if AObjectType = 'FieldLink' then
     FRoot.AddFieldLink(FObjName, AProp);
 
-  if AObjectType = 'GlyphImage' then
+  if AObjectType = 'ImageItem' then
     ConvertGlyph;
 
   if AObjectType = 'GridLink' then
