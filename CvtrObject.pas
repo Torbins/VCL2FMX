@@ -1001,6 +1001,9 @@ begin
     Result := nil;
   end
   else
+  if Rule.Action = '#ToString#' then
+    Result := TFmxProperty.Create(Rule.NewPropName, AProp.Value.QuotedString)
+  else
   if AProp is TDfmSetProp then
   begin
     Result := TFmxSetProp.Create(Rule.NewPropName);
