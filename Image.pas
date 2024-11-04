@@ -13,7 +13,7 @@ uses
 
 function CreateGlyphPng(const AData: String; ANumGlyphs: Integer): TPngImage;
 function EncodePicture(APng: TPngImage): String;
-function ProcessImage(const AData, APad: String): String;
+function ConvertPicture(const AData, APad: String; out AWidth, AHeight: Integer): String;
 
 implementation
 
@@ -71,7 +71,7 @@ begin
   end;
 end;
 
-function ProcessImage(const AData, APad: String): String;
+function ConvertPicture(const AData, APad: String; out AWidth, AHeight: Integer): String;
 var
   Stream: TMemoryStream;
   GraphClassName: ShortString;
@@ -102,14 +102,9 @@ begin
 
     Stream.Clear;
     Png.SaveToStream(Stream);
-    Result := BreakIntoLines(StreamToHex(Stream), APad + '    ');
-
-    Result := ' = <' +
-      CRLF + APad + '    item ' +
-      CRLF + APad + '      Width = ' + Graphic.Width.ToString +
-      CRLF + APad + '      Height = ' + Graphic.Height.ToString +
-      CRLF + APad + '      PNG = {' + Result + '}' +
-      CRLF + APad + '    end>';
+    Result := '{' + BreakIntoLines(StreamToHex(Stream), APad) + '}';
+    AHeight := Graphic.Height;
+    AWidth := Graphic.Width;
   finally
     Stream.Free;
     Png.Free;

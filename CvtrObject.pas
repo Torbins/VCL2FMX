@@ -1014,6 +1014,9 @@ begin
   if Rule.Action = '#ImageListData#' then
     Result := TFmxImageListProp.Create(Rule.NewPropName, AProp.Value)
   else
+  if Rule.Action = '#PictureData#' then
+    Result := TFmxPictureProp.Create(Rule.NewPropName, AProp.Value)
+  else
   if Rule.Action = '#SetValue#' then
   begin
     FFmxProps.AddMultipleProps(Rule.NewPropName + '=' + Rule.Parameter);

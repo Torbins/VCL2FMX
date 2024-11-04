@@ -98,6 +98,11 @@ type
     function ToString(APad: String): String; override;
   end;
 
+  TFmxPictureProp = class(TFmxProperty)
+  public
+    function ToString(APad: String): String; override;
+  end;
+
 implementation
 
 uses
@@ -259,12 +264,23 @@ begin
 end;
 
 function TFmxImageProp.ToString(APad: String): String;
+var
+  Width, Height: Integer;
+  BitmapData: String;
 begin
+  BitmapData := ConvertPicture(FValue, APad + '    ', Width, Height);
+
   if FName = 'Picture.Data' then
     Result := APad + '  MultiResBitmap'
   else
     Result := APad + '  ' + FName;
-  Result := Result + ProcessImage(FValue, APad) + CRLF;
+
+  Result := Result + ' = <' +
+    CRLF + APad + '    item ' +
+    CRLF + APad + '      Width = ' + Width.ToString +
+    CRLF + APad + '      Height = ' + Height.ToString +
+    CRLF + APad + '      PNG = ' + BitmapData +
+    CRLF + APad + '    end>' + CRLF;
 end;
 
 { TFmxImageListProp }
@@ -415,6 +431,18 @@ begin
   end;
 
   Result := Result + Line.TrimRight([',', ' ']) + ']' + CRLF;
+end;
+
+{ TFmxPictureProp }
+
+function TFmxPictureProp.ToString(APad: String): String;
+var
+  Width, Height: Integer;
+  BitmapData: String;
+begin
+  BitmapData := ConvertPicture(FValue, APad, Width, Height);
+
+  Result := APad + '  ' + FName + '.PNG = ' + BitmapData  + CRLF;
 end;
 
 end.
