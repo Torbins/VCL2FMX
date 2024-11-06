@@ -650,7 +650,6 @@ end;
 function TDfmToFmxObject.GetRule(const APropName: string; APropList: TStringList = nil): TRule;
 var
   RuleLine: String;
-  Mask: TMask;
   ActionNameStart, ActionNameEnd: Integer;
 begin
   if not Assigned(APropList) then
@@ -658,18 +657,11 @@ begin
     RuleLine := FIniSectionValues.Values[APropName].Trim;
     if RuleLine = '' then
       for var i := 0 to FIniSectionValues.Count - 1 do
-      begin
-        Mask := TMask.Create(FIniSectionValues.Names[i]);
-        try
-          if Mask.Matches(APropName) then
-          begin
-            RuleLine := FIniSectionValues.ValueFromIndex[i];
-            Break;
-          end;
-        finally
-          Mask.Free;
+        if MatchesMask(APropName, FIniSectionValues.Names[i]) then
+        begin
+          RuleLine := FIniSectionValues.ValueFromIndex[i];
+          Break;
         end;
-      end;
   end
   else
     RuleLine := APropList.Values[APropName].Trim;
@@ -923,7 +915,6 @@ function TDfmToFmxObject.TransformProperty(AProp: TDfmPropertyBase): TFmxPropert
 type
   TEnumResult = (erNotEnum, erIgnore, erOk);
 var
-  Mask: TMask;
   DefaultValuePropPos: Integer;
   Rule: TRule;
   EnumValue, Item: String;
@@ -994,7 +985,7 @@ begin
   if Rule.Action = '#GenerateLinkColumns#' then
   begin
     if not (AProp is TDfmItemsProp) then
-      raise Exception.Create('#GenerateColumns# can be used only with object list properties');
+      raise Exception.Create('#GenerateLinkColumns# can be used only with object list properties');
 
     Result := TFmxItemsProp.Create(Rule.NewPropName);
     TDfmItemsProp(AProp).Transform(TFmxItemsProp(Result).Items);
@@ -1063,18 +1054,11 @@ begin
       FIniDefaultValueProperties.Delete(DefaultValuePropPos)
     else
       for var i := 0 to Pred(FIniDefaultValueProperties.Count) do
-      begin
-        Mask := TMask.Create(FIniDefaultValueProperties.Names[i]);
-        try
-          if Mask.Matches(AProp.Name) then
-          begin
-            FIniDefaultValueProperties.Delete(i);
-            Break;
-          end;
-        finally
-          Mask.Free;
+        if MatchesMask(AProp.Name, FIniDefaultValueProperties.Names[i]) then
+        begin
+          FIniDefaultValueProperties.Delete(i);
+          Break;
         end;
-      end;
   end;
 end;
 
