@@ -156,6 +156,7 @@
         <DCCReference Include="ImageList.pas"/>
         <DCCReference Include="CvtrProp.pas"/>
         <DCCReference Include="CvtrObject.pas"/>
+        <DCCReference Include="ReflexiveMasks.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

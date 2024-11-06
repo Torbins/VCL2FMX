@@ -10,7 +10,8 @@ uses
   Image in 'Image.pas',
   ImageList in 'ImageList.pas',
   CvtrProp in 'CvtrProp.pas',
-  CvtrObject in 'CvtrObject.pas';
+  CvtrObject in 'CvtrObject.pas',
+  ReflexiveMasks in 'ReflexiveMasks.pas';
 
 {$R *.res}
 

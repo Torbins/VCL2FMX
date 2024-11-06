@@ -116,7 +116,7 @@ type
 implementation
 
 uses
-  System.Masks, Vcl.Graphics, CvtrProp, Image, PatchLib;
+  Vcl.Graphics, CvtrProp, Image, PatchLib, ReflexiveMasks;
 
 { TDfmPropertyBase }
 
