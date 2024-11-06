@@ -362,11 +362,11 @@ var
   procedure CopyFromParent(ACopyProp: String);
   var
     Prop: TDfmPropertyBase;
-    Mask: TMask;
+    Mask: TReflexiveMask;
     Found: Boolean;
     Parent: TDfmToFmxObject;
   begin
-    Mask := TMask.Create(ACopyProp);
+    Mask := TReflexiveMask.Create(ACopyProp);
     try
       Found := False;
       Parent := FParent;
@@ -387,10 +387,10 @@ var
   procedure ReconsiderAfterRemovingRule(ARemoveRule: String);
   var
     Line: TDfmPropertyBase;
-    Mask: TMask;
+    Mask: TReflexiveMask;
     i: Integer;
   begin
-    Mask := TMask.Create(ARemoveRule);
+    Mask := TReflexiveMask.Create(ARemoveRule);
     try
       for i := Pred(FIniSectionValues.Count) downto 0 do
         if Mask.Matches(FIniSectionValues.Names[i]) then
@@ -650,48 +650,61 @@ end;
 function TDfmToFmxObject.GetRule(const APropName: string; APropList: TStringList = nil): TRule;
 var
   RuleLine: String;
+  Mask: TReflexiveMask;
   ActionNameStart, ActionNameEnd: Integer;
 begin
-  if not Assigned(APropList) then
-  begin
-    RuleLine := FIniSectionValues.Values[APropName].Trim;
-    if RuleLine = '' then
-      for var i := 0 to FIniSectionValues.Count - 1 do
-        if MatchesMask(APropName, FIniSectionValues.Names[i]) then
-        begin
-          RuleLine := FIniSectionValues.ValueFromIndex[i];
-          Break;
-        end;
-  end
-  else
-    RuleLine := APropList.Values[APropName].Trim;
-
-  if RuleLine = '' then
-    Result.NewPropName := APropName
-  else
-  begin
-    ActionNameStart := RuleLine.IndexOf('#');
-
-    case ActionNameStart of
-      -1: Result.NewPropName := RuleLine;
-      0: Result.NewPropName := APropName;
-    else
-      Result.NewPropName := RuleLine.Substring(0, ActionNameStart).Trim;
-    end;
-
-    if ActionNameStart > -1 then
+  Mask := nil;
+  try
+    if not Assigned(APropList) then
     begin
-      ActionNameEnd := RuleLine.IndexOf('#', ActionNameStart + 1);
-      if ActionNameEnd > -1 then
-      begin
-        Result.Action := RuleLine.Substring(ActionNameStart, ActionNameEnd - ActionNameStart + 1);
-        Result.Parameter := RuleLine.Substring(ActionNameEnd + 1);
-      end
-      else
-        Result.Parameter := RuleLine.Substring(ActionNameStart + 1);
+      RuleLine := FIniSectionValues.Values[APropName].Trim;
+      if RuleLine = '' then
+        for var i := 0 to FIniSectionValues.Count - 1 do
+        begin
+          Mask.Free;
+          Mask := TReflexiveMask.Create(FIniSectionValues.Names[i]);
+          if Mask.Matches(APropName) then
+          begin
+            RuleLine := FIniSectionValues.ValueFromIndex[i];
+            Break;
+          end;
+        end;
     end
     else
-      Result.Parameter := RuleLine;
+      RuleLine := APropList.Values[APropName].Trim;
+
+    if RuleLine = '' then
+      Result.NewPropName := APropName
+    else
+    begin
+      ActionNameStart := RuleLine.IndexOf('#');
+
+      case ActionNameStart of
+        -1: Result.NewPropName := RuleLine;
+        0: Result.NewPropName := APropName;
+      else
+        Result.NewPropName := RuleLine.Substring(0, ActionNameStart).Trim;
+      end;
+
+      if Assigned(Mask) and Mask.ContainsWildcards(Result.NewPropName) then
+        Result.NewPropName := Mask.RestoreText(Result.NewPropName);
+
+      if ActionNameStart > -1 then
+      begin
+        ActionNameEnd := RuleLine.IndexOf('#', ActionNameStart + 1);
+        if ActionNameEnd > -1 then
+        begin
+          Result.Action := RuleLine.Substring(ActionNameStart, ActionNameEnd - ActionNameStart + 1);
+          Result.Parameter := RuleLine.Substring(ActionNameEnd + 1);
+        end
+        else
+          Result.Parameter := RuleLine.Substring(ActionNameStart + 1);
+      end
+      else
+        Result.Parameter := RuleLine;
+    end;
+  finally
+    Mask.Free;
   end;
 end;
 
@@ -766,7 +779,7 @@ var
   i, j: integer;
   Found: Boolean;
   CommonProps, Candidates: TStringList;
-  ParamMask, CommonPropMask, ExistingPropMask: TMask;
+  ParamMask, CommonPropMask, ExistingPropMask: TReflexiveMask;
 begin
   CommonProps := nil;
   Candidates := nil;
@@ -774,7 +787,7 @@ begin
   try
     CommonProps := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
     Candidates := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
-    ParamMask := TMask.Create(AParamName);
+    ParamMask := TReflexiveMask.Create(AParamName);
 
     FRoot.IniFile.ReadSectionValues('CommonProperties', CommonProps);
     for i := 0 to Pred(CommonProps.Count) do
@@ -782,7 +795,7 @@ begin
         (FIniSectionValues.IndexOfName(CommonProps.Names[i]) = -1) then
       begin
         Found := False;
-        CommonPropMask := TMask.Create(CommonProps.Names[i]);
+        CommonPropMask := TReflexiveMask.Create(CommonProps.Names[i]);
         try
           for j := 0 to Pred(FIniSectionValues.Count) do
             if CommonPropMask.Matches(FIniSectionValues.Names[j]) then
@@ -799,7 +812,7 @@ begin
 
     for i := 0 to Pred(FIniSectionValues.Count) do
     begin
-      ExistingPropMask := TMask.Create(FIniSectionValues.Names[i]);
+      ExistingPropMask := TReflexiveMask.Create(FIniSectionValues.Names[i]);
       try
         for j := Pred(Candidates.Count) downto 0 do
           if ExistingPropMask.Matches(Candidates.Names[j]) then
