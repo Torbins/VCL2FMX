@@ -293,9 +293,11 @@ end;
 
 procedure TDfmToFmxObjRoot.IniFileLoad;
 begin
-  FRoot.IniFile.ReadSectionValues('TForm', FIniSectionValues);
-  FRoot.IniFile.ReadSectionValues('TForm#Replace', FIniReplaceValues);
-  FRoot.IniFile.ReadSection('TForm#Include', FIniIncludeValues);
+  FIniFile.ReadSectionValues('TForm', FIniSectionValues);
+  FIniFile.ReadSectionValues('TForm#Replace', FIniReplaceValues);
+  FIniFile.ReadSection('TForm#Include', FIniIncludeValues);
+  FIniFile.ReadSectionValues('TForm#AddIfPresent', FIniAddProperties);
+  FIniFile.ReadSectionValues('TForm#DefaultValueProperty', FIniDefaultValueProperties);
 
   LoadEnums;
 end;
