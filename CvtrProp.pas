@@ -442,6 +442,9 @@ var
 begin
   BitmapData := ConvertPicture(FValue, APad, Width, Height);
 
+  if FName.EndsWith('.Data') then
+    FName := FName.Substring(0, FName.Length - 5);
+
   Result := APad + '  ' + FName + '.PNG = ' + BitmapData  + CRLF;
 end;
 
