@@ -53,7 +53,8 @@ type
   end;
 
   TRule = record
-    NewPropName: String;
+    NewName: String;
+    LineFound: Boolean;
     Action: String;
     Parameter: String;
   end;
@@ -84,7 +85,7 @@ type
     function FMXProperties(APad: String): String;
     function FMXSubObjects(APad: String): String;
     function ReadContents(AStm: TStreamReader): String;
-    function GetRule(const APropName: string; APropList: TStringList = nil): TRule;
+    function GetRule(const AName: string; AList: TStringList = nil): TRule;
     function TransformProperty(AProp: TDfmPropertyBase): TFmxPropertyBase;
     procedure LoadCommonProperties(AParamName: String);
     procedure LoadEnums;
@@ -664,7 +665,7 @@ begin
     Result := 'object ' + FClassName + CRLF;
 end;
 
-function TDfmToFmxObject.GetRule(const APropName: string; APropList: TStringList = nil): TRule;
+function TDfmToFmxObject.GetRule(const AName: string; AList: TStringList = nil): TRule;
 var
   RuleLine: String;
   Mask: TReflexiveMask;
@@ -672,15 +673,15 @@ var
 begin
   Mask := nil;
   try
-    if not Assigned(APropList) then
+    if not Assigned(AList) then
     begin
-      RuleLine := FIniSectionValues.Values[APropName].Trim;
+      RuleLine := FIniSectionValues.Values[AName].Trim;
       if RuleLine = '' then
         for var i := 0 to FIniSectionValues.Count - 1 do
         begin
           Mask.Free;
           Mask := TReflexiveMask.Create(FIniSectionValues.Names[i]);
-          if Mask.Matches(APropName) then
+          if Mask.Matches(AName) then
           begin
             RuleLine := FIniSectionValues.ValueFromIndex[i];
             Break;
@@ -688,23 +689,27 @@ begin
         end;
     end
     else
-      RuleLine := APropList.Values[APropName].Trim;
+      RuleLine := AList.Values[AName].Trim;
 
     if RuleLine = '' then
-      Result.NewPropName := APropName
+    begin
+      Result.NewName := AName;
+      Result.LineFound := False;
+    end
     else
     begin
+      Result.LineFound := True;
       ActionNameStart := RuleLine.IndexOf('#');
 
       case ActionNameStart of
-        -1: Result.NewPropName := RuleLine;
-        0: Result.NewPropName := APropName;
+        -1: Result.NewName := RuleLine;
+        0: Result.NewName := AName;
       else
-        Result.NewPropName := RuleLine.Substring(0, ActionNameStart).Trim;
+        Result.NewName := RuleLine.Substring(0, ActionNameStart).Trim;
       end;
 
-      if Assigned(Mask) and Mask.ContainsWildcards(Result.NewPropName) then
-        Result.NewPropName := Mask.RestoreText(Result.NewPropName);
+      if Assigned(Mask) and Mask.ContainsWildcards(Result.NewName) then
+        Result.NewName := Mask.RestoreText(Result.NewName);
 
       if ActionNameStart > -1 then
       begin
@@ -951,7 +956,7 @@ var
 
   function ReplaceEnum(const APropValue: String; var AEnumValue: String): TEnumResult;
   var
-    Item: Integer;
+    EnumRule: TRule;
     EnumItems: TStringList;
   begin
     Result := erNotEnum;
@@ -962,31 +967,24 @@ var
     if not FEnumList.TryGetValue(Rule.Action, EnumItems) then
       raise Exception.Create('Required enum ' + Rule.Action + ' not found');
 
-    Item := EnumItems.IndexOfName(APropValue);
-    if Item >= 0 then
-      AEnumValue := EnumItems.ValueFromIndex[Item]
-    else
-    begin
-      Item := EnumItems.IndexOfName('#UnknownValuesAllowed#');
-      if Item < 0 then
-        raise Exception.Create('Unknown item ' + APropValue + ' in enum ' + Rule.Action)
-      else
-        AEnumValue := APropValue;
-    end;
+    EnumRule := GetRule(APropValue, EnumItems);
+    if (not EnumRule.LineFound) and (EnumItems.IndexOfName('#UnknownValuesAllowed#') < 0) then
+      raise Exception.Create('Unknown item ' + APropValue + ' in enum ' + Rule.Action);
 
-    if AEnumValue = '#IgnoreValue#' then
+    if EnumRule.Action = '#IgnoreValue#' then
     begin
       AEnumValue := '';
       Exit(erIgnore);
     end;
 
-    if AEnumValue.StartsWith('#SetProperty#', {IgnoreCase} True) then
+    if EnumRule.Action = '#SetProperty#' then
     begin
-      FFmxProps.AddMultipleProps(Copy(AEnumValue, Length('#SetProperty#') + 1));
+      FFmxProps.AddMultipleProps(EnumRule.Parameter);
       AEnumValue := '';
       Exit(erIgnore);
     end;
 
+    AEnumValue := EnumRule.NewName;
     Result := erOk;
   end;
 
@@ -995,10 +993,10 @@ begin
   Rule := GetRule(AProp.Name);
 
   if Rule.Action = '#Color#' then
-    Result := TFmxProperty.Create(Rule.NewPropName, ColorToAlphaColor(AProp.Value))
+    Result := TFmxProperty.Create(Rule.NewName, ColorToAlphaColor(AProp.Value))
   else
   if Rule.Action = '#ConvertFontSize#' then
-    Result := TFmxProperty.Create(Rule.NewPropName, Abs(AProp.Value.ToInteger).ToString)
+    Result := TFmxProperty.Create(Rule.NewName, Abs(AProp.Value.ToInteger).ToString)
   else
   if Rule.Action = '#Delete#' then
   begin
@@ -1012,7 +1010,7 @@ begin
     if not (AProp is TDfmItemsProp) then
       raise Exception.Create('#GenerateLinkColumns# can be used only with object list properties');
 
-    Result := TFmxItemsProp.Create(Rule.NewPropName);
+    Result := TFmxItemsProp.Create(Rule.NewName);
     TDfmItemsProp(AProp).Transform(TFmxItemsProp(Result).Items);
     FRoot.AddGridColumns(FObjName, Result);
     Result := nil;
@@ -1025,26 +1023,26 @@ begin
   end
   else
   if Rule.Action = '#ImageData#' then
-    Result := TFmxImageProp.Create(Rule.NewPropName, AProp.Value)
+    Result := TFmxImageProp.Create(Rule.NewName, AProp.Value)
   else
   if Rule.Action = '#ImageListData#' then
-    Result := TFmxImageListProp.Create(Rule.NewPropName, AProp.Value)
+    Result := TFmxImageListProp.Create(Rule.NewName, AProp.Value)
   else
   if Rule.Action = '#PictureData#' then
-    Result := TFmxPictureProp.Create(Rule.NewPropName, AProp.Value)
+    Result := TFmxPictureProp.Create(Rule.NewName, AProp.Value)
   else
   if Rule.Action = '#SetValue#' then
   begin
-    FFmxProps.AddMultipleProps(Rule.NewPropName + '=' + Rule.Parameter);
+    FFmxProps.AddMultipleProps(Rule.NewName + '=' + Rule.Parameter);
     Result := nil;
   end
   else
   if Rule.Action = '#ToString#' then
-    Result := TFmxProperty.Create(Rule.NewPropName, AProp.Value.QuotedString)
+    Result := TFmxProperty.Create(Rule.NewName, AProp.Value.QuotedString)
   else
   if AProp is TDfmSetProp then
   begin
-    Result := TFmxSetProp.Create(Rule.NewPropName);
+    Result := TFmxSetProp.Create(Rule.NewName);
     for Item in TDfmSetProp(AProp).Items do
       case ReplaceEnum(Item, EnumValue) of
         erOk: TFmxSetProp(Result).Items.Add(EnumValue);
@@ -1053,22 +1051,22 @@ begin
   end
   else
   case ReplaceEnum(AProp.Value, EnumValue) of
-    erOk: Result := TFmxProperty.Create(Rule.NewPropName, EnumValue);
+    erOk: Result := TFmxProperty.Create(Rule.NewName, EnumValue);
     erNotEnum:
       begin
         if AProp is TDfmStringsProp then
-          Result := TFmxStringsProp.Create(Rule.NewPropName, TDfmStringsProp(AProp).Strings)
+          Result := TFmxStringsProp.Create(Rule.NewName, TDfmStringsProp(AProp).Strings)
         else
         if AProp is TDfmDataProp then
-          Result := TFmxDataProp.Create(Rule.NewPropName, AProp.Value)
+          Result := TFmxDataProp.Create(Rule.NewName, AProp.Value)
         else
         if AProp is TDfmItemsProp then
         begin
-          Result := TFmxItemsProp.Create(Rule.NewPropName);
+          Result := TFmxItemsProp.Create(Rule.NewName);
           TDfmItemsProp(AProp).Transform(TFmxItemsProp(Result).Items);
         end
         else
-          Result := TFmxProperty.Create(Rule.NewPropName, AProp.Value);
+          Result := TFmxProperty.Create(Rule.NewName, AProp.Value);
       end;
   end;
 
