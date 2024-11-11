@@ -474,6 +474,21 @@ end;
 
 procedure TDfmToFmxObject.GenerateObject(AProp: TDfmPropertyBase; AObjectType: string);
 
+  procedure AddFmxProperty(AObj: TDfmToFmxObject; APropName, APropValue: String);
+  var
+    Prop: TFmxPropertyBase;
+  begin
+    Prop := AObj.FFmxProps.FindByName(APropName);
+
+    if Assigned(Prop) then
+      Prop.Value := APropValue
+    else
+    begin
+      Prop := TFmxProperty.Create(APropName, APropValue);
+      AObj.FFmxProps.Add(Prop);
+    end;
+  end;
+
   procedure GenerateProperty(AObj: TDfmToFmxObject; APropName, APropValue: String);
   var
     Prop: TDfmPropertyBase;
@@ -509,7 +524,7 @@ type
     Result := TDfmToFmxObject.CreateGenerated(Self, AObjName, ADFMClass);
     FOwnedObjs.Insert(APosition, Result);
     for i := 0 to High(AInitProps) do
-      GenerateProperty(Result, AInitProps[i].Name, AInitProps[i].Value);
+      AddFmxProperty(Result, AInitProps[i].Name, AInitProps[i].Value);
   end;
 
   procedure ConvertGlyph;
@@ -519,8 +534,8 @@ type
     NumGlyphs := FDfmProps.GetIntValueDef('NumGlyphs', 1);
     Index := FRoot.AddImageItem(CreateGlyphPng(AProp.Value, NumGlyphs));
 
-    FFmxProps.AddProp(TFmxProperty.Create('Images', 'SingletoneImageList'));
-    FFmxProps.AddProp(TFmxProperty.Create('ImageIndex', Index.ToString));
+    AddFmxProperty(Self, 'Images', 'SingletoneImageList');
+    AddFmxProperty(Self, 'ImageIndex', Index.ToString);
   end;
 
   procedure InitChildImage(AObj: TDfmToFmxObject);
@@ -533,30 +548,27 @@ type
     Height := FDfmProps.GetIntValueDef('Height', 22);
 
     Png := CreateGlyphPng(AProp.Value, NumGlyphs);
-    try
-      Width := (Width - Png.Width) div 2;
-      Height := (Height - Png.Height) div 2;
-      GenerateProperty(AObj, 'Margins.Left', Width.ToString);
-      GenerateProperty(AObj, 'Margins.Right', Width.ToString);
-      GenerateProperty(AObj, 'Margins.Top', Height.ToString);
-      GenerateProperty(AObj, 'Margins.Bottom', Height.ToString);
 
-      GenerateProperty(AObj, 'Picture.Data', EncodePicture(Png));
-    finally
-      Png.Free;
-    end;
+    Width := (Width - Png.Width) div 2;
+    Height := (Height - Png.Height) div 2;
+    AddFmxProperty(AObj, 'Margins.Left', Width.ToString);
+    AddFmxProperty(AObj, 'Margins.Right', Width.ToString);
+    AddFmxProperty(AObj, 'Margins.Top', Height.ToString);
+    AddFmxProperty(AObj, 'Margins.Bottom', Height.ToString);
+
+    AObj.FFmxProps.AddProp(TFmxImageProp.Create('Picture.Data', Png));
   end;
 
 const
-  ChildImageInitParams: array [0..3] of TProp = ((Name: 'Align'; Value: 'alClient'), (Name: 'HitTest'; Value: 'False'),
-    (Name: 'Stretch'; Value: 'True'), (Name: 'Proportional'; Value: 'True'));
-  ColoredRectInitParams: array [0..5] of TProp = ((Name: 'Align'; Value: 'alClient'), (Name: 'Margins.Left'; Value: '1'),
+  ChildImageInitParams: array [0..2] of TProp = ((Name: 'Align'; Value: 'Client'), (Name: 'HitTest'; Value: 'False'),
+    (Name: 'WrapMode'; Value: 'Fit'));
+  ColoredRectInitParams: array [0..5] of TProp = ((Name: 'Align'; Value: 'Client'), (Name: 'Margins.Left'; Value: '1'),
     (Name: 'Margins.Top'; Value: '1'), (Name: 'Margins.Right'; Value: '1'), (Name: 'Margins.Bottom'; Value: '1'),
-    (Name: 'Pen.Style'; Value: 'psClear'));
-  RadioButtonInitParams: array [0..2] of TProp = ((Name: 'Height'; Value: '19'), (Name: 'Left'; Value: '8'),
-    (Name: 'Width'; Value: '50'));
-  SeparateCaptionInitParams: array [0..3] of TProp = ((Name: 'Align'; Value: 'alClient'),
-    (Name: 'TabStop'; Value: 'False'), (Name: 'Alignment'; Value: 'taCenter'), (Name: 'Layout'; Value: 'tlCenter'));
+    (Name: 'Stroke.Kind'; Value: 'None'));
+  RadioButtonInitParams: array [0..2] of TProp = ((Name: 'Size.Height'; Value: '19'), (Name: 'Position.X'; Value: '8'),
+    (Name: 'Size.Width'; Value: '50'));
+  SeparateCaptionInitParams: array [0..1] of TProp = ((Name: 'Align'; Value: 'Client'),
+    (Name: 'TabStop'; Value: 'False'));
 var
   Obj: TDfmToFmxObject;
   Num, i: Integer;
@@ -594,9 +606,9 @@ begin
     for Caption in (AProp as TDfmStringsProp).Strings do
     begin
       Obj := GetObject(FObjName + '_RadioButton' + (Num + 1).ToString, 'TRadioButton', RadioButtonInitParams, Num);
-      GenerateProperty(Obj, 'Caption', Caption);
-      GenerateProperty(Obj, 'TabOrder', Num.ToString);
-      GenerateProperty(Obj, 'Top', (16 + Num * 20).ToString);
+      AddFmxProperty(Obj, 'Text', Caption);
+      AddFmxProperty(Obj, 'TabOrder', Num.ToString);
+      AddFmxProperty(Obj, 'Position.Y', (16 + Num * 20).ToString);
       Inc(Num);
     end;
   end;
@@ -608,7 +620,7 @@ begin
     for Caption in (AProp as TDfmStringsProp).Strings do
     begin
       Obj := GetObject(FObjName + 'Tab' + Num.ToString, 'TTabSheet', [], Num - 1);
-      GenerateProperty(Obj, 'Caption', Caption);
+      AddFmxProperty(Obj, 'Text', Caption);
       Inc(Num);
     end;
   end;
@@ -619,15 +631,20 @@ begin
     Obj := nil;
     for i := 0 to Num do
       Obj := GetObject(FObjName + '_RadioButton' + (i + 1).ToString, 'TRadioButton', RadioButtonInitParams, i);
-    GenerateProperty(Obj, 'Checked', 'True');
+    AddFmxProperty(Obj, 'IsChecked', 'True');
   end;
 
   if AObjectType = 'SeparateCaption' then
   begin
     Obj := GetObject(FObjName + '_Caption', 'TLabel', SeparateCaptionInitParams);
+    if Obj.FDfmProps.Count = 0 then
+    begin
+      GenerateProperty(Obj, 'Alignment', 'taCenter');
+      GenerateProperty(Obj, 'Layout', 'tlCenter');
+    end;
 
     if AProp.Name = 'ShowCaption' then
-      GenerateProperty(Obj, 'Visible', AProp.Value)
+      AddFmxProperty(Obj, 'Visible', AProp.Value)
     else
     if AProp.Name = 'VerticalAlignment' then
     begin

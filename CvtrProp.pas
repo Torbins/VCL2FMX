@@ -3,7 +3,7 @@ unit CvtrProp;
 interface
 
 uses
-  System.Classes, System.Generics.Collections, CvtrObject;
+  System.Classes, System.Generics.Collections, Vcl.Imaging.PngImage, CvtrObject;
 
 type
   TDfmProperty = class(TDfmPropertyBase)
@@ -54,7 +54,11 @@ type
   end;
 
   TFmxImageProp = class(TFmxProperty)
+  protected
+    FPng: TPngImage;
   public
+    constructor Create(const AName: string; AImage: TPngImage); overload;
+    destructor Destroy; override;
     function ToString(APad: String): String; override;
   end;
 
@@ -263,12 +267,31 @@ begin
   end;
 end;
 
+constructor TFmxImageProp.Create(const AName: string; AImage: TPngImage);
+begin
+  FName := AName;
+  FPng := AImage;
+end;
+
+destructor TFmxImageProp.Destroy;
+begin
+  FPng.Free;
+  inherited;
+end;
+
 function TFmxImageProp.ToString(APad: String): String;
 var
   Width, Height: Integer;
   BitmapData: String;
 begin
-  BitmapData := ConvertPicture(FValue, APad + '    ', Width, Height);
+  if not Assigned(FPng) then
+    BitmapData := ConvertPicture(FValue, APad + '    ', Width, Height)
+  else
+  begin
+    BitmapData := EncodePicture(FPng, APad + '    ');
+    Height := FPng.Height;
+    Width := FPng.Width;
+  end;
 
   if FName = 'Picture.Data' then
     Result := APad + '  MultiResBitmap'

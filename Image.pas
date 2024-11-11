@@ -12,7 +12,7 @@ uses
   Vcl.Imaging.PngImage;
 
 function CreateGlyphPng(const AData: String; ANumGlyphs: Integer): TPngImage;
-function EncodePicture(APng: TPngImage): String;
+function EncodePicture(APng: TPngImage; const APad: String): String;
 function ConvertPicture(const AData, APad: String; out AWidth, AHeight: Integer): String;
 
 implementation
@@ -49,23 +49,14 @@ begin
   end;
 end;
 
-function EncodePicture(APng: TPngImage): String;
-const
-  PicClass = 'TPngImage';
+function EncodePicture(APng: TPngImage; const APad: String): String;
 var
   Stream: TMemoryStream;
-  Len: Integer;
-  Bytes: TBytes;
 begin
   Stream := TMemoryStream.Create;
   try
-    Bytes := TEncoding.UTF8.GetBytes(PicClass);
-    Len := Length(Bytes);
-    Stream.Write(Len, 1);
-    Stream.Write(Bytes, Len);
     APng.SaveToStream(Stream);
-
-    Result := StreamToHex(Stream);
+    Result := '{' + BreakIntoLines(StreamToHex(Stream), APad) + '}';
   finally
     Stream.Free;
   end;
@@ -100,9 +91,7 @@ begin
       Png.Canvas.Draw(0, 0, Graphic, 255);
     end;
 
-    Stream.Clear;
-    Png.SaveToStream(Stream);
-    Result := '{' + BreakIntoLines(StreamToHex(Stream), APad) + '}';
+    Result := EncodePicture(Png, APad);
     AHeight := Graphic.Height;
     AWidth := Graphic.Width;
   finally
