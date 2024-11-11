@@ -116,7 +116,7 @@ type
 implementation
 
 uses
-  Vcl.Graphics, CvtrProp, Image, PatchLib, ReflexiveMasks;
+  CvtrProp, Image, PatchLib, ReflexiveMasks;
 
 { TDfmPropertyBase }
 
@@ -971,16 +971,8 @@ var
       if Item < 0 then
         raise Exception.Create('Unknown item ' + APropValue + ' in enum ' + Rule.Action)
       else
-      begin
-        if EnumItems.ValueFromIndex[Item] = '#GenerateColorValue#' then
-          AEnumValue := ConvertColor(StrToUInt(APropValue))
-        else
-          AEnumValue := APropValue;
-      end;
+        AEnumValue := APropValue;
     end;
-
-    if AEnumValue = '#GenerateColorValue#' then
-      AEnumValue := ConvertColor(ColorToRGB(StringToColor(APropValue)));
 
     if AEnumValue = '#IgnoreValue#' then
     begin
@@ -1002,6 +994,9 @@ begin
   Result := nil;
   Rule := GetRule(AProp.Name);
 
+  if Rule.Action = '#Color#' then
+    Result := TFmxProperty.Create(Rule.NewPropName, ColorToAlphaColor(AProp.Value))
+  else
   if Rule.Action = '#ConvertFontSize#' then
     Result := TFmxProperty.Create(Rule.NewPropName, Abs(AProp.Value.ToInteger).ToString)
   else

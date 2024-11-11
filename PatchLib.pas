@@ -16,7 +16,7 @@ const
 type
   TImageList = class(TObjectList<TPngImage>);
 
-function ConvertColor(AColorVal: Cardinal): String;
+function ColorToAlphaColor(const AColor: String): String;
 function PosNoCase(const ASubstr: String; AFullString: String; Offset: Integer = 1): Integer;
 procedure PopulateStringsFromArray(AStrings: TStrings; AArray: TArray<String>);
 function BreakIntoLines(const AData, APad: String; ALineLen: Integer = LineTruncLength): String;
@@ -26,12 +26,20 @@ procedure HexToStream(AData: string; AMemStream:TMemoryStream);
 implementation
 
 uses
-  System.StrUtils;
+  System.StrUtils, System.UIConsts, Vcl.Graphics;
 
-function ConvertColor(AColorVal: Cardinal): String;
+function ColorToAlphaColor(const AColor: String): String;
+var
+  Color, AlphaColor: Integer;
 begin
-  AColorVal := ((AColorVal and $FF0000) shr 16) or (AColorVal and $FF00) or ((AColorVal and $FF) shl 16);
-  Result := 'x' + IntToHex(AColorVal or $FF000000);
+  Color := ColorToRGB(StringToColor(AColor));
+
+  TAlphaColorRec(AlphaColor).A := 255;
+  TAlphaColorRec(AlphaColor).B := TColorRec(Color).B;
+  TAlphaColorRec(AlphaColor).G := TColorRec(Color).G;
+  TAlphaColorRec(AlphaColor).R := TColorRec(Color).R;
+
+  AlphaColorToIdent(AlphaColor, Result);
 end;
 
 function PosNoCase(const ASubstr: String; AFullString: String; Offset: Integer = 1): Integer;
