@@ -90,6 +90,7 @@ type
     procedure LoadCommonProperties(AParamName: String);
     procedure LoadEnums;
     procedure GenerateObject(AProp: TDfmPropertyBase; AObjectType: string);
+    procedure GenerateStyle(AProp: TDfmPropertyBase; AObjectType: string);
     procedure InternalProcessBody(var ABody: String);
     procedure UpdateUsesStringList(AUsesList: TStrings); virtual;
     function GetObjHeader: string; virtual;
@@ -117,7 +118,7 @@ type
 implementation
 
 uses
-  CvtrProp, Image, PatchLib, ReflexiveMasks;
+  CvtrProp, Image, PatchLib, ReflexiveMasks, VCL2FMXStyleGen;
 
 { TDfmPropertyBase }
 
@@ -657,6 +658,15 @@ begin
   end;
 end;
 
+procedure TDfmToFmxObject.GenerateStyle(AProp: TDfmPropertyBase; AObjectType: string);
+begin
+  FIniIncludeValues.Add('VCL2FMXStyleGen');
+
+  if (AObjectType = 'Label') and (AProp.Name = 'Color') then
+    FFmxProps.Add(TFmxProperty.Create('StyleLookup', (LabelStyle + '?' + BackgroundColor + '=' +
+      ColorToAlphaColor(AProp.Value)).QuotedString));
+end;
+
 function TDfmToFmxObject.GetObjHeader: string;
 begin
   if FObjName <> '' then
@@ -1019,6 +1029,12 @@ begin
   if Rule.Action = '#GenerateControl#' then
   begin
     GenerateObject(AProp, Rule.Parameter);
+    Result := nil;
+  end
+  else
+  if Rule.Action = '#GenerateStyle#' then
+  begin
+    GenerateStyle(AProp, Rule.Parameter);
     Result := nil;
   end
   else
