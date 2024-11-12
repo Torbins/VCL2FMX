@@ -81,30 +81,39 @@ begin
     CRLF + '    Top = 5';
 
   for I := 0 to FLinkControlList.Count - 1 do
-  begin
-    Result := Result +
-      CRLF + '    object LinkControlToField' + I.ToString + ': TLinkControlToField' +
-      CRLF + '      Category = ''Quick Bindings''' +
-      CRLF + '      DataSource = ' + FLinkControlList[I].DataSource +
-      CRLF + '      FieldName = ' + FLinkControlList[I].FieldName +
-      CRLF + '      Control = ' + FLinkControlList[I].Control +
-      CRLF + '      Track = False' +
-      CRLF + '    end';
-  end;
+    if (FLinkControlList[I].DataSource <> '') and (FLinkControlList[I].FieldName <> '') and
+      (FLinkControlList[I].Control <> '') then
+    begin
+      Result := Result +
+        CRLF + '    object LinkControlToField' + I.ToString + ': TLinkControlToField' +
+        CRLF + '      Category = ''Quick Bindings''' +
+        CRLF + '      DataSource = ' + FLinkControlList[I].DataSource +
+        CRLF + '      FieldName = ' + FLinkControlList[I].FieldName +
+        CRLF + '      Control = ' + FLinkControlList[I].Control +
+        CRLF + '      Track = False' +
+        CRLF + '    end';
+    end
+    else
+      raise Exception.Create('Binding incomplete for control ' + FLinkControlList[I].Control + ', datasource ' +
+        FLinkControlList[I].DataSource + ' and field ' + FLinkControlList[I].FieldName);
 
   for I := 0 to FLinkGridList.Count - 1 do
-  begin
-    Result := Result +
-      CRLF + '    object LinkGridToDataSourceBindSourceDB' + I.ToString + ': TLinkGridToDataSource' +
-      CRLF + '      Category = ''Quick Bindings''' +
-      CRLF + '      DataSource = ' + FLinkGridList[I].DataSource +
-      CRLF + '      GridControl = ' + FLinkGridList[I].GridControl + CRLF;
+    if (FLinkGridList[I].DataSource <> '') and (FLinkGridList[I].GridControl <> '') then
+    begin
+      Result := Result +
+        CRLF + '    object LinkGridToDataSourceBindSourceDB' + I.ToString + ': TLinkGridToDataSource' +
+        CRLF + '      Category = ''Quick Bindings''' +
+        CRLF + '      DataSource = ' + FLinkGridList[I].DataSource +
+        CRLF + '      GridControl = ' + FLinkGridList[I].GridControl + CRLF;
 
-    if Assigned(FLinkGridList[I].Columns) then
-      Result := Result + FLinkGridList[I].Columns.ToString('    ') + '    end'
+      if Assigned(FLinkGridList[I].Columns) then
+        Result := Result + FLinkGridList[I].Columns.ToString('    ') + '    end'
+      else
+        Result := Result + '    end';
+    end
     else
-      Result := Result + '    end';
-  end;
+      raise Exception.Create('Binding incomplete for grid ' + FLinkGridList[I].GridControl + ' and datasource ' +
+        FLinkGridList[I].DataSource);
 
   Result := Result + CRLF + '  end';
 end;
@@ -130,10 +139,13 @@ begin
   Result := Result + CRLF + '    SingletoneBindingsList: TBindingsList;';
 
   for I := 0 to FLinkControlList.Count - 1 do
-    Result := Result + CRLF + '    LinkControlToField' + I.ToString + ': TLinkControlToField;';
+    if (FLinkControlList[I].DataSource <> '') and (FLinkControlList[I].FieldName <> '') and
+      (FLinkControlList[I].Control <> '') then
+      Result := Result + CRLF + '    LinkControlToField' + I.ToString + ': TLinkControlToField;';
 
   for I := 0 to FLinkGridList.Count - 1 do
-    Result := Result + CRLF + '    LinkGridToDataSourceBindSourceDB' + I.ToString + ': TLinkGridToDataSource;';
+    if (FLinkGridList[I].DataSource <> '') and (FLinkGridList[I].GridControl <> '') then
+      Result := Result + CRLF + '    LinkGridToDataSourceBindSourceDB' + I.ToString + ': TLinkGridToDataSource;';
 end;
 
 procedure TDfmToFmxObjRoot.AddFieldLink(AObjName: String; AProp: TDfmPropertyBase);
