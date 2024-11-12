@@ -100,7 +100,10 @@ begin
       CRLF + '      DataSource = ' + FLinkGridList[I].DataSource +
       CRLF + '      GridControl = ' + FLinkGridList[I].GridControl + CRLF;
 
-    Result := Result + FLinkGridList[I].Columns.ToString('    ') + '    end';
+    if Assigned(FLinkGridList[I].Columns) then
+      Result := Result + FLinkGridList[I].Columns.ToString('    ') + '    end'
+    else
+      Result := Result + '    end';
   end;
 
   Result := Result + CRLF + '  end';
