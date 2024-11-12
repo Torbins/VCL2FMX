@@ -52,7 +52,8 @@ var
 
   function CheckSubstr(APos: Integer): Boolean;
   var
-    i, j, EndCount: Integer;
+    i, j, EndCount, SubIndex: Integer;
+    FullChar: Char;
     Skip: Boolean;
   begin
     Result := True;
@@ -61,16 +62,19 @@ var
     while i < EndCount do
     begin
       Inc(i);
+      FullChar := AFullString[APos + i - 1];
+
       Skip := False;
       for j := 0 to Length(SkipChars) - 1 do
-        if AFullString[APos + i - 1] = SkipChars[j] then
+        if FullChar = SkipChars[j] then
         begin
           Skip := True;
           Inc(EndCount);
           Break;
         end;
-      if (not Skip) and (SubUp[i - EndCount + SubLength] <> AFullString[APos + i - 1]) and
-        (SubLow[i - EndCount + SubLength] <> AFullString[APos + i - 1]) then
+
+      SubIndex := i - EndCount + SubLength;
+      if (not Skip) and (SubUp[SubIndex] <> FullChar) and (SubLow[SubIndex] <> FullChar) then
         Exit(False);
     end;
   end;
