@@ -17,7 +17,8 @@ type
   TImageList = class(TObjectList<TPngImage>);
 
 function ColorToAlphaColor(const AColor: String): String;
-function PosNoCase(const ASubstr: String; AFullString: String; Offset: Integer = 1): Integer;
+function PosNoCase(const ASubstr: String; AFullString: String; Offset: Integer = 1; const SkipChars: TArray<Char> = []):
+  Integer;
 procedure PopulateStringsFromArray(AStrings: TStrings; AArray: TArray<String>);
 function BreakIntoLines(const AData, APad: String; ALineLen: Integer = LineTruncLength): String;
 function StreamToHex(AMemStream:TMemoryStream): String;
@@ -42,19 +43,62 @@ begin
   AlphaColorToIdent(AlphaColor, Result);
 end;
 
-function PosNoCase(const ASubstr: String; AFullString: String; Offset: Integer = 1): Integer;
+function PosNoCase(const ASubstr: String; AFullString: String; Offset: Integer = 1; const SkipChars: TArray<Char> = []):
+  Integer;
 var
-  Substr: String;
-  S: String;
-begin
-  if (ASubstr = '') or (AFullString = '') then
+  SubLength: Integer;
+  FullLength: Integer;
+  SubUp, SubLow: String;
+
+  function CheckSubstr(APos: Integer): Boolean;
+  var
+    i, j, EndCount: Integer;
+    Skip: Boolean;
   begin
-    Result := -1;
-    exit;
+    Result := True;
+    i := 0;
+    EndCount := SubLength;
+    while i < EndCount do
+    begin
+      Inc(i);
+      Skip := False;
+      for j := 0 to Length(SkipChars) - 1 do
+        if AFullString[APos + i - 1] = SkipChars[j] then
+        begin
+          Skip := True;
+          Inc(EndCount);
+          Break;
+        end;
+      if (not Skip) and (SubUp[i - EndCount + SubLength] <> AFullString[APos + i - 1]) and
+        (SubLow[i - EndCount + SubLength] <> AFullString[APos + i - 1]) then
+        Exit(False);
+    end;
   end;
-  Substr := AnsiLowerCase(ASubstr);
-  S := AnsiLowerCase(AFullString);
-  Result := Pos(Substr, S, Offset);
+
+begin
+  Result := 0;
+  if (AFullString = '') or (ASubstr = '') or (Offset <= 0) then
+    Exit;
+
+  SubLength := ASubstr.Length;
+  FullLength := AFullString.Length;
+
+  if SubLength + Offset - 1 > FullLength then
+    Exit;
+
+  SubUp := ASubstr.ToUpper;
+  SubLow := ASubstr.ToLower;
+
+  Result := Offset;
+  while SubLength <= (FullLength - Result + 1) do
+  begin
+    if CheckSubstr(Result) then
+      Exit
+    else
+      Inc(Result);
+  end;
+
+  Result := 0;
 end;
 
 procedure PopulateStringsFromArray(AStrings: TStrings; AArray: TArray<String>);
