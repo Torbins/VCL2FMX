@@ -480,7 +480,7 @@ end;
 
 procedure TDfmToFmxObject.GenerateObject(AProp: TDfmPropertyBase; AObjectType: string);
 
-  procedure AddFmxProperty(AObj: TDfmToFmxObject; APropName, APropValue: String);
+  procedure AddFmxProperty(AObj: TDfmToFmxObject; const APropName, APropValue: String);
   var
     Prop: TFmxPropertyBase;
   begin
@@ -495,7 +495,7 @@ procedure TDfmToFmxObject.GenerateObject(AProp: TDfmPropertyBase; AObjectType: s
     end;
   end;
 
-  procedure GenerateProperty(AObj: TDfmToFmxObject; APropName, APropValue: String);
+  procedure GenerateProperty(AObj: TDfmToFmxObject; const APropName, APropValue: String);
   var
     Prop: TDfmPropertyBase;
   begin
@@ -515,22 +515,26 @@ type
     Name, Value: String;
   end;
 
-  function GetObject(AObjName, ADFMClass: String; AInitProps: array of TProp; APosition: Integer = 0): TDfmToFmxObject;
+  function GetObject(const AObjName, ADFMClass: String; const AInitProps, AReplacements: array of TProp;
+    APosition: Integer = 0): TDfmToFmxObject;
   var
-    i: Integer;
+    Obj: TDfmToFmxObject;
+    Prop: TProp;
   begin
-    for i := 0 to Pred(FOwnedObjs.Count) do
+    for Obj in FOwnedObjs do
     begin
-      if not FOwnedObjs[i].FGenerated then
+      if not Obj.FGenerated then
         Break;
-      if (FOwnedObjs[i].FClassName = ADFMClass) and (FOwnedObjs[i].FObjName = AObjName) then
-        Exit(FOwnedObjs[i]);
+      if (Obj.FClassName = ADFMClass) and (Obj.FObjName = AObjName) then
+        Exit(Obj);
     end;
 
     Result := TDfmToFmxObject.CreateGenerated(Self, AObjName, ADFMClass);
     FOwnedObjs.Insert(APosition, Result);
-    for i := 0 to High(AInitProps) do
-      AddFmxProperty(Result, AInitProps[i].Name, AInitProps[i].Value);
+    for Prop in AInitProps do
+      AddFmxProperty(Result, Prop.Name, Prop.Value);
+    for Prop in AReplacements do
+      FCodeReplacements.AddOrSetValue(Prop.Name, Prop.Value);
   end;
 
   procedure ConvertGlyph;
@@ -568,13 +572,22 @@ type
 const
   ChildImageInitParams: array [0..2] of TProp = ((Name: 'Align'; Value: 'Client'), (Name: 'HitTest'; Value: 'False'),
     (Name: 'WrapMode'; Value: 'Fit'));
+  ChildImageReplacements: array [0..0] of TProp = ((Name: '.Picture'; Value: '_Glyph.Bitmap'));
   ColoredRectInitParams: array [0..5] of TProp = ((Name: 'Align'; Value: 'Client'), (Name: 'Margins.Left'; Value: '1'),
     (Name: 'Margins.Top'; Value: '1'), (Name: 'Margins.Right'; Value: '1'), (Name: 'Margins.Bottom'; Value: '1'),
     (Name: 'Stroke.Kind'; Value: 'None'));
+  ColoredRectReplacements: array [0..0] of TProp = ((Name: '.Color'; Value: '_Color.Fill.Color'));
   RadioButtonInitParams: array [0..2] of TProp = ((Name: 'Size.Height'; Value: '19'), (Name: 'Position.X'; Value: '8'),
     (Name: 'Size.Width'; Value: '50'));
   SeparateCaptionInitParams: array [0..1] of TProp = ((Name: 'Align'; Value: 'Client'),
     (Name: 'TabStop'; Value: 'False'));
+  SeparateCaptionReplacements: array [0..7] of TProp = ((Name: '.ShowCaption'; Value: '_Caption.Visible'),
+    (Name: '.VerticalAlignment'; Value: '_Caption.TextSettings.VertAlign'),
+    (Name: '.Alignment'; Value: '_Caption.TextSettings.HorzAlign'), (Name: '.Caption'; Value: '_Caption.Text'),
+    (Name: '.Font.Color'; Value: '_Caption.TextSettings.FontColor'),
+    (Name: '.Font.Height'; Value: '_Caption.TextSettings.Font.Size'),
+    (Name: '.Font.Name'; Value: '_Caption.TextSettings.Font.Family'),
+    (Name: '.Font.Style'; Value: '_Caption.TextSettings.Font.Style'));
 var
   Obj: TDfmToFmxObject;
   Num, i: Integer;
@@ -582,13 +595,13 @@ var
 begin
   if AObjectType = 'ChildImage' then
   begin
-    Obj := GetObject(FObjName + '_Glyph', 'TImage', ChildImageInitParams);
+    Obj := GetObject(FObjName + '_Glyph', 'TImage', ChildImageInitParams, ChildImageReplacements);
     InitChildImage(Obj);
   end;
 
   if AObjectType = 'ColoredRect' then
   begin
-    Obj := GetObject(FObjName + '_Color', 'TShape', ColoredRectInitParams);
+    Obj := GetObject(FObjName + '_Color', 'TShape', ColoredRectInitParams, ColoredRectReplacements);
 
     if AProp.Name = 'Color' then
       GenerateProperty(Obj, 'Brush.Color', AProp.Value)
@@ -611,7 +624,7 @@ begin
 
     for Caption in (AProp as TDfmStringsProp).Strings do
     begin
-      Obj := GetObject(FObjName + '_RadioButton' + (Num + 1).ToString, 'TRadioButton', RadioButtonInitParams, Num);
+      Obj := GetObject(FObjName + '_RadioButton' + (Num + 1).ToString, 'TRadioButton', RadioButtonInitParams, [], Num);
       AddFmxProperty(Obj, 'Text', Caption);
       AddFmxProperty(Obj, 'TabOrder', Num.ToString);
       AddFmxProperty(Obj, 'Position.Y', (16 + Num * 20).ToString);
@@ -625,7 +638,7 @@ begin
 
     for Caption in (AProp as TDfmStringsProp).Strings do
     begin
-      Obj := GetObject(FObjName + 'Tab' + Num.ToString, 'TTabSheet', [], Num - 1);
+      Obj := GetObject(FObjName + 'Tab' + Num.ToString, 'TTabSheet', [], [], Num - 1);
       AddFmxProperty(Obj, 'Text', Caption);
       Inc(Num);
     end;
@@ -636,13 +649,13 @@ begin
     Num := AProp.Value.ToInteger;
     Obj := nil;
     for i := 0 to Num do
-      Obj := GetObject(FObjName + '_RadioButton' + (i + 1).ToString, 'TRadioButton', RadioButtonInitParams, i);
+      Obj := GetObject(FObjName + '_RadioButton' + (i + 1).ToString, 'TRadioButton', RadioButtonInitParams, [], i);
     AddFmxProperty(Obj, 'IsChecked', 'True');
   end;
 
   if AObjectType = 'SeparateCaption' then
   begin
-    Obj := GetObject(FObjName + '_Caption', 'TLabel', SeparateCaptionInitParams);
+    Obj := GetObject(FObjName + '_Caption', 'TLabel', SeparateCaptionInitParams, SeparateCaptionReplacements);
     if Obj.FDfmProps.Count = 0 then
     begin
       GenerateProperty(Obj, 'Alignment', 'taCenter');
@@ -811,7 +824,7 @@ begin
         ABody.Substring(ClassStart + FOldClassName.Length - 1);
     end;
 
-  if FObjName <> '' then
+  if (FObjName <> '') and not FGenerated then
   begin
     for i := 0 to FIniSectionValues.Count - 1 do
     begin
