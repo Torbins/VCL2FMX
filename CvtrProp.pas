@@ -377,7 +377,7 @@ begin
   Result := APad + '  ' + FName + ' = <' + CRLF + APad + '    ';
   for i := 0 to FItems.Count - 1 do
     Result := Result + FItems[i].Replace(CRLF, CRLF + APad + '    ');
-  Result := Result.TrimRight([#13, #10, ' ']) + '>' + CRLF;
+  Result := Result.TrimRight([CR, LF, ' ']) + '>' + CRLF;
 end;
 
 { TDfmSetProp }

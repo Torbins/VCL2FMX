@@ -59,6 +59,8 @@ type
     Parameter: String;
   end;
 
+  TCodeReplacements = class(TDictionary<String, String>);
+
   TDfmToFmxObject = class;
   TOwnedObjects = class(TObjectList<TDfmToFmxObject>);
   TEnumList = class(TObjectDictionary<String, TStringList>);
@@ -81,6 +83,7 @@ type
     FIniDefaultValueProperties: TStringlist;
     FIniIncludeValues: TStringlist;
     FIniSectionValues: TStringlist;
+    FCodeReplacements: TCodeReplacements;
     procedure InitObjects; virtual;
     function FMXProperties(APad: String): String;
     function FMXSubObjects(APad: String): String;
@@ -118,7 +121,7 @@ type
 implementation
 
 uses
-  CvtrProp, Image, PatchLib, ReflexiveMasks, VCL2FMXStyleGen;
+  System.Generics.Defaults, CvtrProp, Image, PatchLib, ReflexiveMasks, VCL2FMXStyleGen;
 
 { TDfmPropertyBase }
 
@@ -257,6 +260,7 @@ begin
   FFmxProps.Free;
   FDfmProps.Free;
   FOwnedObjs.Free;
+  FCodeReplacements.Free;
   FIniIncludeValues.Free;
   FIniSectionValues.Free;
   FEnumList.Free;
@@ -771,12 +775,16 @@ begin
   FIniDefaultValueProperties := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
   FIniIncludeValues := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
   FIniSectionValues := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
+  FCodeReplacements := TCodeReplacements.Create;
   FOwnedObjs := TOwnedObjects.Create({AOwnsObjects} True);
 end;
 
 procedure TDfmToFmxObject.InternalProcessBody(var ABody: String);
 var
   i, NameStart, ClassStart, LineEnd: Integer;
+  Replacement: TPair<String, String>;
+  RuleName: String;
+  Rule: TRule;
 begin
   if FGenerated then
   begin
@@ -786,21 +794,40 @@ begin
 
     LineEnd := Pos(CRLF, ABody, NameStart);
     if LineEnd = 0 then
-      LineEnd := Pos(#13, ABody, NameStart);
+      LineEnd := Pos(CR, ABody, NameStart);
     if LineEnd = 0 then
-      LineEnd := Pos(#10, ABody, NameStart);
+      LineEnd := Pos(LF, ABody, NameStart);
     if LineEnd = 0 then
       LineEnd := NameStart;
 
-    Insert(CRLF + '    ' + FObjName + ': ' + FClassName + ';', ABody, LineEnd);
+    ABody.Insert(LineEnd - 1, CRLF + '    ' + FObjName + ': ' + FClassName + ';');
   end
   else
-    if FOldClassName <> '' then
+    if (FOldClassName <> '') and (FObjName <> '') then
     begin
       NameStart := PosNoCase(FObjName, ABody);
       ClassStart := PosNoCase(FOldClassName, ABody, NameStart);
-      ABody := Copy(ABody, 1, NameStart + Length(FObjName) - 1) + ': ' + FClassName + Copy(ABody, ClassStart + Length(FOldClassName));
+      ABody := ABody.Substring(0, NameStart + FObjName.Length - 1) + ': ' + FClassName +
+        ABody.Substring(ClassStart + FOldClassName.Length - 1);
     end;
+
+  if FObjName <> '' then
+  begin
+    for i := 0 to FIniSectionValues.Count - 1 do
+    begin
+      RuleName := FIniSectionValues.Names[i];
+      if not TReflexiveMask.ContainsWildcards(RuleName) then
+      begin
+        Rule := GetRule(RuleName, FIniSectionValues);
+        if (RuleName <> Rule.NewName) and not FCodeReplacements.ContainsKey('.' + RuleName) then
+          FCodeReplacements.Add('.' + RuleName, '.' + Rule.NewName)
+      end;
+    end;
+
+    for Replacement in FCodeReplacements do
+      ABody := StringReplaceSkipChars(ABody, FObjName + Replacement.Key, FObjName + Replacement.Value,
+        [CR, LF, ' ']);
+  end;
 
   for i := 0 to Pred(FOwnedObjs.Count) do
     FOwnedObjs[i].InternalProcessBody(ABody);
@@ -1099,6 +1126,9 @@ begin
           Break;
         end;
   end;
+
+  if Assigned(Result) and (Result.Name <> AProp.Name) then
+    FCodeReplacements.AddOrSetValue('.' + AProp.Name, '.' + Result.Name);
 end;
 
 procedure TDfmToFmxObject.UpdateUsesStringList(AUsesList: TStrings);

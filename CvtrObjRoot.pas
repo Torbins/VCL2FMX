@@ -72,7 +72,7 @@ begin
   end;
 
   if (FLinkControlList.Count = 0) and (FLinkGridList.Count = 0) then
-    Exit(Result.TrimRight([#13, #10]));
+    Exit(Result.TrimRight([CR, LF]));
 
   Result := Result + '  object SingletoneBindingsList: TBindingsList' +
     CRLF + '    Methods = <>' +
@@ -346,7 +346,7 @@ begin
   try
     PopulateStringsFromArray(UsesList, AOrigUsesArray);
     UpdateUsesStringList(UsesList);
-    Result := 'uses'#13#10'  ';
+    Result := 'uses' + CRLF + '  ';
     LineLen := 2;
     for i := 0 to Pred(UsesList.Count) do
       if Trim(UsesList[i]) <> EmptyStr then
@@ -354,7 +354,7 @@ begin
         LineLen := LineLen + Length(UsesList[i]) + 2;
         if LineLen > 80 then
         begin
-          Result := Result + #13#10'  ';
+          Result := Result + CRLF + '  ';
           LineLen := 2 + Length(UsesList[i]) + 2;
         end;
         Result := Result + UsesList[i] + ', ';

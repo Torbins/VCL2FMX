@@ -10,6 +10,8 @@ uses
 
 const
   CRLF = #13#10;
+  CR = #13;
+  LF = #10;
   ZSISOffset = 0;
   LineTruncLength = 64;
 
@@ -17,8 +19,10 @@ type
   TImageList = class(TObjectList<TPngImage>);
 
 function ColorToAlphaColor(const AColor: String): String;
-function PosNoCase(const ASubstr: String; AFullString: String; Offset: Integer = 1; const SkipChars: TArray<Char> = []):
-  Integer;
+function PosNoCase(const ASubstr: String; AFullString: String; Offset: Integer = 1;
+  const ASkipChars: TArray<Char> = []): Integer;
+function StringReplaceSkipChars(const Source, OldPattern, NewPattern: string; const ASkipChars: TArray<Char> = []):
+  string;
 procedure PopulateStringsFromArray(AStrings: TStrings; AArray: TArray<String>);
 function BreakIntoLines(const AData, APad: String; ALineLen: Integer = LineTruncLength): String;
 function StreamToHex(AMemStream:TMemoryStream): String;
@@ -43,42 +47,43 @@ begin
   AlphaColorToIdent(AlphaColor, Result);
 end;
 
-function PosNoCase(const ASubstr: String; AFullString: String; Offset: Integer = 1; const SkipChars: TArray<Char> = []):
-  Integer;
+function CheckSubstr(const AFullString, ASubUp, ASubLow: String; APos: Integer; const ASkipChars: TArray<Char>;
+  var ASkipCount: Integer): Boolean; inline;
 var
-  SubLength: Integer;
-  FullLength: Integer;
-  SubUp, SubLow: String;
-
-  function CheckSubstr(APos: Integer): Boolean;
-  var
-    i, j, EndCount, SubIndex: Integer;
-    FullChar: Char;
-    Skip: Boolean;
+  i: Integer;
+  FullChar, SkipChar: Char;
+  Skip: Boolean;
+begin
+  Result := True;
+  i := 0;
+  ASkipCount := 0;
+  while i < ASubUp.Length + ASkipCount do
   begin
-    Result := True;
-    i := 0;
-    EndCount := SubLength;
-    while i < EndCount do
-    begin
-      Inc(i);
-      FullChar := AFullString[APos + i - 1];
+    Inc(i);
+    FullChar := AFullString[APos + i];
 
-      Skip := False;
-      for j := 0 to Length(SkipChars) - 1 do
-        if FullChar = SkipChars[j] then
-        begin
-          Skip := True;
-          Inc(EndCount);
-          Break;
-        end;
+    Skip := False;
+    for SkipChar in ASkipChars do
+      if SkipChar = FullChar then
+      begin
+        Skip := True;
+        Inc(ASkipCount);
+        Break;
+      end;
 
-      SubIndex := i - EndCount + SubLength;
-      if (not Skip) and (SubUp[SubIndex] <> FullChar) and (SubLow[SubIndex] <> FullChar) then
-        Exit(False);
-    end;
+    if Skip and (i = 1) then
+      Exit(False);
+
+    if (not Skip) and (ASubUp[i - ASkipCount] <> FullChar) and (ASubLow[i - ASkipCount] <> FullChar) then
+      Exit(False);
   end;
+end;
 
+function PosNoCase(const ASubstr: String; AFullString: String; Offset: Integer = 1;
+  const ASkipChars: TArray<Char> = []): Integer;
+var
+  FullLength, SubLength, Temp: Integer;
+  SubUp, SubLow: String;
 begin
   Result := 0;
   if (AFullString = '') or (ASubstr = '') or (Offset <= 0) then
@@ -93,16 +98,63 @@ begin
   SubUp := ASubstr.ToUpper;
   SubLow := ASubstr.ToLower;
 
-  Result := Offset;
-  while SubLength <= (FullLength - Result + 1) do
+  Result := Offset - 1;
+  while SubLength <= (FullLength - Result) do
   begin
-    if CheckSubstr(Result) then
-      Exit
+    if CheckSubstr(AFullString, SubUp, SubLow, Result, ASkipChars, Temp) then
+      Exit(Result + 1)
     else
       Inc(Result);
   end;
 
   Result := 0;
+end;
+
+function StringReplaceSkipChars(const Source, OldPattern, NewPattern: string; const ASkipChars: TArray<Char> = []):
+  string;
+var
+  SourceLength, OldLength, SkipCount, Pos, Len, i, PrevEnd: Integer;
+  PatternStarts, PatternEnds: array of Integer;
+  OldUp, OldLow: String;
+begin
+  Result := Source;
+  if (Source = '') or (OldPattern = '') then
+    Exit;
+
+  OldLength := OldPattern.Length;
+  SourceLength := Source.Length;
+
+  if OldLength > SourceLength then
+    Exit;
+
+  OldUp := OldPattern.ToUpper;
+  OldLow := OldPattern.ToLower;
+
+  Pos := 0;
+  while OldLength <= (SourceLength - Pos) do
+  begin
+    if CheckSubstr(Source, OldUp, OldLow, Pos, ASkipChars, SkipCount) then
+    begin
+      Len := Length(PatternStarts);
+      SetLength(PatternStarts, Len + 1);
+      PatternStarts[Len] := Pos;
+      Len := Length(PatternEnds);
+      SetLength(PatternEnds, Len + 1);
+      PatternEnds[Len] := Pos + OldLength + SkipCount;
+      Inc(Pos, OldLength + SkipCount)
+    end
+    else
+      Inc(Pos);
+  end;
+
+  Result := '';
+  PrevEnd := 0;
+  for i := 0 to High(PatternStarts) do
+  begin
+    Result := Result + Source.Substring(PrevEnd, PatternStarts[i] - PrevEnd) + NewPattern;
+    PrevEnd := PatternEnds[i];
+  end;
+  Result := Result + Source.Substring(PrevEnd);
 end;
 
 procedure PopulateStringsFromArray(AStrings: TStrings; AArray: TArray<String>);
