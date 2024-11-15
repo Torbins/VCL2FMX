@@ -59,7 +59,16 @@ type
     Parameter: String;
   end;
 
-  TCodeReplacements = class(TDictionary<String, String>);
+  TCodeReplacement = record
+    NewCode: String;
+    IsEvent: Boolean;
+  end;
+
+  TCodeReplacements = class(TDictionary<String, TCodeReplacement>)
+  public
+    procedure AddProperty(const AOldCode, ANewCode: String);
+    procedure AddEvent(const AEvent, AParams: String);
+  end;
 
   TDfmToFmxObject = class;
   TOwnedObjects = class(TObjectList<TDfmToFmxObject>);
@@ -534,7 +543,7 @@ type
     for Prop in AInitProps do
       AddFmxProperty(Result, Prop.Name, Prop.Value);
     for Prop in AReplacements do
-      FCodeReplacements.AddOrSetValue(Prop.Name, Prop.Value);
+      FCodeReplacements.AddProperty(Prop.Name, Prop.Value);
   end;
 
   procedure ConvertGlyph;
@@ -572,22 +581,22 @@ type
 const
   ChildImageInitParams: array [0..2] of TProp = ((Name: 'Align'; Value: 'Client'), (Name: 'HitTest'; Value: 'False'),
     (Name: 'WrapMode'; Value: 'Fit'));
-  ChildImageReplacements: array [0..0] of TProp = ((Name: '.Picture'; Value: '_Glyph.Bitmap'));
+  ChildImageReplacements: array [0..0] of TProp = ((Name: 'Picture'; Value: '_Glyph.Bitmap'));
   ColoredRectInitParams: array [0..5] of TProp = ((Name: 'Align'; Value: 'Client'), (Name: 'Margins.Left'; Value: '1'),
     (Name: 'Margins.Top'; Value: '1'), (Name: 'Margins.Right'; Value: '1'), (Name: 'Margins.Bottom'; Value: '1'),
     (Name: 'Stroke.Kind'; Value: 'None'));
-  ColoredRectReplacements: array [0..0] of TProp = ((Name: '.Color'; Value: '_Color.Fill.Color'));
+  ColoredRectReplacements: array [0..0] of TProp = ((Name: 'Color'; Value: '_Color.Fill.Color'));
   RadioButtonInitParams: array [0..2] of TProp = ((Name: 'Size.Height'; Value: '19'), (Name: 'Position.X'; Value: '8'),
     (Name: 'Size.Width'; Value: '50'));
   SeparateCaptionInitParams: array [0..1] of TProp = ((Name: 'Align'; Value: 'Client'),
     (Name: 'TabStop'; Value: 'False'));
-  SeparateCaptionReplacements: array [0..7] of TProp = ((Name: '.ShowCaption'; Value: '_Caption.Visible'),
-    (Name: '.VerticalAlignment'; Value: '_Caption.TextSettings.VertAlign'),
-    (Name: '.Alignment'; Value: '_Caption.TextSettings.HorzAlign'), (Name: '.Caption'; Value: '_Caption.Text'),
-    (Name: '.Font.Color'; Value: '_Caption.TextSettings.FontColor'),
-    (Name: '.Font.Height'; Value: '_Caption.TextSettings.Font.Size'),
-    (Name: '.Font.Name'; Value: '_Caption.TextSettings.Font.Family'),
-    (Name: '.Font.Style'; Value: '_Caption.TextSettings.Font.Style'));
+  SeparateCaptionReplacements: array [0..7] of TProp = ((Name: 'ShowCaption'; Value: '_Caption.Visible'),
+    (Name: 'VerticalAlignment'; Value: '_Caption.TextSettings.VertAlign'),
+    (Name: 'Alignment'; Value: '_Caption.TextSettings.HorzAlign'), (Name: 'Caption'; Value: '_Caption.Text'),
+    (Name: 'Font.Color'; Value: '_Caption.TextSettings.FontColor'),
+    (Name: 'Font.Height'; Value: '_Caption.TextSettings.Font.Size'),
+    (Name: 'Font.Name'; Value: '_Caption.TextSettings.Font.Family'),
+    (Name: 'Font.Style'; Value: '_Caption.TextSettings.Font.Style'));
 var
   Obj: TDfmToFmxObject;
   Num, i: Integer;
@@ -793,11 +802,29 @@ begin
 end;
 
 procedure TDfmToFmxObject.InternalProcessBody(var ABody: String);
+type
+  TReplacementPair = TPair<String, TCodeReplacement>;
 var
   i, NameStart, ClassStart, LineEnd: Integer;
-  Replacement: TPair<String, String>;
+  Replacement: TReplacementPair;
   RuleName: String;
   Rule: TRule;
+
+  procedure ReplaceEventParams(AReplacement: TReplacementPair);
+  var
+    Name, Opening, Closing: Integer;
+  begin
+    Name := PosNoCase(AReplacement.Key, ABody);
+    while Name > 0 do
+    begin
+      Opening := Pos('(', ABody, Name + AReplacement.Key.Length);
+      Closing := Pos(')', ABody, Opening + 1);
+      ABody := ABody.Substring(0, Opening) + AReplacement.Value.NewCode + ABody.Substring(Closing - 1);
+
+      Name := PosNoCase(AReplacement.Key, ABody, Closing + 1);
+    end;
+  end;
+
 begin
   if FGenerated then
   begin
@@ -833,13 +860,16 @@ begin
       begin
         Rule := GetRule(RuleName, FIniSectionValues);
         if (RuleName <> Rule.NewName) and not FCodeReplacements.ContainsKey('.' + RuleName) then
-          FCodeReplacements.Add('.' + RuleName, '.' + Rule.NewName)
+          FCodeReplacements.AddProperty(RuleName, '.' + Rule.NewName)
       end;
     end;
 
     for Replacement in FCodeReplacements do
-      ABody := StringReplaceSkipChars(ABody, FObjName + Replacement.Key, FObjName + Replacement.Value,
-        [CR, LF, ' ']);
+      if not Replacement.Value.IsEvent then
+        ABody := StringReplaceSkipChars(ABody, FObjName + Replacement.Key, FObjName + Replacement.Value.NewCode,
+          [CR, LF, ' '])
+      else
+        ReplaceEventParams(Replacement);
   end;
 
   for i := 0 to Pred(FOwnedObjs.Count) do
@@ -1055,6 +1085,12 @@ begin
       TDfmItemsProp(AProp).Transform(nil);
   end
   else
+  if Rule.Action = '#EventParameters#' then
+  begin
+    Result := TFmxProperty.Create(Rule.NewName, AProp.Value);
+    FCodeReplacements.AddEvent(AProp.Value, Rule.Parameter);
+  end
+  else
   if Rule.Action = '#GenerateLinkColumns#' then
   begin
     if not (AProp is TDfmItemsProp) then
@@ -1141,7 +1177,7 @@ begin
   end;
 
   if Assigned(Result) and (Result.Name <> AProp.Name) then
-    FCodeReplacements.AddOrSetValue('.' + AProp.Name, '.' + Result.Name);
+    FCodeReplacements.AddProperty(AProp.Name, '.' + Result.Name);
 end;
 
 procedure TDfmToFmxObject.UpdateUsesStringList(AUsesList: TStrings);
@@ -1179,6 +1215,26 @@ end;
 function TDfmToFmxItem.GetObjHeader: String;
 begin
   Result := 'item' + CRLF;
+end;
+
+{ TCodeReplacements }
+
+procedure TCodeReplacements.AddEvent(const AEvent, AParams: String);
+var
+  Rep: TCodeReplacement;
+begin
+  Rep.IsEvent := True;
+  Rep.NewCode := AParams;
+  AddOrSetValue(AEvent, Rep);
+end;
+
+procedure TCodeReplacements.AddProperty(const AOldCode, ANewCode: String);
+var
+  Rep: TCodeReplacement;
+begin
+  Rep.IsEvent := False;
+  Rep.NewCode := ANewCode;
+  AddOrSetValue('.' + AOldCode, Rep);
 end;
 
 end.
