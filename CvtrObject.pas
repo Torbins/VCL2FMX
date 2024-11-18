@@ -307,19 +307,20 @@ var
   procedure HandleStyledSettings(AExcludeElement: String);
   var
     Prop: TFmxPropertyBase;
+    Item: Integer;
   begin
     Prop := FFmxProps.FindByName('StyledSettings');
 
     if not Assigned(Prop) then
     begin
-      Prop := TFmxProperty.Create('StyledSettings', '[Family, Size, Style, FontColor, Other]');
+      Prop := TFmxSetProp.Create('StyledSettings');
+      TFmxSetProp(Prop).Items.AddStrings(['Family', 'Size', 'Style', 'FontColor', 'Other']);
       FFmxProps.AddProp(Prop);
     end;
 
-    Prop.Value := Prop.Value.Replace(AExcludeElement, '');
-    Prop.Value := Prop.Value.Replace('[, ', '[');
-    Prop.Value := Prop.Value.Replace(', , ', ', ');
-    Prop.Value := Prop.Value.Replace(', ]', ']');
+    Item := (Prop as TFmxSetProp).Items.IndexOf(AExcludeElement);
+    if Item >= 0 then
+      (Prop as TFmxSetProp).Items.Delete(Item);
   end;
 
   procedure CalcImageWrapMode;
