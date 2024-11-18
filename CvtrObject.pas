@@ -1052,9 +1052,6 @@ begin
   if Rule.Action = '#Color#' then
     Result := TFmxProperty.Create(Rule.NewName, ColorToAlphaColor(AProp.Value))
   else
-  if Rule.Action = '#ConvertFontSize#' then
-    Result := TFmxProperty.Create(Rule.NewName, Abs(AProp.Value.ToInteger).ToString)
-  else
   if Rule.Action = '#Delete#' then
   begin
     Result := nil;
@@ -1067,6 +1064,9 @@ begin
     Result := TFmxProperty.Create(Rule.NewName, AProp.Value);
     FCodeReplacements.AddEvent(AProp.Value, Rule.Parameter);
   end
+  else
+  if Rule.Action = '#FontSize#' then
+    Result := TFmxProperty.Create(Rule.NewName, Abs(AProp.Value.ToInteger).ToString)
   else
   if Rule.Action = '#GenerateLinkColumns#' then
   begin
