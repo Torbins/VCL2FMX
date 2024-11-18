@@ -1052,6 +1052,20 @@ begin
   if Rule.Action = '#Color#' then
     Result := TFmxProperty.Create(Rule.NewName, ColorToAlphaColor(AProp.Value))
   else
+  if Rule.Action = '#ConvertData#' then
+  begin
+    if Rule.Parameter = 'Image' then
+      Result := TFmxImageProp.Create(Rule.NewName, AProp.Value)
+    else
+    if Rule.Parameter = 'ImageList' then
+      Result := TFmxImageListProp.Create(Rule.NewName, AProp.Value)
+    else
+    if Rule.Parameter = 'Picture' then
+      Result := TFmxPictureProp.Create(Rule.NewName, AProp.Value)
+    else
+      raise Exception.Create('Unknown data type ' + Rule.Parameter + ' for property ' + AProp.Name);
+  end
+  else
   if Rule.Action = '#Delete#' then
   begin
     Result := nil;
@@ -1091,12 +1105,6 @@ begin
     Result := nil;
   end
   else
-  if Rule.Action = '#ImageData#' then
-    Result := TFmxImageProp.Create(Rule.NewName, AProp.Value)
-  else
-  if Rule.Action = '#ImageListData#' then
-    Result := TFmxImageListProp.Create(Rule.NewName, AProp.Value)
-  else
   if Rule.Action = '#ItemEnum#' then
   begin
     if AProp is TDfmSetProp then
@@ -1116,9 +1124,6 @@ begin
         Result := TFmxProperty.Create(Rule.NewName, EnumValue);
     end;
   end
-  else
-  if Rule.Action = '#PictureData#' then
-    Result := TFmxPictureProp.Create(Rule.NewName, AProp.Value)
   else
   if Rule.Action = '#SetValue#' then
   begin
