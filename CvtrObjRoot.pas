@@ -313,8 +313,6 @@ begin
   FIniFile.ReadSection('TForm#Include', FIniIncludeValues);
   FIniFile.ReadSectionValues('TForm#AddIfPresent', FIniAddProperties);
   FIniFile.ReadSectionValues('TForm#DefaultValueProperty', FIniDefaultValueProperties);
-
-  LoadEnums;
 end;
 
 procedure TDfmToFmxObjRoot.InitObjects;

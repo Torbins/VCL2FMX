@@ -72,7 +72,14 @@ type
 
   TDfmToFmxObject = class;
   TOwnedObjects = class(TObjectList<TDfmToFmxObject>);
-  TEnumList = class(TObjectDictionary<String, TStringList>);
+
+  TEnumList = class(TObjectDictionary<String, TStringList>)
+  private
+    FIniFile: TMemIniFile;
+  public
+    constructor Create(AIniFile: TMemIniFile);
+    function GetEnum(const AName: String; var AItems: TStringList): Boolean;
+  end;
 
   TDfmToFmxObject = class
   private
@@ -100,7 +107,6 @@ type
     function GetRule(const AName: string; AList: TStringList = nil): TRule;
     function TransformProperty(AProp: TDfmPropertyBase): TFmxPropertyBase;
     procedure LoadCommonProperties(AParamName: String);
-    procedure LoadEnums;
     procedure GenerateObject(AProp: TDfmPropertyBase; AObjectType: string);
     procedure GenerateStyle(AProp: TDfmPropertyBase; AObjectType: string);
     procedure InternalProcessBody(var ABody: String);
@@ -785,14 +791,13 @@ begin
   end;
 
   LoadCommonProperties('*');
-  LoadEnums;
 end;
 
 procedure TDfmToFmxObject.InitObjects;
 begin
   FDfmProps := TDfmProperties.Create({AOwnsObjects} True);
   FFmxProps := TFmxProperties.Create({AOwnsObjects} True);
-  FEnumList := TEnumList.Create([doOwnsValues]);
+  FEnumList := TEnumList.Create(FRoot.IniFile);
   FIniAddProperties := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
   FIniDefaultValueProperties := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
   FIniIncludeValues := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
@@ -939,26 +944,6 @@ begin
   end;
 end;
 
-procedure TDfmToFmxObject.LoadEnums;
-var
-  Section: String;
-  Sections: TStringList;
-begin
-  Sections := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
-  try
-    FRoot.IniFile.ReadSections(Sections);
-    for Section in Sections do
-      if Section.StartsWith('#') and Section.EndsWith('#') then
-      begin
-        var EnumElements := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
-        FRoot.IniFile.ReadSectionValues(Section, EnumElements);
-        FEnumList.Add(Section, EnumElements);
-      end;
-  finally
-    Sections.Free;
-  end;
-end;
-
 function TDfmToFmxObject.ReadContents(AStm: TStreamReader): String;
 var
   PropEqSign: Integer;
@@ -1027,45 +1012,37 @@ begin
 end;
 
 function TDfmToFmxObject.TransformProperty(AProp: TDfmPropertyBase): TFmxPropertyBase;
-type
-  TEnumResult = (erNotEnum, erIgnore, erOk);
 var
   DefaultValuePropPos: Integer;
   Rule: TRule;
   EnumValue, Item: String;
 
-  function ReplaceEnum(const APropValue: String; var AEnumValue: String): TEnumResult;
+  function ReplaceEnum(const APropValue: String): String;
   var
     EnumRule: TRule;
     EnumItems: TStringList;
   begin
-    Result := erNotEnum;
-
-    if (Rule.Action = '') or (Rule.Action = '#ItemClass#') then
-      Exit;
-
-    if not FEnumList.TryGetValue(Rule.Action, EnumItems) then
-      raise Exception.Create('Required enum ' + Rule.Action + ' not found');
+    if not FEnumList.GetEnum(Rule.Parameter, EnumItems) then
+      raise Exception.Create('Required enum ' + Rule.Parameter + ' not found');
 
     EnumRule := GetRule(APropValue, EnumItems);
     if (not EnumRule.LineFound) and (EnumItems.IndexOfName('#UnknownValuesAllowed#') < 0) then
-      raise Exception.Create('Unknown item ' + APropValue + ' in enum ' + Rule.Action);
+      raise Exception.Create('Unknown item ' + APropValue + ' in enum ' + Rule.Parameter);
 
     if EnumRule.Action = '#IgnoreValue#' then
-    begin
-      AEnumValue := '';
-      Exit(erIgnore);
-    end;
+      Exit('');
 
     if EnumRule.Action = '#SetProperty#' then
     begin
       FFmxProps.AddMultipleProps(EnumRule.Parameter);
-      AEnumValue := '';
-      Exit(erIgnore);
+      Exit('');
     end;
 
-    AEnumValue := EnumRule.NewName;
-    Result := erOk;
+    if EnumRule.Action <> '' then
+      raise Exception.Create('Unknown action ' + EnumRule.Action + ' in item ' + APropValue + ' in enum ' + 
+        Rule.Parameter);
+      
+    Result := EnumRule.NewName;
   end;
 
 begin
@@ -1120,6 +1097,26 @@ begin
   if Rule.Action = '#ImageListData#' then
     Result := TFmxImageListProp.Create(Rule.NewName, AProp.Value)
   else
+  if Rule.Action = '#ItemEnum#' then
+  begin
+    if AProp is TDfmSetProp then
+    begin
+      Result := TFmxSetProp.Create(Rule.NewName);
+      for Item in TDfmSetProp(AProp).Items do
+      begin
+        EnumValue := ReplaceEnum(Item);
+        if EnumValue <> '' then
+          TFmxSetProp(Result).Items.Add(EnumValue);
+      end
+    end
+    else
+    begin
+      EnumValue := ReplaceEnum(AProp.Value);
+      if EnumValue <> '' then     
+        Result := TFmxProperty.Create(Rule.NewName, EnumValue);
+    end;
+  end
+  else
   if Rule.Action = '#PictureData#' then
     Result := TFmxPictureProp.Create(Rule.NewName, AProp.Value)
   else
@@ -1132,35 +1129,31 @@ begin
   if Rule.Action = '#ToString#' then
     Result := TFmxProperty.Create(Rule.NewName, AProp.Value.QuotedString)
   else
-  if AProp is TDfmSetProp then
+  if (Rule.Action = '') or (Rule.Action = '#ItemClass#') then
   begin
-    Result := TFmxSetProp.Create(Rule.NewName);
-    for Item in TDfmSetProp(AProp).Items do
-      case ReplaceEnum(Item, EnumValue) of
-        erOk: TFmxSetProp(Result).Items.Add(EnumValue);
-        erNotEnum: TFmxSetProp(Result).Items.Add(Item);
-      end;
+    if AProp is TDfmStringsProp then
+      Result := TFmxStringsProp.Create(Rule.NewName, TDfmStringsProp(AProp).Strings)
+    else
+    if AProp is TDfmDataProp then
+      Result := TFmxDataProp.Create(Rule.NewName, AProp.Value)
+    else
+    if AProp is TDfmItemsProp then
+    begin
+      Result := TFmxItemsProp.Create(Rule.NewName);
+      TDfmItemsProp(AProp).Transform(TFmxItemsProp(Result).Items);
+    end
+    else
+    if AProp is TDfmSetProp then
+    begin
+      Result := TFmxSetProp.Create(Rule.NewName);
+      for Item in TDfmSetProp(AProp).Items do
+        TFmxSetProp(Result).Items.Add(Item);
+    end
+    else
+      Result := TFmxProperty.Create(Rule.NewName, AProp.Value);
   end
   else
-  case ReplaceEnum(AProp.Value, EnumValue) of
-    erOk: Result := TFmxProperty.Create(Rule.NewName, EnumValue);
-    erNotEnum:
-      begin
-        if AProp is TDfmStringsProp then
-          Result := TFmxStringsProp.Create(Rule.NewName, TDfmStringsProp(AProp).Strings)
-        else
-        if AProp is TDfmDataProp then
-          Result := TFmxDataProp.Create(Rule.NewName, AProp.Value)
-        else
-        if AProp is TDfmItemsProp then
-        begin
-          Result := TFmxItemsProp.Create(Rule.NewName);
-          TDfmItemsProp(AProp).Transform(TFmxItemsProp(Result).Items);
-        end
-        else
-          Result := TFmxProperty.Create(Rule.NewName, AProp.Value);
-      end;
-  end;
+    raise Exception.Create('Unknown action ' + Rule.Action + ' for property ' + AProp.Name);
 
   if FIniDefaultValueProperties.Count > 0 then
   begin
@@ -1235,6 +1228,40 @@ begin
   Rep.IsEvent := False;
   Rep.NewCode := ANewCode;
   AddOrSetValue('.' + AOldCode, Rep);
+end;
+
+{ TEnumList }
+
+constructor TEnumList.Create(AIniFile: TMemIniFile);
+begin
+  inherited Create([doOwnsValues]);
+  FIniFile := AIniFile;
+end;
+
+function TEnumList.GetEnum(const AName: String; var AItems: TStringList): Boolean;
+var
+  Sections: TStringList;
+begin
+  if TryGetValue(AName, AItems) then
+    Result := True
+  else
+  begin
+    Sections := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
+    try
+      FIniFile.ReadSections(Sections);
+      if Sections.IndexOf(AName) >= 0 then
+      begin
+        AItems := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
+        FIniFile.ReadSectionValues(AName, AItems);
+        Add(AName, AItems);
+        Result := True;
+      end
+      else
+        Result := False;
+    finally
+      Sections.Free;
+    end;
+  end;
 end;
 
 end.
