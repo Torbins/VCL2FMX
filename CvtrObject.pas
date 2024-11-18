@@ -300,8 +300,10 @@ end;
 
 function TDfmToFmxObject.FMXProperties(APad: String): String;
 var
-  i: Integer;
+  i, j: Integer;
   Rule: TRule;
+  Mask: TReflexiveMask;
+  DfmProp: TDfmPropertyBase;
   ExistingProp: TFmxPropertyBase;
 
   procedure HandleStyledSettings(AExcludeElement: String);
@@ -436,6 +438,24 @@ begin
 
   for i := 0 to Pred(FIniDefaultValueProperties.Count) do
   begin
+    DfmProp := FDfmProps.FindByName(FIniDefaultValueProperties.Names[i]);
+    if (not Assigned(DfmProp)) and (TReflexiveMask.ContainsWildcards(FIniDefaultValueProperties.Names[i])) then
+    begin
+      Mask := TReflexiveMask.Create(FIniDefaultValueProperties.Names[i]);
+      try
+        for j := 0 to FDfmProps.Count - 1 do
+          if Mask.Matches(FDfmProps[j].Name) then
+          begin
+            DfmProp := FDfmProps[j];
+            Break;
+          end;
+      finally
+        Mask.Free;
+      end;
+    end;
+    if Assigned(DfmProp) then
+      Continue;
+        
     Rule := GetRule(FIniDefaultValueProperties.Names[i], FIniDefaultValueProperties);
     if Rule.Action = '#CopyFromParent#' then
     begin
@@ -722,6 +742,9 @@ begin
       if RuleLine = '' then
         for var i := 0 to FIniSectionValues.Count - 1 do
         begin
+          if not TReflexiveMask.ContainsWildcards(FIniSectionValues.Names[i]) then
+            Continue;
+            
           Mask.Free;
           Mask := TReflexiveMask.Create(FIniSectionValues.Names[i]);
           if Mask.Matches(AName) then
@@ -903,32 +926,36 @@ begin
         (FIniSectionValues.IndexOfName(CommonProps.Names[i]) = -1) then
       begin
         Found := False;
-        CommonPropMask := TReflexiveMask.Create(CommonProps.Names[i]);
-        try
-          for j := 0 to Pred(FIniSectionValues.Count) do
-            if CommonPropMask.Matches(FIniSectionValues.Names[j]) then
-            begin
-              Found := True;
-              Break;
-            end;
-        finally
-          CommonPropMask.Free;
+        if TReflexiveMask.ContainsWildcards(CommonProps.Names[i]) then
+        begin
+          CommonPropMask := TReflexiveMask.Create(CommonProps.Names[i]);
+          try
+            for j := 0 to Pred(FIniSectionValues.Count) do
+              if CommonPropMask.Matches(FIniSectionValues.Names[j]) then
+              begin
+                Found := True;
+                Break;
+              end;
+          finally
+            CommonPropMask.Free;
+          end;
         end;
         if not Found then
           Candidates.Add(CommonProps[i]);
       end;
 
     for i := 0 to Pred(FIniSectionValues.Count) do
-    begin
-      ExistingPropMask := TReflexiveMask.Create(FIniSectionValues.Names[i]);
-      try
-        for j := Pred(Candidates.Count) downto 0 do
-          if ExistingPropMask.Matches(Candidates.Names[j]) then
-            Candidates.Delete(j);
-      finally
-        ExistingPropMask.Free;
+      if TReflexiveMask.ContainsWildcards(FIniSectionValues.Names[i]) then
+      begin
+        ExistingPropMask := TReflexiveMask.Create(FIniSectionValues.Names[i]);
+        try
+          for j := Pred(Candidates.Count) downto 0 do
+            if ExistingPropMask.Matches(Candidates.Names[j]) then
+              Candidates.Delete(j);
+        finally
+          ExistingPropMask.Free;
+        end;
       end;
-    end;
 
     for i := 0 to Pred(Candidates.Count) do
       FIniSectionValues.Add(Candidates[i]);
@@ -1160,20 +1187,6 @@ begin
   end
   else
     raise Exception.Create('Unknown action ' + Rule.Action + ' for property ' + AProp.Name);
-
-  if FIniDefaultValueProperties.Count > 0 then
-  begin
-    DefaultValuePropPos := FIniDefaultValueProperties.IndexOfName(AProp.Name);
-    if DefaultValuePropPos >= 0 then
-      FIniDefaultValueProperties.Delete(DefaultValuePropPos)
-    else
-      for var i := 0 to Pred(FIniDefaultValueProperties.Count) do
-        if MatchesMask(AProp.Name, FIniDefaultValueProperties.Names[i]) then
-        begin
-          FIniDefaultValueProperties.Delete(i);
-          Break;
-        end;
-  end;
 
   if Assigned(Result) and (Result.Name <> AProp.Name) then
     FCodeReplacements.AddProperty(AProp.Name, '.' + Result.Name);
