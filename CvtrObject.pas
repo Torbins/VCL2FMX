@@ -712,12 +712,41 @@ begin
 end;
 
 procedure TDfmToFmxObject.GenerateStyle(AProp: TDfmPropertyBase; AObjectType: string);
+
+  procedure SetStyle(const AType, AParam, AValue: String);
+  var
+    Prop: TFmxPropertyBase;
+  begin
+    Prop := FFmxProps.FindByName('StyleLookup');
+
+    if not Assigned(Prop) then
+    begin
+      Prop := TFmxProperty.Create('StyleLookup', '');
+      FFmxProps.AddProp(Prop);
+    end;
+
+    Prop.Value := StyleGenerator.WriteParam(Prop.Value.DeQuotedString, AType, AParam, AValue).QuotedString;
+  end;
+
 begin
   FIniIncludeValues.Add('VCL2FMXStyleGen');
 
   if (AObjectType = 'Label') and (AProp.Name = 'Color') then
-    FFmxProps.Add(TFmxProperty.Create('StyleLookup', (LabelStyle + '?' + BackgroundColor + '=' +
-      ColorToAlphaColor(AProp.Value)).QuotedString));
+    SetStyle(CLabelStyle, CBackgroundColor, ColorToAlphaColor(AProp.Value));
+  if AObjectType = 'GroupBox' then
+  begin
+    if AProp.Name = 'Color' then
+      SetStyle(CGroupBoxStyle, CBackgroundColor, ColorToAlphaColor(AProp.Value));
+    if AProp.Name = 'ShowFrame' then
+      SetStyle(CGroupBoxStyle, CShowFrame, AProp.Value);
+    if AProp.Name = 'ParentBackground' then
+    begin
+      if AProp.Value.ToBoolean then
+        SetStyle(CGroupBoxStyle, CBackgroundColor, 'claNull')
+      else
+        SetStyle(CGroupBoxStyle, CBackgroundColor, 'xFFF0F0F0');
+    end;
+  end;
 end;
 
 function TDfmToFmxObject.GetObjHeader: string;
