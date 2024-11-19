@@ -40,6 +40,7 @@ type
 const
   CLabelStyle = 'VCL2FMXLabelStyle';
   CGroupBoxStyle = 'VCL2FMXGroupBoxStyle';
+  CPanelStyle = 'VCL2FMXPanelStyle';
   CBackgroundColor = 'BackgroundColor';
   CShowFrame = 'ShowFrame';
 
@@ -106,7 +107,6 @@ begin
         Rectangle.Fill.Color := StringToAlphaColor(Parameters.Values[CBackgroundColor])
       else
         Rectangle.Fill.Color := claNull;
-      Rectangle.Locked := True;
       Rectangle.Stroke.Color := claGainsboro;
       if not StrToBoolDef(Parameters.Values[CShowFrame], True) then
         Rectangle.Stroke.Kind := TBrushKind.None;
@@ -115,7 +115,6 @@ begin
       Shadow.Parent := Rectangle;
       Shadow.ClipParent := True;
       Shadow.Fill.Color := Rectangle.Fill.Color;
-      Shadow.Locked := True;
       Shadow.HitTest := False;
       Shadow.Stroke.Kind := TBrushKind.None;
 
@@ -125,7 +124,6 @@ begin
       ShadowedText.StyleName := 'text';
       ShadowedText.AutoSize := True;
       ShadowedText.ClipParent := True;
-      ShadowedText.Locked := True;
       ShadowedText.HitTest := False;
       ShadowedText.Margins.Left := 1;
       ShadowedText.Margins.Top := 2;
@@ -148,7 +146,6 @@ begin
         Rectangle.Parent := Style;
         Rectangle.Align := TAlignLayout.Client;
         Rectangle.Fill.Color := StringToAlphaColor(Parameters.Values[CBackgroundColor]);
-        Rectangle.Locked := True;
         Rectangle.HitTest := False;
         Rectangle.Stroke.Kind := TBrushKind.None;
       end;
@@ -157,10 +154,25 @@ begin
       StyleText.Parent := Style;
       StyleText.StyleName := 'text';
       StyleText.Align := TAlignLayout.Client;
-      StyleText.Locked := True;
       StyleText.HitTest := False;
 
       Result := Style;
+    end
+    else
+    if AStyleLookup.StartsWith(CPanelStyle) then
+    begin
+      Rectangle := TRectangle.Create(Self);
+      Rectangle.StyleName := CPanelStyle;
+      if Parameters.IndexOfName(CBackgroundColor) >= 0 then
+        Rectangle.Fill.Color := StringToAlphaColor(Parameters.Values[CBackgroundColor])
+      else
+        Rectangle.Fill.Color := $FFF0F0F0;
+      Rectangle.HitTest := False;
+      Rectangle.Stroke.Color := $FFA3A3A3;
+      Rectangle.XRadius := 2;
+      Rectangle.YRadius := 2;
+
+      Result := Rectangle;
     end
     else
       Result := nil;

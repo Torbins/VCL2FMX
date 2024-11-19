@@ -71,7 +71,7 @@ type
     function TransformProperty(AProp: TDfmProperty): TFmxProperty;
     procedure LoadCommonProperties(AParamName: String);
     procedure GenerateObject(AProp: TDfmProperty; AObjectType: string);
-    procedure GenerateStyle(AProp: TDfmProperty; AObjectType: string);
+    procedure GenerateStyle(const APropName, APropValue, AObjectType: String);
     procedure InternalProcessBody(var ABody: String);
     procedure UpdateUsesStringList(AUsesList: TStrings); virtual;
     function GetObjHeader: string; virtual;
@@ -355,6 +355,11 @@ begin
       CalcShapeClass;
       Continue;
     end;
+    if Rule.Action = '#GenerateStyle#' then
+    begin
+      GenerateStyle(Rule.NewName, '', Rule.Parameter);
+      Continue;
+    end;
     if Rule.Action = '#ReconsiderAfterRemovingRule#' then
     begin
       ReconsiderAfterRemovingRule(Rule.Parameter);
@@ -594,7 +599,7 @@ begin
   end;
 end;
 
-procedure TDfmToFmxObject.GenerateStyle(AProp: TDfmProperty; AObjectType: string);
+procedure TDfmToFmxObject.GenerateStyle(const APropName, APropValue, AObjectType: String);
 
   procedure SetStyle(const AType, AParam, AValue: String);
   var
@@ -611,23 +616,47 @@ procedure TDfmToFmxObject.GenerateStyle(AProp: TDfmProperty; AObjectType: string
     Prop.Value := StyleGenerator.WriteParam(Prop.Value.DeQuotedString, AType, AParam, AValue).QuotedString;
   end;
 
+  function IsParamSet(const AType, AParam: String): Boolean;
+  var
+    Prop: TFmxProperty;
+  begin
+    Result := False;
+    Prop := FFmxProps.FindByName('StyleLookup');
+    if Assigned(Prop) and (StyleGenerator.ReadParam(Prop.Value.DeQuotedString, AType, AParam) <> '') then
+      Result := True;
+  end;
+
 begin
   FIniIncludeValues.Add('VCL2FMXStyleGen');
 
-  if (AObjectType = 'Label') and (AProp.Name = 'Color') then
-    SetStyle(CLabelStyle, CBackgroundColor, ColorToAlphaColor(AProp.Value));
+  if (AObjectType = 'Label') and (APropName = 'Color') then
+    SetStyle(CLabelStyle, CBackgroundColor, ColorToAlphaColor(APropValue));
   if AObjectType = 'GroupBox' then
   begin
-    if AProp.Name = 'Color' then
-      SetStyle(CGroupBoxStyle, CBackgroundColor, ColorToAlphaColor(AProp.Value));
-    if AProp.Name = 'ShowFrame' then
-      SetStyle(CGroupBoxStyle, CShowFrame, AProp.Value);
-    if AProp.Name = 'ParentBackground' then
+    if APropName = 'Color' then
+      SetStyle(CGroupBoxStyle, CBackgroundColor, ColorToAlphaColor(APropValue));
+    if APropName = 'ShowFrame' then
+      SetStyle(CGroupBoxStyle, CShowFrame, APropValue);
+    if APropName = 'ParentBackground' then
     begin
-      if AProp.Value.ToBoolean then
+      if StrToBoolDef(APropValue, True) then
         SetStyle(CGroupBoxStyle, CBackgroundColor, 'claNull')
       else
-        SetStyle(CGroupBoxStyle, CBackgroundColor, 'xFFF0F0F0');
+        if not IsParamSet(CGroupBoxStyle, CBackgroundColor) then
+          SetStyle(CGroupBoxStyle, CBackgroundColor, 'xFFF0F0F0');
+    end;
+  end;
+  if AObjectType = 'Panel' then
+  begin
+    if APropName = 'Color' then
+      SetStyle(CPanelStyle, CBackgroundColor, ColorToAlphaColor(APropValue));
+    if APropName = 'ParentBackground' then
+    begin
+      if StrToBoolDef(APropValue, True) then
+        SetStyle(CPanelStyle, CBackgroundColor, 'claNull')
+      else
+        if not IsParamSet(CPanelStyle, CBackgroundColor) then
+          SetStyle(CPanelStyle, CBackgroundColor, 'xFFF0F0F0');
     end;
   end;
 end;
@@ -953,7 +982,6 @@ end;
 
 function TDfmToFmxObject.TransformProperty(AProp: TDfmProperty): TFmxProperty;
 var
-  DefaultValuePropPos: Integer;
   Rule: TRule;
   EnumValue, Item: String;
 
@@ -1041,7 +1069,7 @@ begin
   else
   if Rule.Action = '#GenerateStyle#' then
   begin
-    GenerateStyle(AProp, Rule.Parameter);
+    GenerateStyle(AProp.Name, AProp.Value, Rule.Parameter);
     Result := nil;
   end
   else
