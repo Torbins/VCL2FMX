@@ -31,7 +31,7 @@ procedure HexToStream(AData: string; AMemStream:TMemoryStream);
 implementation
 
 uses
-  System.StrUtils, System.UIConsts, Vcl.Graphics;
+  System.UIConsts, Vcl.Graphics;
 
 function ColorToAlphaColor(const AColor: String): String;
 var

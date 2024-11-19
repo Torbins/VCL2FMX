@@ -3,50 +3,13 @@ unit CvtrObject;
 interface
 
 uses
-  System.Classes, System.SysUtils, System.Generics.Collections, System.IniFiles, Vcl.Imaging.PngImage;
+  System.Classes, System.SysUtils, System.Generics.Collections, System.IniFiles, Vcl.Imaging.PngImage, CvtrProp;
 
 type
-  TDfmPropertyBase = class
-  protected
-    FName: String;
-    FValue: string;
-    function GetValue: String; virtual;
-  public
-    property Name: String read FName;
-    property Value: String read GetValue write FValue;
-    constructor Create(const AName, AValue: string); overload; virtual;
-  end;
-
-  TDfmProperties = class(TObjectList<TDfmPropertyBase>)
-  public
-    function FindByName(const AName: String): TDfmPropertyBase;
-    function GetIntValueDef(const AName: String; ADef: Integer): Integer;
-  end;
-
-  TFmxPropertyBase = class
-  protected
-    FName: String;
-    FValue: string;
-    function GetValue: String; virtual;
-  public
-    property Name: String read FName;
-    property Value: String read GetValue write FValue;
-    constructor Create(const AName, AValue: string); overload; virtual;
-    constructor CreateFromLine(const APropLine: string); virtual;
-    function ToString(APad: String): String; reintroduce; virtual;
-  end;
-
-  TFmxProperties = class(TObjectList<TFmxPropertyBase>)
-  public
-    procedure AddProp(AProp: TFmxPropertyBase);
-    procedure AddMultipleProps(APropsText: String);
-    function FindByName(AName: String): TFmxPropertyBase;
-  end;
-
   IDfmToFmxRoot = interface
-    procedure AddGridColumns(AObjName: String; AProp: TFmxPropertyBase);
-    procedure AddGridLink(AObjName: String; AProp: TDfmPropertyBase);
-    procedure AddFieldLink(AObjName: String; AProp: TDfmPropertyBase);
+    procedure AddGridColumns(AObjName: String; AProp: TFmxProperty);
+    procedure AddGridLink(AObjName: String; AProp: TDfmProperty);
+    procedure AddFieldLink(AObjName: String; AProp: TDfmProperty);
     function AddImageItem(APng: TPngImage): Integer;
     function GetIniFile: TMemIniFile;
     property IniFile: TMemIniFile read GetIniFile;
@@ -105,10 +68,10 @@ type
     function FMXSubObjects(APad: String): String;
     function ReadContents(AStm: TStreamReader): String;
     function GetRule(const AName: string; AList: TStringList = nil): TRule;
-    function TransformProperty(AProp: TDfmPropertyBase): TFmxPropertyBase;
+    function TransformProperty(AProp: TDfmProperty): TFmxProperty;
     procedure LoadCommonProperties(AParamName: String);
-    procedure GenerateObject(AProp: TDfmPropertyBase; AObjectType: string);
-    procedure GenerateStyle(AProp: TDfmPropertyBase; AObjectType: string);
+    procedure GenerateObject(AProp: TDfmProperty; AObjectType: string);
+    procedure GenerateStyle(AProp: TDfmProperty; AObjectType: string);
     procedure InternalProcessBody(var ABody: String);
     procedure UpdateUsesStringList(AUsesList: TStrings); virtual;
     function GetObjHeader: string; virtual;
@@ -133,101 +96,21 @@ type
 
   TDfmToFmxItems = class(TObjectList<TDfmToFmxItem>);
 
+  TDfmItemsProp = class(TDfmProperty)
+  protected
+    FItems: TDfmToFmxItems;
+  public
+    property Items: TDfmToFmxItems read FItems;
+    constructor Create(const AName, AValue: string); override;
+    destructor Destroy; override;
+    procedure ReadItems(AParent: TDfmToFmxObject; AClassName: String; AStm: TStreamReader);
+    procedure Transform(AItemStrings: TStrings);
+  end;
+
 implementation
 
 uses
-  System.Generics.Defaults, CvtrProp, Image, PatchLib, ReflexiveMasks, VCL2FMXStyleGen;
-
-{ TDfmPropertyBase }
-
-constructor TDfmPropertyBase.Create(const AName, AValue: string);
-begin
-  FName := AName;
-  FValue := AValue;
-end;
-
-function TDfmPropertyBase.GetValue: String;
-begin
-  Result := FValue;
-end;
-
-{ TDfmProperties }
-
-function TDfmProperties.FindByName(const AName: String): TDfmPropertyBase;
-var
-  i: Integer;
-begin
-  Result := nil;
-  for i := 0 to Count - 1 do
-    if Items[i].Name = AName then
-      Exit(Items[i]);
-end;
-
-function TDfmProperties.GetIntValueDef(const AName: String; ADef: Integer): Integer;
-var
-  Prop: TDfmPropertyBase;
-begin
-  Prop := FindByName(AName);
-  if Assigned(Prop) then
-    Result := StrToIntDef(Prop.Value, ADef)
-  else
-    Result := ADef;
-end;
-
-{ TFmxPropertyBase }
-
-constructor TFmxPropertyBase.Create(const AName, AValue: string);
-begin
-  FName := AName;
-  FValue := AValue;
-end;
-
-constructor TFmxPropertyBase.CreateFromLine(const APropLine: string);
-var
-  PropEqSign: Integer;
-begin
-  PropEqSign := APropLine.IndexOf('=');
-  FName := APropLine.Substring(0, PropEqSign).Trim;
-  FValue := APropLine.Substring(PropEqSign + 1).Trim;
-end;
-
-function TFmxPropertyBase.GetValue: String;
-begin
-  Result := FValue;
-end;
-
-function TFmxPropertyBase.ToString(APad: String): String;
-begin
-  Result := APad + '  ' + FName + ' = ' + FValue + CRLF;
-end;
-
-{ TFmxProperties }
-
-procedure TFmxProperties.AddMultipleProps(APropsText: String);
-var
-  PropsArray: TArray<String>;
-  Prop: String;
-begin
-  PropsArray := APropsText.Split(['#NextProp#']);
-  for Prop in PropsArray do
-    Add(TFmxProperty.CreateFromLine(Prop));
-end;
-
-procedure TFmxProperties.AddProp(AProp: TFmxPropertyBase);
-begin
-  if Assigned(AProp) then
-    Add(AProp);
-end;
-
-function TFmxProperties.FindByName(AName: String): TFmxPropertyBase;
-var
-  i: Integer;
-begin
-  Result := nil;
-  for i := 0 to Count - 1 do
-    if Items[i].Name = AName then
-      Exit(Items[i]);
-end;
+  System.Generics.Defaults, Image, PatchLib, ReflexiveMasks, VCL2FMXStyleGen;
 
 { TDfmToFmxObject }
 
@@ -303,12 +186,12 @@ var
   i, j: Integer;
   Rule: TRule;
   Mask: TReflexiveMask;
-  DfmProp: TDfmPropertyBase;
-  ExistingProp: TFmxPropertyBase;
+  DfmProp: TDfmProperty;
+  ExistingProp: TFmxProperty;
 
   procedure HandleStyledSettings(AExcludeElement: String);
   var
-    Prop: TFmxPropertyBase;
+    Prop: TFmxProperty;
     Item: Integer;
   begin
     Prop := FFmxProps.FindByName('StyledSettings');
@@ -328,8 +211,8 @@ var
   procedure CalcImageWrapMode;
   var
     Center, Proportional, Stretch: Boolean;
-    PropLine: TDfmPropertyBase;
-    FmxProp: TFmxPropertyBase;
+    PropLine: TDfmProperty;
+    FmxProp: TFmxProperty;
     Value: String;
   begin
     FmxProp := FFmxProps.FindByName('WrapMode');
@@ -366,7 +249,7 @@ var
   procedure CalcShapeClass;
   var
     Shape: String;
-    Prop: TDfmPropertyBase;
+    Prop: TDfmProperty;
   begin
     Prop := FDfmProps.FindByName('Shape');
     if Assigned(Prop) then
@@ -385,7 +268,7 @@ var
 
   procedure CopyFromParent(ACopyProp: String);
   var
-    Prop: TDfmPropertyBase;
+    Prop: TDfmProperty;
     Mask: TReflexiveMask;
     Found: Boolean;
     Parent: TDfmToFmxObject;
@@ -410,7 +293,7 @@ var
 
   procedure ReconsiderAfterRemovingRule(ARemoveRule: String);
   var
-    Line: TDfmPropertyBase;
+    Line: TDfmProperty;
     Mask: TReflexiveMask;
     i: Integer;
   begin
@@ -514,11 +397,11 @@ begin
     Result := Result + FOwnedObjs[i].FMXFile(APad +' ');
 end;
 
-procedure TDfmToFmxObject.GenerateObject(AProp: TDfmPropertyBase; AObjectType: string);
+procedure TDfmToFmxObject.GenerateObject(AProp: TDfmProperty; AObjectType: string);
 
   procedure AddFmxProperty(AObj: TDfmToFmxObject; const APropName, APropValue: String);
   var
-    Prop: TFmxPropertyBase;
+    Prop: TFmxProperty;
   begin
     Prop := AObj.FFmxProps.FindByName(APropName);
 
@@ -533,7 +416,7 @@ procedure TDfmToFmxObject.GenerateObject(AProp: TDfmPropertyBase; AObjectType: s
 
   procedure GenerateProperty(AObj: TDfmToFmxObject; const APropName, APropValue: String);
   var
-    Prop: TDfmPropertyBase;
+    Prop: TDfmProperty;
   begin
     Prop := AObj.FDfmProps.FindByName(APropName);
 
@@ -711,11 +594,11 @@ begin
   end;
 end;
 
-procedure TDfmToFmxObject.GenerateStyle(AProp: TDfmPropertyBase; AObjectType: string);
+procedure TDfmToFmxObject.GenerateStyle(AProp: TDfmProperty; AObjectType: string);
 
   procedure SetStyle(const AType, AParam, AValue: String);
   var
-    Prop: TFmxPropertyBase;
+    Prop: TFmxProperty;
   begin
     Prop := FFmxProps.FindByName('StyleLookup');
 
@@ -1068,7 +951,7 @@ begin
   Result := Data.Substring(3);
 end;
 
-function TDfmToFmxObject.TransformProperty(AProp: TDfmPropertyBase): TFmxPropertyBase;
+function TDfmToFmxObject.TransformProperty(AProp: TDfmProperty): TFmxProperty;
 var
   DefaultValuePropPos: Integer;
   Rule: TRule;
@@ -1309,6 +1192,54 @@ begin
     finally
       Sections.Free;
     end;
+  end;
+end;
+
+{ TDfmItemsProp }
+
+constructor TDfmItemsProp.Create(const AName, AValue: string);
+begin
+  inherited;
+  FItems := TDfmToFmxItems.Create({AOwnsObjects} True);
+end;
+
+destructor TDfmItemsProp.Destroy;
+begin
+  FItems.Free;
+  inherited;
+end;
+
+procedure TDfmItemsProp.ReadItems(AParent: TDfmToFmxObject; AClassName: String; AStm: TStreamReader);
+var
+  Data: String;
+  ClosingBracketFound: Boolean;
+begin
+  if FValue.EndsWith('>') then
+    Exit;
+
+  ClosingBracketFound := False;
+  Data := Trim(AStm.ReadLine);
+  while (not Data.EndsWith('>')) and (not ClosingBracketFound) do
+  begin
+    if Data.StartsWith('item') then
+      FItems.Add(TDfmToFmxItem.CreateItem(AParent, AClassName, AStm, ClosingBracketFound))
+    else
+      raise Exception.Create('Error reading items in ' + AParent.ObjName + '.' + FName);
+    if not ClosingBracketFound then
+      Data := Trim(AStm.ReadLine);
+  end;
+end;
+
+procedure TDfmItemsProp.Transform(AItemStrings: TStrings);
+var
+  Item: TDfmToFmxItem;
+  Transformed: String;
+begin
+  for Item in FItems do
+  begin
+    Transformed := Item.FMXFile;
+    if Assigned(AItemStrings) then
+      AItemStrings.Add(Transformed);
   end;
 end;
 

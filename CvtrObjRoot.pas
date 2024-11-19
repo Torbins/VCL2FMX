@@ -3,8 +3,8 @@
 interface
 
 uses
-  System.Classes, System.Types, System.SysUtils, System.StrUtils, Winapi.Windows, System.IniFiles, FMX.Objects,
-  System.Generics.Collections, Vcl.Imaging.PngImage, PatchLib, CvtrObject;
+  System.Classes, System.Types, System.SysUtils, Winapi.Windows, System.IniFiles, FMX.Objects,
+  System.Generics.Collections, Vcl.Imaging.PngImage, PatchLib, CvtrObject, CvtrProp;
 
 type
   TLinkControl = class
@@ -17,7 +17,7 @@ type
   TLinkGrid = class
     DataSource: String;
     GridControl: String;
-    Columns: TFmxPropertyBase;
+    Columns: TFmxProperty;
     destructor Destroy; override;
   end;
   TLinkGridList = class(TObjectList<TLinkGrid>);
@@ -32,9 +32,9 @@ type
     function QueryInterface(const IID: TGUID; out Obj): HResult; stdcall;
     function _AddRef: Integer; stdcall;
     function _Release: Integer; stdcall;
-    procedure AddFieldLink(AObjName: String; AProp: TDfmPropertyBase);
-    procedure AddGridLink(AObjName: String; AProp: TDfmPropertyBase);
-    procedure AddGridColumns(AObjName: String; AProp: TFmxPropertyBase);
+    procedure AddFieldLink(AObjName: String; AProp: TDfmProperty);
+    procedure AddGridLink(AObjName: String; AProp: TDfmProperty);
+    procedure AddGridColumns(AObjName: String; AProp: TFmxProperty);
     function AddImageItem(APng: TPngImage): Integer;
     function GetIniFile: TMemIniFile;
     procedure InitObjects; override;
@@ -148,7 +148,7 @@ begin
       Result := Result + CRLF + '    LinkGridToDataSourceBindSourceDB' + I.ToString + ': TLinkGridToDataSource;';
 end;
 
-procedure TDfmToFmxObjRoot.AddFieldLink(AObjName: String; AProp: TDfmPropertyBase);
+procedure TDfmToFmxObjRoot.AddFieldLink(AObjName: String; AProp: TDfmProperty);
 var
   i: Integer;
   CurrentLink: TLinkControl;
@@ -176,7 +176,7 @@ begin
     CurrentLink.DataSource := AProp.Value;
 end;
 
-procedure TDfmToFmxObjRoot.AddGridColumns(AObjName: String; AProp: TFmxPropertyBase);
+procedure TDfmToFmxObjRoot.AddGridColumns(AObjName: String; AProp: TFmxProperty);
 var
   i: Integer;
   CurrentLink: TLinkGrid;
@@ -196,7 +196,7 @@ begin
   CurrentLink.Columns := AProp;
 end;
 
-procedure TDfmToFmxObjRoot.AddGridLink(AObjName: String; AProp: TDfmPropertyBase);
+procedure TDfmToFmxObjRoot.AddGridLink(AObjName: String; AProp: TDfmProperty);
 var
   Link: TLinkGrid;
 begin

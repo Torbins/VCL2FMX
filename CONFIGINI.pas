@@ -50,8 +50,7 @@ implementation
 
 uses
   System.Win.Registry,
-  System.IniFiles,
-  System.StrUtils;
+  System.IniFiles;
 
 {$R *.fmx}
 

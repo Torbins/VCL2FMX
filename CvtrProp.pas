@@ -3,11 +3,18 @@ unit CvtrProp;
 interface
 
 uses
-  System.Classes, System.Generics.Collections, Vcl.Imaging.PngImage, CvtrObject;
+  System.Classes, System.Generics.Collections, Vcl.Imaging.PngImage;
 
 type
-  TDfmProperty = class(TDfmPropertyBase)
+  TDfmProperty = class
+  protected
+    FName: String;
+    FValue: string;
+    function GetValue: String; virtual;
   public
+    property Name: String read FName;
+    property Value: String read GetValue write FValue;
+    constructor Create(const AName, AValue: string); overload; virtual;
     procedure ReadMultiline(AStm: TStreamReader);
   end;
 
@@ -27,17 +34,6 @@ type
     procedure ReadLines(AStm: TStreamReader);
   end;
 
-  TDfmItemsProp = class(TDfmProperty)
-  protected
-    FItems: TDfmToFmxItems;
-  public
-    property Items: TDfmToFmxItems read FItems;
-    constructor Create(const AName, AValue: string); override;
-    destructor Destroy; override;
-    procedure ReadItems(AParent: TDfmToFmxObject; AClassName: String; AStm: TStreamReader);
-    procedure Transform(AItemStrings: TStrings);
-  end;
-
   TDfmSetProp = class(TDfmProperty)
   protected
     FItems: TStringList;
@@ -48,9 +44,23 @@ type
     procedure ReadSetItems(AStm: TStreamReader);
   end;
 
-  TFmxProperty = class(TFmxPropertyBase)
+  TDfmProperties = class(TObjectList<TDfmProperty>)
   public
-    function ToString(APad: String): String; reintroduce; override;
+    function FindByName(const AName: String): TDfmProperty;
+    function GetIntValueDef(const AName: String; ADef: Integer): Integer;
+  end;
+
+  TFmxProperty = class
+  protected
+    FName: String;
+    FValue: string;
+    function GetValue: String; virtual;
+  public
+    property Name: String read FName;
+    property Value: String read GetValue write FValue;
+    constructor Create(const AName, AValue: string); overload; virtual;
+    constructor CreateFromLine(const APropLine: string); virtual;
+    function ToString(APad: String): String; reintroduce; virtual;
   end;
 
   TFmxImageProp = class(TFmxProperty)
@@ -107,10 +117,30 @@ type
     function ToString(APad: String): String; override;
   end;
 
+  TFmxProperties = class(TObjectList<TFmxProperty>)
+  public
+    procedure AddProp(AProp: TFmxProperty);
+    procedure AddMultipleProps(APropsText: String);
+    function FindByName(AName: String): TFmxProperty;
+  end;
+
 implementation
 
 uses
-  System.SysUtils, System.StrUtils, PatchLib, Image, ImageList;
+  System.SysUtils, PatchLib, Image, ImageList;
+
+{ TDfmProperty }
+
+constructor TDfmProperty.Create(const AName, AValue: string);
+begin
+  FName := AName;
+  FValue := AValue;
+end;
+
+function TDfmProperty.GetValue: String;
+begin
+  Result := FValue;
+end;
 
 procedure TDfmProperty.ReadMultiline(AStm: TStreamReader);
 var
@@ -119,7 +149,7 @@ var
 begin
   Data := AStm.ReadLine.Trim;
   Quoted := Data[1] = '''';
-  while EndsText('+', Data) do
+  while Data.EndsWith('+') do
   begin
     if Quoted then
       FValue := FValue + Data.Trim(['+']).Trim.DeQuotedString
@@ -162,61 +192,13 @@ begin
 
   Data := Trim(AStm.ReadLine);
 
-  while not EndsText(')', Data) do
+  while not Data.EndsWith(')') do
   begin
     FStrings.Add(Data);
     Data := Trim(AStm.ReadLine);
   end;
 
   FStrings.Add(Data.TrimRight([')']));
-end;
-
-{ TDfmItemsProp }
-
-constructor TDfmItemsProp.Create(const AName, AValue: string);
-begin
-  inherited;
-  FItems := TDfmToFmxItems.Create({AOwnsObjects} True);
-end;
-
-destructor TDfmItemsProp.Destroy;
-begin
-  FItems.Free;
-  inherited;
-end;
-
-procedure TDfmItemsProp.ReadItems(AParent: TDfmToFmxObject; AClassName: String; AStm: TStreamReader);
-var
-  Data: String;
-  ClosingBracketFound: Boolean;
-begin
-  if FValue.EndsWith('>') then
-    Exit;
-
-  ClosingBracketFound := False;
-  Data := Trim(AStm.ReadLine);
-  while (not EndsText('>', Data)) and (not ClosingBracketFound) do
-  begin
-    if Data.StartsWith('item') then
-      FItems.Add(TDfmToFmxItem.CreateItem(AParent, AClassName, AStm, ClosingBracketFound))
-    else
-      raise Exception.Create('Error reading items in ' + AParent.ObjName + '.' + FName);
-    if not ClosingBracketFound then
-      Data := Trim(AStm.ReadLine);
-  end;
-end;
-
-procedure TDfmItemsProp.Transform(AItemStrings: TStrings);
-var
-  Item: TDfmToFmxItem;
-  Transformed: String;
-begin
-  for Item in FItems do
-  begin
-    Transformed := Item.FMXFile;
-    if Assigned(AItemStrings) then
-      AItemStrings.Add(Transformed);
-  end;
 end;
 
 { TDfmDataProp }
@@ -234,13 +216,35 @@ begin
   FValue := FValue.TrimLeft(['{']);
   Data := Trim(AStm.ReadLine);
 
-  while not EndsText('}', Data) do
+  while not Data.EndsWith('}') do
   begin
     FValue := FValue + Data;
     Data := Trim(AStm.ReadLine);
   end;
 
   FValue := FValue + Data.TrimRight(['}']);
+end;
+
+{ TFmxProperty }
+
+constructor TFmxProperty.Create(const AName, AValue: string);
+begin
+  FName := AName;
+  FValue := AValue;
+end;
+
+constructor TFmxProperty.CreateFromLine(const APropLine: string);
+var
+  PropEqSign: Integer;
+begin
+  PropEqSign := APropLine.IndexOf('=');
+  FName := APropLine.Substring(0, PropEqSign).Trim;
+  FValue := APropLine.Substring(PropEqSign + 1).Trim;
+end;
+
+function TFmxProperty.GetValue: String;
+begin
+  Result := FValue;
 end;
 
 function TFmxProperty.ToString(APad: String): String;
@@ -414,7 +418,7 @@ begin
     Exit;
 
   Data := Trim(AStm.ReadLine);
-  while not EndsText(']', Data) do
+  while not Data.EndsWith(']') do
   begin
     AddItems(Data);
     Data := Trim(AStm.ReadLine);
@@ -469,6 +473,57 @@ begin
     FName := FName.Substring(0, FName.Length - 5);
 
   Result := APad + '  ' + FName + '.PNG = ' + BitmapData  + CRLF;
+end;
+
+{ TDfmProperties }
+
+function TDfmProperties.FindByName(const AName: String): TDfmProperty;
+var
+  i: Integer;
+begin
+  Result := nil;
+  for i := 0 to Count - 1 do
+    if Items[i].Name = AName then
+      Exit(Items[i]);
+end;
+
+function TDfmProperties.GetIntValueDef(const AName: String; ADef: Integer): Integer;
+var
+  Prop: TDfmProperty;
+begin
+  Prop := FindByName(AName);
+  if Assigned(Prop) then
+    Result := StrToIntDef(Prop.Value, ADef)
+  else
+    Result := ADef;
+end;
+
+{ TFmxProperties }
+
+procedure TFmxProperties.AddMultipleProps(APropsText: String);
+var
+  PropsArray: TArray<String>;
+  Prop: String;
+begin
+  PropsArray := APropsText.Split(['#NextProp#']);
+  for Prop in PropsArray do
+    Add(TFmxProperty.CreateFromLine(Prop));
+end;
+
+procedure TFmxProperties.AddProp(AProp: TFmxProperty);
+begin
+  if Assigned(AProp) then
+    Add(AProp);
+end;
+
+function TFmxProperties.FindByName(AName: String): TFmxProperty;
+var
+  i: Integer;
+begin
+  Result := nil;
+  for i := 0 to Count - 1 do
+    if Items[i].Name = AName then
+      Exit(Items[i]);
 end;
 
 end.
