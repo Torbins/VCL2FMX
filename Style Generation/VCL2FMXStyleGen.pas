@@ -41,6 +41,7 @@ const
   CLabelStyle = 'VCL2FMXLabelStyle';
   CGroupBoxStyle = 'VCL2FMXGroupBoxStyle';
   CPanelStyle = 'VCL2FMXPanelStyle';
+  CScrollBoxStyle = 'VCL2FMXScrollBoxStyle';
   CBackgroundColor = 'BackgroundColor';
   CShowFrame = 'ShowFrame';
 
@@ -80,10 +81,13 @@ end;
 
 function TStyleGenerator.Lookup(const AStyleLookup: string; const Clone: Boolean): TFmxObject;
 var
-  Style: TLayout;
+  Style, Background, Content, SmallScrolls, GripContent, GripBottom: TLayout;
   Rectangle, Shadow: TRectangle;
   StyleText: TText;
   ShadowedText: TShadowedText;
+  VScrollBar, HScrollBar: TScrollBar;
+  VSmallScrollBar, HSmallScrollBar: TSmallScrollBar;
+  Grip: TSizeGrip;
   Parameters: TStrings;
 begin
   Parameters := nil;
@@ -173,6 +177,90 @@ begin
       Rectangle.YRadius := 2;
 
       Result := Rectangle;
+    end
+    else
+    if AStyleLookup.StartsWith(CScrollBoxStyle) then
+    begin
+      Style := TLayout.Create(Self);
+      Style.StyleName := CScrollBoxStyle;
+
+      Background := TLayout.Create(Style);
+      Background.Parent := Style;
+      Background.StyleName := 'background';
+      Background.Align := TAlignLayout.Contents;
+
+      Content := TLayout.Create(Background);
+      Content.Parent := Background;
+      Content.StyleName := 'content';
+      Content.Align := TAlignLayout.Client;
+
+      if Parameters.IndexOfName(CBackgroundColor) >= 0 then
+      begin
+        Rectangle := TRectangle.Create(Content);
+        Rectangle.Parent := Content;
+        Rectangle.Align := TAlignLayout.Client;
+        Rectangle.Fill.Color := StringToAlphaColor(Parameters.Values[CBackgroundColor]);
+        Rectangle.HitTest := False;
+        Rectangle.Stroke.Kind := TBrushKind.None;
+      end;
+
+      VScrollBar := TScrollBar.Create(Background);
+      VScrollBar.Parent := Background;
+      VScrollBar.StyleName := 'vscrollbar';
+      VScrollBar.Align := TAlignLayout.Right;
+      VScrollBar.SmallChange := 0;
+      VScrollBar.Orientation := TOrientation.Vertical;
+      VScrollBar.Size.Width := 16;
+      VScrollBar.Size.PlatformDefault := False;
+
+      HScrollBar := TScrollBar.Create(Background);
+      HScrollBar.Parent := Background;
+      HScrollBar.StyleName := 'hscrollbar';
+      HScrollBar.Align := TAlignLayout.Bottom;
+      HScrollBar.SmallChange := 0;
+      HScrollBar.Orientation := TOrientation.Horizontal;
+      HScrollBar.Size.Height := 16;
+      HScrollBar.Size.PlatformDefault := False;
+
+      SmallScrolls := TLayout.Create(Background);
+      SmallScrolls.Parent := Background;
+      SmallScrolls.Align := TAlignLayout.Client;
+
+      VSmallScrollBar := TSmallScrollBar.Create(SmallScrolls);
+      VSmallScrollBar.Parent := SmallScrolls;
+      VSmallScrollBar.StyleName := 'vsmallscrollbar';
+      VSmallScrollBar.Align := TAlignLayout.Right;
+      VSmallScrollBar.SmallChange := 0;
+      VSmallScrollBar.Orientation := TOrientation.Vertical;
+      VSmallScrollBar.Size.Width := 8;
+      VSmallScrollBar.Visible := False;
+
+      HSmallScrollBar := TSmallScrollBar.Create(SmallScrolls);
+      HSmallScrollBar.Parent := SmallScrolls;
+      HSmallScrollBar.StyleName := 'hsmallscrollbar';
+      HSmallScrollBar.Align := TAlignLayout.Bottom;
+      HSmallScrollBar.SmallChange := 0;
+      HSmallScrollBar.Orientation := TOrientation.Horizontal;
+      HSmallScrollBar.Size.Height := 8;
+      HSmallScrollBar.Visible := False;
+
+      GripContent := TLayout.Create(Background);
+      GripContent.Parent := Background;
+      GripContent.Align := TAlignLayout.Contents;
+      
+      GripBottom := TLayout.Create(GripContent);
+      GripBottom.Parent := GripContent;
+      GripBottom.Align := TAlignLayout.Contents;
+
+      Grip := TSizeGrip.Create(GripBottom);
+      Grip.Parent := GripBottom;
+      Grip.StyleName := 'sizegrip';
+      Grip.Align := TAlignLayout.Right;
+      Grip.Size.Width := 16;
+      Grip.Size.Height := 16;
+      Grip.Size.PlatformDefault := False;
+
+      Result := Style;
     end
     else
       Result := nil;

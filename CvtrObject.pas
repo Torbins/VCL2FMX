@@ -630,7 +630,8 @@ begin
   FIniIncludeValues.Add('VCL2FMXStyleGen');
 
   if (AObjectType = 'Label') and (APropName = 'Color') then
-    SetStyle(CLabelStyle, CBackgroundColor, ColorToAlphaColor(APropValue));
+    SetStyle(CLabelStyle, CBackgroundColor, ColorToAlphaColor(APropValue))
+  else
   if AObjectType = 'GroupBox' then
   begin
     if APropName = 'Color' then
@@ -645,7 +646,8 @@ begin
         if not IsParamSet(CGroupBoxStyle, CBackgroundColor) then
           SetStyle(CGroupBoxStyle, CBackgroundColor, 'xFFF0F0F0');
     end;
-  end;
+  end
+  else
   if AObjectType = 'Panel' then
   begin
     if APropName = 'Color' then
@@ -657,6 +659,20 @@ begin
       else
         if not IsParamSet(CPanelStyle, CBackgroundColor) then
           SetStyle(CPanelStyle, CBackgroundColor, 'xFFF0F0F0');
+    end;
+  end
+  else
+  if AObjectType = 'ScrollBox' then
+  begin
+    if APropName = 'Color' then
+      SetStyle(CScrollBoxStyle, CBackgroundColor, ColorToAlphaColor(APropValue));
+    if APropName = 'ParentBackground' then
+    begin
+      if StrToBoolDef(APropValue, False) then
+        SetStyle(CScrollBoxStyle, CBackgroundColor, 'claNull')
+      else
+        if not IsParamSet(CScrollBoxStyle, CBackgroundColor) then
+          SetStyle(CScrollBoxStyle, CBackgroundColor, 'xFFF0F0F0');
     end;
   end;
 end;
