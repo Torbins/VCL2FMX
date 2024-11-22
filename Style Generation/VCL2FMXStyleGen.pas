@@ -3,8 +3,7 @@ unit VCL2FMXStyleGen;
 interface
 
 uses
-  System.SysUtils, System.Types, System.UITypes, System.Classes, System.Variants, FMX.Types, FMX.Controls, FMX.Forms,
-  FMX.Graphics, FMX.Dialogs, FMX.Controls.Presentation, FMX.StdCtrls, FMX.Objects, FMX.Layouts, FMX.Styles.Objects;
+  System.UITypes, System.Classes, FMX.Types, FMX.StdCtrls;
 
 type
   TStyleGenerator = class(TComponent)
@@ -38,8 +37,9 @@ type
   end;
 
 const
-  CLabelStyle = 'VCL2FMXLabelStyle';
+  CCheckBoxStyle = 'VCL2FMXCheckBoxStyle';
   CGroupBoxStyle = 'VCL2FMXGroupBoxStyle';
+  CLabelStyle = 'VCL2FMXLabelStyle';
   CPanelStyle = 'VCL2FMXPanelStyle';
   CScrollBoxStyle = 'VCL2FMXScrollBoxStyle';
   CBackgroundColor = 'BackgroundColor';
@@ -51,7 +51,8 @@ var
 implementation
 
 uses
-  System.UIConsts, REST.Utils;
+  System.SysUtils, System.UIConsts, REST.Utils, Winapi.UxTheme, FMX.Objects, FMX.Controls, FMX.Graphics, FMX.Effects,
+  FMX.Layouts, FMX.Styles.Objects, VCL2FMXWinThemes;
 
 type
   TShadowedText = class(TText)
@@ -81,187 +82,284 @@ end;
 
 function TStyleGenerator.Lookup(const AStyleLookup: string; const Clone: Boolean): TFmxObject;
 var
-  Style, Background, Content, SmallScrolls, GripContent, GripBottom: TLayout;
-  Rectangle, Shadow: TRectangle;
-  StyleText: TText;
-  ShadowedText: TShadowedText;
-  VScrollBar, HScrollBar: TScrollBar;
-  VSmallScrollBar, HSmallScrollBar: TSmallScrollBar;
-  Grip: TSizeGrip;
   Parameters: TStrings;
+
+  function GenerateCheckBoxStyle: TFmxObject;
+  const
+    ButtonTheme = 'button';
+  var
+    Style, CheckLeft: TLayout;
+    Rectangle: TRectangle;
+    StyleText: TButtonStyleTextObject;
+    Check: TCheckStyleObject;
+    States: TStates;
+    Glow: TGlowEffect;
+  begin
+    Style := TLayout.Create(Self);
+    Style.StyleName := CCheckBoxStyle;
+
+    if Parameters.IndexOfName(CBackgroundColor) >= 0 then
+    begin
+      Rectangle := TRectangle.Create(Style);
+      Rectangle.Parent := Style;
+      Rectangle.Align := TAlignLayout.Client;
+      Rectangle.Fill.Color := StringToAlphaColor(Parameters.Values[CBackgroundColor]);
+      Rectangle.HitTest := False;
+      Rectangle.Stroke.Kind := TBrushKind.None;
+    end;
+
+    CheckLeft := TLayout.Create(Style);
+    CheckLeft.Parent := Style;
+    CheckLeft.Align := TAlignLayout.Left;
+    CheckLeft.Size.Width := 18;
+    CheckLeft.Size.PlatformDefault := False;
+
+    Check := TCheckStyleObject.Create(CheckLeft);
+    Check.Parent := CheckLeft;
+    Check.StyleName := 'background';
+    Check.Align := TAlignLayout.Center;
+    Check.CapMode := TCapWrapMode.Tile;
+    States := [CBS_UNCHECKEDNORMAL, CBS_CHECKEDNORMAL, CBS_UNCHECKEDHOT, CBS_CHECKEDHOT];
+    Check.Source := CreateImage(ButtonTheme, BP_CHECKBOX, States);
+    CalcLink(Check.SourceLink, CBS_UNCHECKEDNORMAL, ButtonTheme, BP_CHECKBOX, States);
+    CalcLink(Check.ActiveLink, CBS_CHECKEDNORMAL, ButtonTheme, BP_CHECKBOX, States);
+    CalcLink(Check.HotLink, CBS_UNCHECKEDHOT, ButtonTheme, BP_CHECKBOX, States);
+    CalcLink(Check.ActiveHotLink, CBS_CHECKEDHOT, ButtonTheme, BP_CHECKBOX, States);
+    CalcLink(Check.FocusedLink, CBS_UNCHECKEDHOT, ButtonTheme, BP_CHECKBOX, States);
+    CalcLink(Check.ActiveFocusedLink, CBS_CHECKEDHOT, ButtonTheme, BP_CHECKBOX, States);
+    Check.Size.Width := 15;
+    Check.Size.Height := 15;
+    Check.Size.PlatformDefault := False;
+    Check.WrapMode := TImageWrapMode.Center;
+    Check.ActiveTrigger := TStyleTrigger.Checked;
+
+    Glow := TGlowEffect.Create(Check);
+    Glow.Parent := Check;
+    Glow.Softness := 0.2;
+    Glow.GlowColor := GetThemeColor(ButtonTheme, BP_CHECKBOX, CBS_UNCHECKEDHOT, TMT_GLOWCOLOR);
+    Glow.Opacity := 1;
+    Glow.Trigger := 'IsFocused=true';
+    Glow.Enabled := False;
+
+    StyleText := TButtonStyleTextObject.Create(Style);
+    StyleText.Parent := Style;
+    StyleText.StyleName := 'text';
+    StyleText.Align := TAlignLayout.Client;
+    StyleText.Margins.Left := 3;
+    StyleText.Size.PlatformDefault := False;
+    StyleText.ShadowVisible := False;
+    StyleText.HotColor := claBlack;
+    StyleText.FocusedColor := claBlack;
+    StyleText.NormalColor := claBlack;
+    StyleText.PressedColor := claBlack;
+
+    Result := Style;
+  end;
+
+  function GenerateGroupBoxStyle: TFmxObject;
+  var
+    Style: TLayout;
+    Rectangle, Shadow: TRectangle;
+    ShadowedText: TShadowedText;
+  begin
+    Style := TLayout.Create(Self);
+    Style.StyleName := CGroupBoxStyle;
+    Style.Padding.Left := 2;
+    Style.Padding.Top := 8;
+    Style.Padding.Right := 2;
+    Style.Padding.Bottom := 2;
+
+    Rectangle := TRectangle.Create(Style);
+    Rectangle.Parent := Style;
+    Rectangle.StyleName := 'background';
+    Rectangle.Align := TAlignLayout.Client;
+    if Parameters.IndexOfName(CBackgroundColor) >= 0 then
+      Rectangle.Fill.Color := StringToAlphaColor(Parameters.Values[CBackgroundColor])
+    else
+      Rectangle.Fill.Color := claNull;
+    Rectangle.Stroke.Color := claGainsboro;
+    if not StrToBoolDef(Parameters.Values[CShowFrame], True) then
+      Rectangle.Stroke.Kind := TBrushKind.None;
+
+    Shadow := TRectangle.Create(Rectangle);
+    Shadow.Parent := Rectangle;
+    Shadow.ClipParent := True;
+    Shadow.Fill.Color := Rectangle.Fill.Color;
+    Shadow.HitTest := False;
+    Shadow.Stroke.Kind := TBrushKind.None;
+
+    ShadowedText := TShadowedText.Create(Rectangle);
+    ShadowedText.Parent := Rectangle;
+    ShadowedText.Shadow := Shadow;
+    ShadowedText.StyleName := 'text';
+    ShadowedText.AutoSize := True;
+    ShadowedText.ClipParent := True;
+    ShadowedText.HitTest := False;
+    ShadowedText.Margins.Left := 1;
+    ShadowedText.Margins.Top := 2;
+    ShadowedText.Margins.Right := 1;
+    ShadowedText.Position.X := 15;
+    ShadowedText.Position.Y := -8;
+    ShadowedText.TextSettings.WordWrap := False;
+
+    Result := Style;
+  end;
+
+  function GenerateLabelStyle: TFmxObject;
+  var
+    Style: TLayout;
+    Rectangle: TRectangle;
+    StyleText: TText;
+  begin
+    Style := TLayout.Create(Self);
+    Style.StyleName := CLabelStyle;
+
+    if Parameters.IndexOfName(CBackgroundColor) >= 0 then
+    begin
+      Rectangle := TRectangle.Create(Style);
+      Rectangle.Parent := Style;
+      Rectangle.Align := TAlignLayout.Client;
+      Rectangle.Fill.Color := StringToAlphaColor(Parameters.Values[CBackgroundColor]);
+      Rectangle.HitTest := False;
+      Rectangle.Stroke.Kind := TBrushKind.None;
+    end;
+
+    StyleText := TText.Create(Style);
+    StyleText.Parent := Style;
+    StyleText.StyleName := 'text';
+    StyleText.Align := TAlignLayout.Client;
+    StyleText.HitTest := False;
+
+    Result := Style;
+  end;
+
+  function GeneratePanelStyle: TFmxObject;
+  var
+    Rectangle: TRectangle;
+  begin
+    Rectangle := TRectangle.Create(Self);
+    Rectangle.StyleName := CPanelStyle;
+    if Parameters.IndexOfName(CBackgroundColor) >= 0 then
+      Rectangle.Fill.Color := StringToAlphaColor(Parameters.Values[CBackgroundColor])
+    else
+      Rectangle.Fill.Color := $FFF0F0F0;
+    Rectangle.HitTest := False;
+    Rectangle.Stroke.Color := $FFA3A3A3;
+    Rectangle.XRadius := 2;
+    Rectangle.YRadius := 2;
+
+    Result := Rectangle;
+  end;
+
+  function GenerateScrollBoxStyle: TFmxObject;
+  var
+    Style, Background, Content, SmallScrolls, GripContent, GripBottom: TLayout;
+    Rectangle: TRectangle;
+    VScrollBar, HScrollBar: TScrollBar;
+    VSmallScrollBar, HSmallScrollBar: TSmallScrollBar;
+    Grip: TSizeGrip;
+  begin
+    Style := TLayout.Create(Self);
+    Style.StyleName := CScrollBoxStyle;
+
+    Background := TLayout.Create(Style);
+    Background.Parent := Style;
+    Background.StyleName := 'background';
+    Background.Align := TAlignLayout.Contents;
+
+    Content := TLayout.Create(Background);
+    Content.Parent := Background;
+    Content.StyleName := 'content';
+    Content.Align := TAlignLayout.Client;
+
+    if Parameters.IndexOfName(CBackgroundColor) >= 0 then
+    begin
+      Rectangle := TRectangle.Create(Content);
+      Rectangle.Parent := Content;
+      Rectangle.Align := TAlignLayout.Client;
+      Rectangle.Fill.Color := StringToAlphaColor(Parameters.Values[CBackgroundColor]);
+      Rectangle.HitTest := False;
+      Rectangle.Stroke.Kind := TBrushKind.None;
+    end;
+
+    VScrollBar := TScrollBar.Create(Background);
+    VScrollBar.Parent := Background;
+    VScrollBar.StyleName := 'vscrollbar';
+    VScrollBar.Align := TAlignLayout.Right;
+    VScrollBar.SmallChange := 0;
+    VScrollBar.Orientation := TOrientation.Vertical;
+    VScrollBar.Size.Width := 16;
+    VScrollBar.Size.PlatformDefault := False;
+
+    HScrollBar := TScrollBar.Create(Background);
+    HScrollBar.Parent := Background;
+    HScrollBar.StyleName := 'hscrollbar';
+    HScrollBar.Align := TAlignLayout.Bottom;
+    HScrollBar.SmallChange := 0;
+    HScrollBar.Orientation := TOrientation.Horizontal;
+    HScrollBar.Size.Height := 16;
+    HScrollBar.Size.PlatformDefault := False;
+
+    SmallScrolls := TLayout.Create(Background);
+    SmallScrolls.Parent := Background;
+    SmallScrolls.Align := TAlignLayout.Client;
+
+    VSmallScrollBar := TSmallScrollBar.Create(SmallScrolls);
+    VSmallScrollBar.Parent := SmallScrolls;
+    VSmallScrollBar.StyleName := 'vsmallscrollbar';
+    VSmallScrollBar.Align := TAlignLayout.Right;
+    VSmallScrollBar.SmallChange := 0;
+    VSmallScrollBar.Orientation := TOrientation.Vertical;
+    VSmallScrollBar.Size.Width := 8;
+    VSmallScrollBar.Visible := False;
+
+    HSmallScrollBar := TSmallScrollBar.Create(SmallScrolls);
+    HSmallScrollBar.Parent := SmallScrolls;
+    HSmallScrollBar.StyleName := 'hsmallscrollbar';
+    HSmallScrollBar.Align := TAlignLayout.Bottom;
+    HSmallScrollBar.SmallChange := 0;
+    HSmallScrollBar.Orientation := TOrientation.Horizontal;
+    HSmallScrollBar.Size.Height := 8;
+    HSmallScrollBar.Visible := False;
+
+    GripContent := TLayout.Create(Background);
+    GripContent.Parent := Background;
+    GripContent.Align := TAlignLayout.Contents;
+
+    GripBottom := TLayout.Create(GripContent);
+    GripBottom.Parent := GripContent;
+    GripBottom.Align := TAlignLayout.Contents;
+
+    Grip := TSizeGrip.Create(GripBottom);
+    Grip.Parent := GripBottom;
+    Grip.StyleName := 'sizegrip';
+    Grip.Align := TAlignLayout.Right;
+    Grip.Size.Width := 16;
+    Grip.Size.Height := 16;
+    Grip.Size.PlatformDefault := False;
+
+    Result := Style;
+  end;
+
 begin
   Parameters := nil;
   try
     ExtractGetParams(AStyleLookup, Parameters);
 
+    if AStyleLookup.StartsWith(CCheckBoxStyle) then
+      Result := GenerateCheckBoxStyle
+    else
     if AStyleLookup.StartsWith(CGroupBoxStyle) then
-    begin
-      Style := TLayout.Create(Self);
-      Style.StyleName := CGroupBoxStyle;
-      Style.Padding.Left := 2;
-      Style.Padding.Top := 8;
-      Style.Padding.Right := 2;
-      Style.Padding.Bottom := 2;
-
-      Rectangle := TRectangle.Create(Style);
-      Rectangle.Parent := Style;
-      Rectangle.StyleName := 'background';
-      Rectangle.Align := TAlignLayout.Client;
-      if Parameters.IndexOfName(CBackgroundColor) >= 0 then
-        Rectangle.Fill.Color := StringToAlphaColor(Parameters.Values[CBackgroundColor])
-      else
-        Rectangle.Fill.Color := claNull;
-      Rectangle.Stroke.Color := claGainsboro;
-      if not StrToBoolDef(Parameters.Values[CShowFrame], True) then
-        Rectangle.Stroke.Kind := TBrushKind.None;
-
-      Shadow := TRectangle.Create(Rectangle);
-      Shadow.Parent := Rectangle;
-      Shadow.ClipParent := True;
-      Shadow.Fill.Color := Rectangle.Fill.Color;
-      Shadow.HitTest := False;
-      Shadow.Stroke.Kind := TBrushKind.None;
-
-      ShadowedText := TShadowedText.Create(Rectangle);
-      ShadowedText.Parent := Rectangle;
-      ShadowedText.Shadow := Shadow;
-      ShadowedText.StyleName := 'text';
-      ShadowedText.AutoSize := True;
-      ShadowedText.ClipParent := True;
-      ShadowedText.HitTest := False;
-      ShadowedText.Margins.Left := 1;
-      ShadowedText.Margins.Top := 2;
-      ShadowedText.Margins.Right := 1;
-      ShadowedText.Position.X := 15;
-      ShadowedText.Position.Y := -8;
-      ShadowedText.TextSettings.WordWrap := False;
-
-      Result := Style;
-    end
+      Result := GenerateGroupBoxStyle
     else
     if AStyleLookup.StartsWith(CLabelStyle) then
-    begin
-      Style := TLayout.Create(Self);
-      Style.StyleName := CLabelStyle;
-
-      if Parameters.IndexOfName(CBackgroundColor) >= 0 then
-      begin
-        Rectangle := TRectangle.Create(Style);
-        Rectangle.Parent := Style;
-        Rectangle.Align := TAlignLayout.Client;
-        Rectangle.Fill.Color := StringToAlphaColor(Parameters.Values[CBackgroundColor]);
-        Rectangle.HitTest := False;
-        Rectangle.Stroke.Kind := TBrushKind.None;
-      end;
-
-      StyleText := TText.Create(Style);
-      StyleText.Parent := Style;
-      StyleText.StyleName := 'text';
-      StyleText.Align := TAlignLayout.Client;
-      StyleText.HitTest := False;
-
-      Result := Style;
-    end
+      Result := GenerateLabelStyle
     else
     if AStyleLookup.StartsWith(CPanelStyle) then
-    begin
-      Rectangle := TRectangle.Create(Self);
-      Rectangle.StyleName := CPanelStyle;
-      if Parameters.IndexOfName(CBackgroundColor) >= 0 then
-        Rectangle.Fill.Color := StringToAlphaColor(Parameters.Values[CBackgroundColor])
-      else
-        Rectangle.Fill.Color := $FFF0F0F0;
-      Rectangle.HitTest := False;
-      Rectangle.Stroke.Color := $FFA3A3A3;
-      Rectangle.XRadius := 2;
-      Rectangle.YRadius := 2;
-
-      Result := Rectangle;
-    end
+      Result := GeneratePanelStyle
     else
     if AStyleLookup.StartsWith(CScrollBoxStyle) then
-    begin
-      Style := TLayout.Create(Self);
-      Style.StyleName := CScrollBoxStyle;
-
-      Background := TLayout.Create(Style);
-      Background.Parent := Style;
-      Background.StyleName := 'background';
-      Background.Align := TAlignLayout.Contents;
-
-      Content := TLayout.Create(Background);
-      Content.Parent := Background;
-      Content.StyleName := 'content';
-      Content.Align := TAlignLayout.Client;
-
-      if Parameters.IndexOfName(CBackgroundColor) >= 0 then
-      begin
-        Rectangle := TRectangle.Create(Content);
-        Rectangle.Parent := Content;
-        Rectangle.Align := TAlignLayout.Client;
-        Rectangle.Fill.Color := StringToAlphaColor(Parameters.Values[CBackgroundColor]);
-        Rectangle.HitTest := False;
-        Rectangle.Stroke.Kind := TBrushKind.None;
-      end;
-
-      VScrollBar := TScrollBar.Create(Background);
-      VScrollBar.Parent := Background;
-      VScrollBar.StyleName := 'vscrollbar';
-      VScrollBar.Align := TAlignLayout.Right;
-      VScrollBar.SmallChange := 0;
-      VScrollBar.Orientation := TOrientation.Vertical;
-      VScrollBar.Size.Width := 16;
-      VScrollBar.Size.PlatformDefault := False;
-
-      HScrollBar := TScrollBar.Create(Background);
-      HScrollBar.Parent := Background;
-      HScrollBar.StyleName := 'hscrollbar';
-      HScrollBar.Align := TAlignLayout.Bottom;
-      HScrollBar.SmallChange := 0;
-      HScrollBar.Orientation := TOrientation.Horizontal;
-      HScrollBar.Size.Height := 16;
-      HScrollBar.Size.PlatformDefault := False;
-
-      SmallScrolls := TLayout.Create(Background);
-      SmallScrolls.Parent := Background;
-      SmallScrolls.Align := TAlignLayout.Client;
-
-      VSmallScrollBar := TSmallScrollBar.Create(SmallScrolls);
-      VSmallScrollBar.Parent := SmallScrolls;
-      VSmallScrollBar.StyleName := 'vsmallscrollbar';
-      VSmallScrollBar.Align := TAlignLayout.Right;
-      VSmallScrollBar.SmallChange := 0;
-      VSmallScrollBar.Orientation := TOrientation.Vertical;
-      VSmallScrollBar.Size.Width := 8;
-      VSmallScrollBar.Visible := False;
-
-      HSmallScrollBar := TSmallScrollBar.Create(SmallScrolls);
-      HSmallScrollBar.Parent := SmallScrolls;
-      HSmallScrollBar.StyleName := 'hsmallscrollbar';
-      HSmallScrollBar.Align := TAlignLayout.Bottom;
-      HSmallScrollBar.SmallChange := 0;
-      HSmallScrollBar.Orientation := TOrientation.Horizontal;
-      HSmallScrollBar.Size.Height := 8;
-      HSmallScrollBar.Visible := False;
-
-      GripContent := TLayout.Create(Background);
-      GripContent.Parent := Background;
-      GripContent.Align := TAlignLayout.Contents;
-      
-      GripBottom := TLayout.Create(GripContent);
-      GripBottom.Parent := GripContent;
-      GripBottom.Align := TAlignLayout.Contents;
-
-      Grip := TSizeGrip.Create(GripBottom);
-      Grip.Parent := GripBottom;
-      Grip.StyleName := 'sizegrip';
-      Grip.Align := TAlignLayout.Right;
-      Grip.Size.Width := 16;
-      Grip.Size.Height := 16;
-      Grip.Size.PlatformDefault := False;
-
-      Result := Style;
-    end
+      Result := GenerateScrollBoxStyle
     else
       Result := nil;
   finally
