@@ -626,9 +626,14 @@ procedure TDfmToFmxObject.GenerateStyle(const APropName, APropValue, AObjectType
       Result := True;
   end;
 
+const
+  CColorBtnFace = 'xFFF0F0F0';
 begin
   FIniIncludeValues.Add('VCL2FMXStyleGen');
 
+  if (AObjectType = 'CheckBox') and (APropName = 'Color') then
+    SetStyle(CCheckBoxStyle, CBackgroundColor, ColorToAlphaColor(APropValue))
+  else
   if (AObjectType = 'Label') and (APropName = 'Color') then
     SetStyle(CLabelStyle, CBackgroundColor, ColorToAlphaColor(APropValue))
   else
@@ -644,7 +649,7 @@ begin
         SetStyle(CGroupBoxStyle, CBackgroundColor, 'claNull')
       else
         if not IsParamSet(CGroupBoxStyle, CBackgroundColor) then
-          SetStyle(CGroupBoxStyle, CBackgroundColor, 'xFFF0F0F0');
+          SetStyle(CGroupBoxStyle, CBackgroundColor, CColorBtnFace);
     end;
   end
   else
@@ -658,7 +663,7 @@ begin
         SetStyle(CPanelStyle, CBackgroundColor, 'claNull')
       else
         if not IsParamSet(CPanelStyle, CBackgroundColor) then
-          SetStyle(CPanelStyle, CBackgroundColor, 'xFFF0F0F0');
+          SetStyle(CPanelStyle, CBackgroundColor, CColorBtnFace);
     end;
   end
   else
@@ -672,7 +677,7 @@ begin
         SetStyle(CScrollBoxStyle, CBackgroundColor, 'claNull')
       else
         if not IsParamSet(CScrollBoxStyle, CBackgroundColor) then
-          SetStyle(CScrollBoxStyle, CBackgroundColor, 'xFFF0F0F0');
+          SetStyle(CScrollBoxStyle, CBackgroundColor, CColorBtnFace);
     end;
   end;
 end;

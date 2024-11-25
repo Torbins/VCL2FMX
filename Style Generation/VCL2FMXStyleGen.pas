@@ -17,7 +17,7 @@ type
     function WriteParam(const AStyleLookup, AType, AParam, AValue: String): String;
   end;
 
-  TLabelStyleHelper = class helper for TLabel
+  TCheckBoxStyleHelper = class helper for TCheckBox
   private
     function GetColor: TAlphaColor;
     procedure SetColor(const Value: TAlphaColor);
@@ -34,6 +34,14 @@ type
   public
     property Color: TAlphaColor read GetColor write SetColor;
     property ShowFrame: Boolean read GetShowFrame write SetShowFrame;
+  end;
+
+  TLabelStyleHelper = class helper for TLabel
+  private
+    function GetColor: TAlphaColor;
+    procedure SetColor(const Value: TAlphaColor);
+  public
+    property Color: TAlphaColor read GetColor write SetColor;
   end;
 
 const
@@ -468,6 +476,18 @@ procedure TGroupBoxStyleHelper.SetShowFrame(const Value: Boolean);
 begin
   StyleLookup := StyleGenerator.WriteParam(StyleLookup, CGroupBoxStyle, CShowFrame,
     BoolToStr(Value, {UseBoolStrs} True));
+end;
+
+{ TCheckBoxStyleHelper }
+
+function TCheckBoxStyleHelper.GetColor: TAlphaColor;
+begin
+  Result := StringToAlphaColor(StyleGenerator.ReadParamDef(StyleLookup, CCheckBoxStyle, CBackgroundColor, 'claNull'));
+end;
+
+procedure TCheckBoxStyleHelper.SetColor(const Value: TAlphaColor);
+begin
+  StyleLookup := StyleGenerator.WriteParam(StyleLookup, CCheckBoxStyle, CBackgroundColor, AlphaColorToString(Value));
 end;
 
 initialization
