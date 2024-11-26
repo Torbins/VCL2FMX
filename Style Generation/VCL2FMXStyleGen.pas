@@ -44,11 +44,20 @@ type
     property Color: TAlphaColor read GetColor write SetColor;
   end;
 
+  TRadioButtonStyleHelper = class helper for TRadioButton
+  private
+    function GetColor: TAlphaColor;
+    procedure SetColor(const Value: TAlphaColor);
+  public
+    property Color: TAlphaColor read GetColor write SetColor;
+  end;
+
 const
   CCheckBoxStyle = 'VCL2FMXCheckBoxStyle';
   CGroupBoxStyle = 'VCL2FMXGroupBoxStyle';
   CLabelStyle = 'VCL2FMXLabelStyle';
   CPanelStyle = 'VCL2FMXPanelStyle';
+  CRadioButtonStyle = 'VCL2FMXRadioButtonStyle';
   CScrollBoxStyle = 'VCL2FMXScrollBoxStyle';
   CBackgroundColor = 'BackgroundColor';
   CShowFrame = 'ShowFrame';
@@ -259,6 +268,77 @@ var
     Result := Rectangle;
   end;
 
+  function GenerateRadioButtonStyle: TFmxObject;
+  const
+    ButtonTheme = 'button';
+  var
+    Style, CheckLeft: TLayout;
+    Rectangle: TRectangle;
+    StyleText: TButtonStyleTextObject;
+    Check: TCheckStyleObject;
+    States: TStates;
+    Glow: TGlowEffect;
+  begin
+    Style := TLayout.Create(Self);
+    Style.StyleName := CRadioButtonStyle;
+
+    if Parameters.IndexOfName(CBackgroundColor) >= 0 then
+    begin
+      Rectangle := TRectangle.Create(Style);
+      Rectangle.Parent := Style;
+      Rectangle.Align := TAlignLayout.Client;
+      Rectangle.Fill.Color := StringToAlphaColor(Parameters.Values[CBackgroundColor]);
+      Rectangle.HitTest := False;
+      Rectangle.Stroke.Kind := TBrushKind.None;
+    end;
+
+    CheckLeft := TLayout.Create(Style);
+    CheckLeft.Parent := Style;
+    CheckLeft.Align := TAlignLayout.Left;
+    CheckLeft.Size.Width := 18;
+    CheckLeft.Size.PlatformDefault := False;
+
+    Check := TCheckStyleObject.Create(CheckLeft);
+    Check.Parent := CheckLeft;
+    Check.StyleName := 'background';
+    Check.Align := TAlignLayout.Center;
+    States := [RBS_UNCHECKEDNORMAL, RBS_CHECKEDNORMAL, RBS_UNCHECKEDHOT, RBS_CHECKEDHOT];
+    Check.Source := CreateImage(ButtonTheme, BP_RADIOBUTTON, States);
+    CalcLink(Check.SourceLink, RBS_UNCHECKEDNORMAL, ButtonTheme, BP_RADIOBUTTON, States);
+    CalcLink(Check.ActiveLink, RBS_CHECKEDNORMAL, ButtonTheme, BP_RADIOBUTTON, States);
+    CalcLink(Check.HotLink, RBS_UNCHECKEDHOT, ButtonTheme, BP_RADIOBUTTON, States);
+    CalcLink(Check.ActiveHotLink, RBS_CHECKEDHOT, ButtonTheme, BP_RADIOBUTTON, States);
+    CalcLink(Check.FocusedLink, RBS_UNCHECKEDHOT, ButtonTheme, BP_RADIOBUTTON, States);
+    CalcLink(Check.ActiveFocusedLink, RBS_CHECKEDHOT, ButtonTheme, BP_RADIOBUTTON, States);
+    Check.Size.Width := 15;
+    Check.Size.Height := 15;
+    Check.Size.PlatformDefault := False;
+    Check.WrapMode := TImageWrapMode.Center;
+    Check.ActiveTrigger := TStyleTrigger.Checked;
+
+    Glow := TGlowEffect.Create(Check);
+    Glow.Parent := Check;
+    Glow.Softness := 0.2;
+    Glow.GlowColor := GetThemeColor(ButtonTheme, BP_RADIOBUTTON, RBS_UNCHECKEDHOT, TMT_GLOWCOLOR);
+    Glow.Opacity := 1;
+    Glow.Trigger := 'IsFocused=true';
+    Glow.Enabled := False;
+
+    StyleText := TButtonStyleTextObject.Create(Style);
+    StyleText.Parent := Style;
+    StyleText.StyleName := 'text';
+    StyleText.Align := TAlignLayout.Client;
+    StyleText.Margins.Left := 3;
+    StyleText.Size.PlatformDefault := False;
+    StyleText.ShadowVisible := False;
+    StyleText.HotColor := claBlack;
+    StyleText.FocusedColor := claBlack;
+    StyleText.NormalColor := claBlack;
+    StyleText.PressedColor := claBlack;
+
+    Result := Style;
+  end;
+
   function GenerateScrollBoxStyle: TFmxObject;
   var
     Style, Background, Content, SmallScrolls, GripContent, GripBottom: TLayout;
@@ -365,6 +445,9 @@ begin
     else
     if AStyleLookup.StartsWith(CPanelStyle) then
       Result := GeneratePanelStyle
+    else
+    if AStyleLookup.StartsWith(CRadioButtonStyle) then
+      Result := GenerateRadioButtonStyle
     else
     if AStyleLookup.StartsWith(CScrollBoxStyle) then
       Result := GenerateScrollBoxStyle
@@ -488,6 +571,18 @@ end;
 procedure TCheckBoxStyleHelper.SetColor(const Value: TAlphaColor);
 begin
   StyleLookup := StyleGenerator.WriteParam(StyleLookup, CCheckBoxStyle, CBackgroundColor, AlphaColorToString(Value));
+end;
+
+{ TRadioButtonStyleHelper }
+
+function TRadioButtonStyleHelper.GetColor: TAlphaColor;
+begin
+  Result := StringToAlphaColor(StyleGenerator.ReadParamDef(StyleLookup, CRadioButtonStyle, CBackgroundColor, 'claNull'));
+end;
+
+procedure TRadioButtonStyleHelper.SetColor(const Value: TAlphaColor);
+begin
+  StyleLookup := StyleGenerator.WriteParam(StyleLookup, CRadioButtonStyle, CBackgroundColor, AlphaColorToString(Value));
 end;
 
 initialization

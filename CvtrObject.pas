@@ -667,6 +667,9 @@ begin
     end;
   end
   else
+  if (AObjectType = 'RadioButton') and (APropName = 'Color') then
+    SetStyle(CRadioButtonStyle, CBackgroundColor, ColorToAlphaColor(APropValue))
+  else
   if AObjectType = 'ScrollBox' then
   begin
     if APropName = 'Color' then
