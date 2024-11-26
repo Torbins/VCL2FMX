@@ -626,8 +626,6 @@ procedure TDfmToFmxObject.GenerateStyle(const APropName, APropValue, AObjectType
       Result := True;
   end;
 
-const
-  CColorBtnFace = 'xFFF0F0F0';
 begin
   FIniIncludeValues.Add('VCL2FMXStyleGen');
 

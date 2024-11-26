@@ -3,7 +3,7 @@ unit VCL2FMXStyleGen;
 interface
 
 uses
-  System.UITypes, System.Classes, FMX.Types, FMX.StdCtrls;
+  System.UITypes, System.Classes, FMX.Types, FMX.StdCtrls, FMX.Layouts;
 
 type
   TStyleGenerator = class(TComponent)
@@ -44,12 +44,34 @@ type
     property Color: TAlphaColor read GetColor write SetColor;
   end;
 
+  TPanelStyleHelper = class helper for TPanel
+  private
+    function GetColor: TAlphaColor;
+    procedure SetColor(const Value: TAlphaColor);
+    function GetParentBackground: Boolean;
+    procedure SetParentBackground(const Value: Boolean);
+  public
+    property Color: TAlphaColor read GetColor write SetColor;
+    property ParentBackground: Boolean read GetParentBackground write SetParentBackground;
+  end;
+
   TRadioButtonStyleHelper = class helper for TRadioButton
   private
     function GetColor: TAlphaColor;
     procedure SetColor(const Value: TAlphaColor);
   public
     property Color: TAlphaColor read GetColor write SetColor;
+  end;
+
+  TScrollBoxStyleHelper = class helper for TScrollBox
+  private
+    function GetColor: TAlphaColor;
+    procedure SetColor(const Value: TAlphaColor);
+    function GetParentBackground: Boolean;
+    procedure SetParentBackground(const Value: Boolean);
+  public
+    property Color: TAlphaColor read GetColor write SetColor;
+    property ParentBackground: Boolean read GetParentBackground write SetParentBackground;
   end;
 
 const
@@ -61,6 +83,7 @@ const
   CScrollBoxStyle = 'VCL2FMXScrollBoxStyle';
   CBackgroundColor = 'BackgroundColor';
   CShowFrame = 'ShowFrame';
+  CColorBtnFace = 'xFFF0F0F0';
 
 var
   StyleGenerator: TStyleGenerator;
@@ -69,7 +92,7 @@ implementation
 
 uses
   System.SysUtils, System.UIConsts, REST.Utils, Winapi.UxTheme, FMX.Objects, FMX.Controls, FMX.Graphics, FMX.Effects,
-  FMX.Layouts, FMX.Styles.Objects, VCL2FMXWinThemes;
+  FMX.Styles.Objects, VCL2FMXWinThemes;
 
 type
   TShadowedText = class(TText)
@@ -583,6 +606,58 @@ end;
 procedure TRadioButtonStyleHelper.SetColor(const Value: TAlphaColor);
 begin
   StyleLookup := StyleGenerator.WriteParam(StyleLookup, CRadioButtonStyle, CBackgroundColor, AlphaColorToString(Value));
+end;
+
+{ TPanelStyleHelper }
+
+function TPanelStyleHelper.GetColor: TAlphaColor;
+begin
+  Result := StringToAlphaColor(StyleGenerator.ReadParamDef(StyleLookup, CPanelStyle, CBackgroundColor, 'claNull'));
+end;
+
+function TPanelStyleHelper.GetParentBackground: Boolean;
+begin
+  Result := StyleGenerator.ReadParamDef(StyleLookup, CPanelStyle, CBackgroundColor, 'claNull') = 'claNull';
+end;
+
+procedure TPanelStyleHelper.SetColor(const Value: TAlphaColor);
+begin
+  StyleLookup := StyleGenerator.WriteParam(StyleLookup, CPanelStyle, CBackgroundColor, AlphaColorToString(Value));
+end;
+
+procedure TPanelStyleHelper.SetParentBackground(const Value: Boolean);
+begin
+  if Value then
+    StyleLookup := StyleGenerator.WriteParam(StyleLookup, CPanelStyle, CBackgroundColor, 'claNull')
+  else
+    if StyleGenerator.ReadParamDef(StyleLookup, CPanelStyle, CBackgroundColor, 'claNull') = 'claNull' then
+      StyleLookup := StyleGenerator.WriteParam(StyleLookup, CPanelStyle, CBackgroundColor, CColorBtnFace);
+end;
+
+{ TScrollBoxStyleHelper }
+
+function TScrollBoxStyleHelper.GetColor: TAlphaColor;
+begin
+  Result := StringToAlphaColor(StyleGenerator.ReadParamDef(StyleLookup, CPanelStyle, CBackgroundColor, CColorBtnFace));
+end;
+
+function TScrollBoxStyleHelper.GetParentBackground: Boolean;
+begin
+  Result := StyleGenerator.ReadParam(StyleLookup, CPanelStyle, CBackgroundColor) = 'claNull';
+end;
+
+procedure TScrollBoxStyleHelper.SetColor(const Value: TAlphaColor);
+begin
+  StyleLookup := StyleGenerator.WriteParam(StyleLookup, CPanelStyle, CBackgroundColor, AlphaColorToString(Value));
+end;
+
+procedure TScrollBoxStyleHelper.SetParentBackground(const Value: Boolean);
+begin
+  if Value then
+    StyleLookup := StyleGenerator.WriteParam(StyleLookup, CPanelStyle, CBackgroundColor, 'claNull')
+  else
+    if StyleGenerator.ReadParamDef(StyleLookup, CPanelStyle, CBackgroundColor, 'claNull') = 'claNull' then
+      StyleLookup := StyleGenerator.WriteParam(StyleLookup, CPanelStyle, CBackgroundColor, CColorBtnFace);
 end;
 
 initialization
