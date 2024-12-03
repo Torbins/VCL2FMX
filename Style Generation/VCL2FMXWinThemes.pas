@@ -3,13 +3,14 @@ unit VCL2FMXWinThemes;
 interface
 
 uses
-  FMX.MultiResBitmap, FMX.Objects, FMX.Styles.Objects, System.UITypes;
+  System.Types, System.UITypes, FMX.MultiResBitmap, FMX.Objects, FMX.Styles.Objects;
 
 type
   TStates = TArray<Integer>;
 
-function CreateImage(const ATheme: string; APart: Integer; const AStates: TStates): TImage;
-procedure CalcLink(ALinks: TBitmapLinks; AState: Integer; const ATheme: string; APart: Integer; const AStates: TStates);
+function CreateImage(const ATheme: string; APart: Integer; const AStates: TStates; var ASize: TSize): TImage;
+procedure CalcLink(ALinks: TBitmapLinks; AState: Integer; const AStates: TStates; ASize: TSize;
+  AAddCapInsets: Boolean = False);
 function GetThemeColor(const ATheme: string; APart, AState, AProp: Integer): TAlphaColor;
 
 implementation
@@ -25,11 +26,11 @@ const
   CDPI: array[TScale] of Integer = (96, 144, 192);
   CScales: array[TScale] of Single = (1, 1.5, 2);
 
-procedure DrawStates(AThemeHandle: THandle; APart: Integer; const AStates: TStates; ABitmap: TBitmap);
+procedure DrawStates(AThemeHandle: THandle; APart: Integer; const AStates: TStates; ABitmap: TBitmap; var ASize: TSize);
 var
   DC: HDC;
   Bmp: HBITMAP;
-  Size: TSize;
+  DefSize: TSize;
   BmpInfo: TBitmapInfo;
   Bits: Pointer;
   SrcData, DstData: TBitmapData;
@@ -41,12 +42,18 @@ begin
     Count := Length(AStates);
     DC := CreateCompatibleDC(0);
     Win32Check(DC <> 0);
-    OleCheck(GetThemePartSize(AThemeHandle, DC, APart, AStates[0], nil, TS_TRUE, Size));
+
+    if (ASize.Height = 0) or (ASize.Width = 0) then
+      OleCheck(GetThemePartSize(AThemeHandle, DC, APart, AStates[0], nil, TS_TRUE, DefSize));
+    if ASize.Height = 0 then
+      ASize.Height := DefSize.Height;
+    if ASize.Width = 0 then
+      ASize.Width := DefSize.Width;
 
     FillMemory(@BmpInfo, SizeOf(BmpInfo), 0);
     BmpInfo.bmiHeader.biSize := SizeOf(TBitmapInfoHeader);
-    BmpInfo.bmiHeader.biWidth := Size.cx;
-    BmpInfo.bmiHeader.biHeight := -Size.cy * Count;  // top-down
+    BmpInfo.bmiHeader.biWidth := ASize.Width;
+    BmpInfo.bmiHeader.biHeight := -ASize.Height * Count;  // top-down
     BmpInfo.bmiHeader.biPlanes := 1;
     BmpInfo.bmiHeader.biBitCount := 32;
     BmpInfo.bmiHeader.biCompression := BI_RGB;
@@ -57,12 +64,12 @@ begin
     SelectObject(DC, Bmp);
     for i := 0 to Count - 1 do
       OleCheck(DrawThemeBackground(AThemeHandle, DC, APart, AStates[i],
-        Rect(0, i * Size.cy, Size.cx, (i + 1) * Size.cy), nil));
+        Rect(0, i * ASize.Height, ASize.Width, (i + 1) * ASize.Height), nil));
 
-    ABitmap.SetSize(Size.cx, Size.cy * Count);
+    ABitmap.SetSize(ASize.Width, ASize.Height * Count);
     if ABitmap.Map(TMapAccess.Write, DstData) then
     begin
-      SrcData := TBitmapData.Create(Size.cx, Size.cy, TPixelFormat.BGRA);
+      SrcData := TBitmapData.Create(ASize.Width, ASize.Height, TPixelFormat.BGRA);
       SrcData.Data := Bits;
       SrcData.Pitch := SrcData.BytesPerLine;
       DstData.Copy(SrcData);
@@ -74,85 +81,92 @@ begin
   end;
 end;
 
-procedure DrawScale(AScale: TScale; const ATheme: string; APart: Integer; const AStates: TStates;
-  AMultiResBitmap: TFixedMultiResBitmap);
-var
-  ThemeHandle: THandle;
-  Item: TFixedBitmapItem;
-begin
-  ThemeHandle := 0;
-  try
-    ThemeHandle := OpenThemeDataForDPI(0, PChar(ATheme), CDPI[AScale]);
-    Win32Check(ThemeHandle <> 0);
-
-    Item := TFixedBitmapItem(AMultiResBitmap.ItemByScale(CScales[AScale], {ExactMatch} True, {IncludeEmpty} True));
-    if not Assigned(Item) then
-    begin
-      Item := AMultiResBitmap.Add;
-      Item.Scale := CScales[AScale];
-    end;
-
-    DrawStates(ThemeHandle, APart, AStates, Item.Bitmap);
-  finally
-    CloseThemeData(ThemeHandle);
-  end;
-end;
-
-function CreateImage(const ATheme: string; APart: Integer; const AStates: TStates): TImage;
+function CreateImage(const ATheme: string; APart: Integer; const AStates: TStates; var ASize: TSize): TImage;
 var
   Scale: TScale;
+  ThemeHandle: THandle;
+  Item: TFixedBitmapItem;
+  Size: TSize;
 begin
   Result := TImage.Create(StyleGenerator);
 
   for Scale := One to Two do
-    DrawScale(Scale, ATheme, APart, AStates, Result.MultiResBitmap);
+  begin
+    ThemeHandle := 0;
+    try
+      ThemeHandle := OpenThemeDataForDPI(0, PChar(ATheme), CDPI[Scale]);
+      Win32Check(ThemeHandle <> 0);
+
+      Item := TFixedBitmapItem(Result.MultiResBitmap.ItemByScale(CScales[Scale], {ExactMatch} True,
+        {IncludeEmpty} True));
+      if not Assigned(Item) then
+      begin
+        Item := Result.MultiResBitmap.Add;
+        Item.Scale := CScales[Scale];
+      end;
+
+      if Scale = One then
+        DrawStates(ThemeHandle, APart, AStates, Item.Bitmap, ASize)
+      else
+      begin
+        Size := TSize.Create(MulDiv(ASize.Width, CDPI[Scale], USER_DEFAULT_SCREEN_DPI),
+          MulDiv(ASize.Height, CDPI[Scale], USER_DEFAULT_SCREEN_DPI));
+        DrawStates(ThemeHandle, APart, AStates, Item.Bitmap, Size);
+      end;
+    finally
+      CloseThemeData(ThemeHandle);
+    end;
+  end;
 end;
 
-procedure CalcLink(ALinks: TBitmapLinks; AState: Integer; const ATheme: string; APart: Integer; const AStates: TStates);
+procedure CalcLink(ALinks: TBitmapLinks; AState: Integer; const AStates: TStates; ASize: TSize;
+  AAddCapInsets: Boolean = False);
 var
-  ThemeHandle: THandle;
-  DC: HDC;
-  Size: TSize;
-  i: Integer;
+  i, InsetHeight, InsetWidth: Integer;
   Scale: TScale;
   Link: TBitmapLink;
+  Size: TSize;
 begin
-  DC := 0;
-  try
-    DC := CreateCompatibleDC(0);
-    Win32Check(DC <> 0);
-
-    for i := 0 to Length(AStates) - 1 do
-      if AStates[i] = AState then
+  for i := 0 to Length(AStates) - 1 do
+    if AStates[i] = AState then
+    begin
+      for Scale := One to Two do
       begin
-        for Scale := One to Two do
+        Link := ALinks.LinkByScale(CScales[Scale], {ExactMatch} True);
+        if not Assigned(Link) then
         begin
-          ThemeHandle := 0;
-          try
-            ThemeHandle := OpenThemeDataForDPI(0, PChar(ATheme), CDPI[Scale]);
-            Win32Check(ThemeHandle <> 0);
-            OleCheck(GetThemePartSize(ThemeHandle, DC, APart, AStates[0], nil, TS_TRUE, Size));
-
-            Link := ALinks.LinkByScale(CScales[Scale], {ExactMatch} True);
-            if not Assigned(Link) then
-            begin
-              Link := ALinks.Add as TBitmapLink;
-              Link.Scale := CScales[Scale];
-            end;
-
-            Link.SourceRect.Top := Size.cx * i;
-            Link.SourceRect.Left := 0;
-            Link.SourceRect.Bottom := Size.cx * (i + 1);
-            Link.SourceRect.Right := Size.cy;
-          finally
-            CloseThemeData(ThemeHandle);
-          end;
+          Link := ALinks.Add as TBitmapLink;
+          Link.Scale := CScales[Scale];
         end;
-        Break;
+
+        if Scale = One then
+          Size := ASize
+        else
+          Size := TSize.Create(MulDiv(ASize.Width, CDPI[Scale], USER_DEFAULT_SCREEN_DPI),
+            MulDiv(ASize.Height, CDPI[Scale], USER_DEFAULT_SCREEN_DPI));
+
+        Link.SourceRect.Top := Size.Height * i;
+        Link.SourceRect.Left := 0;
+        Link.SourceRect.Bottom := Size.Height * (i + 1);
+        Link.SourceRect.Right := Size.Width;
+
+        if AAddCapInsets then
+        begin
+          InsetHeight := Size.Height mod 2;
+          if InsetHeight = 0 then
+            InsetHeight := 2;
+          InsetWidth := Size.Width mod 2;
+          if InsetWidth = 0 then
+            InsetWidth := 2;
+
+          Link.CapInsets.Top := (Size.Height - InsetHeight) / 2;
+          Link.CapInsets.Left := (Size.Width - InsetWidth) / 2;
+          Link.CapInsets.Bottom := Link.CapInsets.Top; // This is not coordinates, but a distance from the edge
+          Link.CapInsets.Right := Link.CapInsets.Left;
+        end;
       end;
-  finally
-    DeleteDC(DC);
-  end;
+      Break;
+    end;
 end;
 
 function GetThemeColor(const ATheme: string; APart, AState, AProp: Integer): TAlphaColor;
@@ -167,8 +181,7 @@ begin
 
     Color := 0;
     Winapi.UxTheme.GetThemeColor(ThemeHandle, APart, AState, AProp, Color);
-    if Color <> 0 then
-      TAlphaColorRec(Color).A := 255;
+    TAlphaColorRec(Color).A := 255;
     Result := Color;
   finally
     CloseThemeData(ThemeHandle);

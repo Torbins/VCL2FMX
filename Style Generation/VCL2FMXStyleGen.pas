@@ -17,6 +17,22 @@ type
     function WriteParam(const AStyleLookup, AType, AParam, AValue: String): String;
   end;
 
+  TButtonLayout = (blGlyphLeft, blGlyphRight, blGlyphTop, blGlyphBottom);
+  TImageAlignment = (iaLeft, iaRight, iaTop, iaBottom);
+  TButtonStyleHelper = class helper for TButton
+  private
+    function GetImageAlignment: TImageAlignment;
+    function GetLayout: TButtonLayout;
+    procedure SetImageAlignment(const Value: TImageAlignment);
+    procedure SetLayout(const Value: TButtonLayout);
+    function GetGlyphSize: Single;
+    procedure SetGlyphSize(const Value: Single);
+  public
+    property GlyphSize: Single read GetGlyphSize write SetGlyphSize;
+    property ImageAlignment: TImageAlignment read GetImageAlignment write SetImageAlignment;
+    property Layout: TButtonLayout read GetLayout write SetLayout;
+  end;
+
   TCheckBoxStyleHelper = class helper for TCheckBox
   private
     function GetColor: TAlphaColor;
@@ -75,6 +91,7 @@ type
   end;
 
 const
+  CButtonStyle = 'VCL2FMXButtonStyle';
   CCheckBoxStyle = 'VCL2FMXCheckBoxStyle';
   CGroupBoxStyle = 'VCL2FMXGroupBoxStyle';
   CLabelStyle = 'VCL2FMXLabelStyle';
@@ -82,6 +99,8 @@ const
   CRadioButtonStyle = 'VCL2FMXRadioButtonStyle';
   CScrollBoxStyle = 'VCL2FMXScrollBoxStyle';
   CBackgroundColor = 'BackgroundColor';
+  CGlyphPosition = 'GlyphPosition';
+  CGlyphSize = 'GlyphSize';
   CShowFrame = 'ShowFrame';
   CColorBtnFace = 'xFFF0F0F0';
 
@@ -91,8 +110,8 @@ var
 implementation
 
 uses
-  System.SysUtils, System.UIConsts, REST.Utils, Winapi.UxTheme, FMX.Objects, FMX.Controls, FMX.Graphics, FMX.Effects,
-  FMX.Styles.Objects, VCL2FMXWinThemes;
+  System.SysUtils, System.UIConsts, System.Types, REST.Utils, Winapi.UxTheme, FMX.Objects, FMX.Controls, FMX.Graphics,
+  FMX.Effects, FMX.Styles.Objects, FMX.ImgList, VCL2FMXWinThemes;
 
 type
   TShadowedText = class(TText)
@@ -124,6 +143,111 @@ function TStyleGenerator.Lookup(const AStyleLookup: string; const Clone: Boolean
 var
   Parameters: TStrings;
 
+  function GenerateButtonStyle: TFmxObject;
+  const
+    ButtonTheme = 'button';
+  var
+    Style, GlyphLayout: TLayout;
+    Glyph: TGlyph;
+    StyleText: TButtonStyleTextObject;
+    Button: TButtonStyleObject;
+    States: TStates;
+    Glow: TGlowEffect;
+    Size: TSize;
+    GlyphSize, GlyphPosition: String;
+  begin
+    Style := TLayout.Create(Self);
+    Style.StyleName := CButtonStyle;
+    Style.Align := TAlignLayout.Contents;
+
+    Glow := TGlowEffect.Create(Style);
+    Glow.Parent := Style;
+    Glow.Softness := 0.2;
+    Glow.GlowColor := GetThemeColor(ButtonTheme, BP_PUSHBUTTON, PBS_NORMAL, TMT_GLOWCOLOR);
+    Glow.Opacity := 1;
+    Glow.Trigger := 'IsFocused=true';
+    Glow.Enabled := False;
+
+    Button := TButtonStyleObject.Create(Style);
+    Button.Parent := Style;
+    Button.StyleName := 'background';
+    Button.Align := TAlignLayout.Contents;
+    States := [PBS_NORMAL, PBS_HOT, PBS_PRESSED];
+    Size := TSize.Create(11, 11);
+    Button.Source := CreateImage(ButtonTheme, BP_PUSHBUTTON, States, Size);
+    CalcLink(Button.NormalLink, PBS_NORMAL, States, Size, {AAddCapInsets} True);
+    CalcLink(Button.PressedLink, PBS_PRESSED, States, Size, {AAddCapInsets} True);
+    CalcLink(Button.HotLink, PBS_HOT, States, Size, {AAddCapInsets} True);
+    CalcLink(Button.FocusedLink, PBS_HOT, States, Size, {AAddCapInsets} True);
+
+    Glyph := TGlyph.Create(Style);
+    Glyph.Parent := Style;
+    Glyph.StyleName := 'glyphstyle';
+    GlyphPosition := Parameters.Values[CGlyphPosition];
+    if GlyphPosition.ToLower = 'top' then
+    begin
+      Glyph.Margins.Left := 2;
+      Glyph.Margins.Top := 3;
+      Glyph.Margins.Right := 2;
+      Glyph.Margins.Bottom := 1;
+      Glyph.Align := TAlignLayout.Top;
+    end
+    else
+    if GlyphPosition.ToLower = 'right' then
+    begin
+      Glyph.Margins.Left := 1;
+      Glyph.Margins.Top := 2;
+      Glyph.Margins.Right := 3;
+      Glyph.Margins.Bottom := 2;
+      Glyph.Align := TAlignLayout.Right;
+    end
+    else
+    if GlyphPosition.ToLower = 'bottom' then
+    begin
+      Glyph.Margins.Left := 2;
+      Glyph.Margins.Top := 1;
+      Glyph.Margins.Right := 2;
+      Glyph.Margins.Bottom := 3;
+      Glyph.Align := TAlignLayout.Bottom;
+    end
+    else
+    begin
+      Glyph.Margins.Left := 3;
+      Glyph.Margins.Top := 2;
+      Glyph.Margins.Right := 1;
+      Glyph.Margins.Bottom := 2;
+      Glyph.Align := TAlignLayout.Left;
+    end;
+    if Parameters.IndexOfName(CGlyphSize) >= 0 then
+    begin
+      Glyph.Size.Width := Parameters.Values[CGlyphSize].ToSingle;
+      Glyph.Size.Height := Glyph.Size.Width;
+    end
+    else
+    begin
+      Glyph.Size.Width := 16;
+      Glyph.Size.Height := 16;
+    end;
+    Glyph.Size.PlatformDefault := False;
+
+    StyleText := TButtonStyleTextObject.Create(Style);
+    StyleText.Parent := Style;
+    StyleText.StyleName := 'text';
+    StyleText.Align := TAlignLayout.Client;
+    StyleText.Margins.Left := 2;
+    StyleText.Margins.Top := 2;
+    StyleText.Margins.Right := 2;
+    StyleText.Margins.Bottom := 2;
+    StyleText.Size.PlatformDefault := False;
+    StyleText.ShadowVisible := False;
+    StyleText.HotColor := GetThemeColor(ButtonTheme, BP_PUSHBUTTON, PBS_NORMAL, TMT_TEXTCOLOR);
+    StyleText.FocusedColor := StyleText.HotColor;
+    StyleText.NormalColor := StyleText.HotColor;
+    StyleText.PressedColor := StyleText.HotColor;
+
+    Result := Style;
+  end;
+
   function GenerateCheckBoxStyle: TFmxObject;
   const
     ButtonTheme = 'button';
@@ -134,6 +258,7 @@ var
     Check: TCheckStyleObject;
     States: TStates;
     Glow: TGlowEffect;
+    Size: TSize;
   begin
     Style := TLayout.Create(Self);
     Style.StyleName := CCheckBoxStyle;
@@ -160,13 +285,14 @@ var
     Check.Align := TAlignLayout.Center;
     Check.CapMode := TCapWrapMode.Tile;
     States := [CBS_UNCHECKEDNORMAL, CBS_CHECKEDNORMAL, CBS_UNCHECKEDHOT, CBS_CHECKEDHOT];
-    Check.Source := CreateImage(ButtonTheme, BP_CHECKBOX, States);
-    CalcLink(Check.SourceLink, CBS_UNCHECKEDNORMAL, ButtonTheme, BP_CHECKBOX, States);
-    CalcLink(Check.ActiveLink, CBS_CHECKEDNORMAL, ButtonTheme, BP_CHECKBOX, States);
-    CalcLink(Check.HotLink, CBS_UNCHECKEDHOT, ButtonTheme, BP_CHECKBOX, States);
-    CalcLink(Check.ActiveHotLink, CBS_CHECKEDHOT, ButtonTheme, BP_CHECKBOX, States);
-    CalcLink(Check.FocusedLink, CBS_UNCHECKEDHOT, ButtonTheme, BP_CHECKBOX, States);
-    CalcLink(Check.ActiveFocusedLink, CBS_CHECKEDHOT, ButtonTheme, BP_CHECKBOX, States);
+    Size := TSize.Create(0, 0);
+    Check.Source := CreateImage(ButtonTheme, BP_CHECKBOX, States, Size);
+    CalcLink(Check.SourceLink, CBS_UNCHECKEDNORMAL, States, Size);
+    CalcLink(Check.ActiveLink, CBS_CHECKEDNORMAL, States, Size);
+    CalcLink(Check.HotLink, CBS_UNCHECKEDHOT, States, Size);
+    CalcLink(Check.ActiveHotLink, CBS_CHECKEDHOT, States, Size);
+    CalcLink(Check.FocusedLink, CBS_UNCHECKEDHOT, States, Size);
+    CalcLink(Check.ActiveFocusedLink, CBS_CHECKEDHOT, States, Size);
     Check.Size.Width := 15;
     Check.Size.Height := 15;
     Check.Size.PlatformDefault := False;
@@ -301,6 +427,7 @@ var
     Check: TCheckStyleObject;
     States: TStates;
     Glow: TGlowEffect;
+    Size: TSize;
   begin
     Style := TLayout.Create(Self);
     Style.StyleName := CRadioButtonStyle;
@@ -326,13 +453,14 @@ var
     Check.StyleName := 'background';
     Check.Align := TAlignLayout.Center;
     States := [RBS_UNCHECKEDNORMAL, RBS_CHECKEDNORMAL, RBS_UNCHECKEDHOT, RBS_CHECKEDHOT];
-    Check.Source := CreateImage(ButtonTheme, BP_RADIOBUTTON, States);
-    CalcLink(Check.SourceLink, RBS_UNCHECKEDNORMAL, ButtonTheme, BP_RADIOBUTTON, States);
-    CalcLink(Check.ActiveLink, RBS_CHECKEDNORMAL, ButtonTheme, BP_RADIOBUTTON, States);
-    CalcLink(Check.HotLink, RBS_UNCHECKEDHOT, ButtonTheme, BP_RADIOBUTTON, States);
-    CalcLink(Check.ActiveHotLink, RBS_CHECKEDHOT, ButtonTheme, BP_RADIOBUTTON, States);
-    CalcLink(Check.FocusedLink, RBS_UNCHECKEDHOT, ButtonTheme, BP_RADIOBUTTON, States);
-    CalcLink(Check.ActiveFocusedLink, RBS_CHECKEDHOT, ButtonTheme, BP_RADIOBUTTON, States);
+    Size := TSize.Create(0, 0);
+    Check.Source := CreateImage(ButtonTheme, BP_RADIOBUTTON, States, Size);
+    CalcLink(Check.SourceLink, RBS_UNCHECKEDNORMAL, States, Size);
+    CalcLink(Check.ActiveLink, RBS_CHECKEDNORMAL, States, Size);
+    CalcLink(Check.HotLink, RBS_UNCHECKEDHOT, States, Size);
+    CalcLink(Check.ActiveHotLink, RBS_CHECKEDHOT, States, Size);
+    CalcLink(Check.FocusedLink, RBS_UNCHECKEDHOT, States, Size);
+    CalcLink(Check.ActiveFocusedLink, RBS_CHECKEDHOT, States, Size);
     Check.Size.Width := 15;
     Check.Size.Height := 15;
     Check.Size.PlatformDefault := False;
@@ -457,6 +585,9 @@ begin
   try
     ExtractGetParams(AStyleLookup, Parameters);
 
+    if AStyleLookup.StartsWith(CButtonStyle) then
+      Result := GenerateButtonStyle
+    else
     if AStyleLookup.StartsWith(CCheckBoxStyle) then
       Result := GenerateCheckBoxStyle
     else
@@ -658,6 +789,72 @@ begin
   else
     if StyleGenerator.ReadParamDef(StyleLookup, CPanelStyle, CBackgroundColor, 'claNull') = 'claNull' then
       StyleLookup := StyleGenerator.WriteParam(StyleLookup, CPanelStyle, CBackgroundColor, CColorBtnFace);
+end;
+
+{ TButtonStyleHelper }
+
+function TButtonStyleHelper.GetGlyphSize: Single;
+begin
+  Result := StyleGenerator.ReadParamDef(StyleLookup, CButtonStyle, CGlyphSize, '16').ToSingle
+end;
+
+function TButtonStyleHelper.GetImageAlignment: TImageAlignment;
+var
+  GlyphPosition: String;
+begin
+  GlyphPosition := StyleGenerator.ReadParamDef(StyleLookup, CButtonStyle, CGlyphPosition, 'Left');
+  if GlyphPosition.ToLower = 'top' then
+    Result := iaTop
+  else
+  if GlyphPosition.ToLower = 'right' then
+    Result := iaRight
+  else
+  if GlyphPosition.ToLower = 'bottom' then
+    Result := iaBottom
+  else
+    Result := iaLeft;
+end;
+
+function TButtonStyleHelper.GetLayout: TButtonLayout;
+var
+  GlyphPosition: String;
+begin
+  GlyphPosition := StyleGenerator.ReadParamDef(StyleLookup, CButtonStyle, CGlyphPosition, 'Left');
+  if GlyphPosition.ToLower = 'top' then
+    Result := blGlyphTop
+  else
+  if GlyphPosition.ToLower = 'right' then
+    Result := blGlyphRight
+  else
+  if GlyphPosition.ToLower = 'bottom' then
+    Result := blGlyphBottom
+  else
+    Result := blGlyphLeft;
+end;
+
+procedure TButtonStyleHelper.SetGlyphSize(const Value: Single);
+begin
+  StyleLookup := StyleGenerator.WriteParam(StyleLookup, CButtonStyle, CGlyphSize, Value.ToString);
+end;
+
+procedure TButtonStyleHelper.SetImageAlignment(const Value: TImageAlignment);
+begin
+  case Value of
+    iaLeft: StyleLookup := StyleGenerator.WriteParam(StyleLookup, CButtonStyle, CGlyphPosition, '');
+    iaRight: StyleLookup := StyleGenerator.WriteParam(StyleLookup, CButtonStyle, CGlyphPosition, 'Right');
+    iaTop: StyleLookup := StyleGenerator.WriteParam(StyleLookup, CButtonStyle, CGlyphPosition, 'Top');
+    iaBottom: StyleLookup := StyleGenerator.WriteParam(StyleLookup, CButtonStyle, CGlyphPosition, 'Bottom');
+  end;
+end;
+
+procedure TButtonStyleHelper.SetLayout(const Value: TButtonLayout);
+begin
+  case Value of
+    blGlyphLeft: StyleLookup := StyleGenerator.WriteParam(StyleLookup, CButtonStyle, CGlyphPosition, '');
+    blGlyphRight: StyleLookup := StyleGenerator.WriteParam(StyleLookup, CButtonStyle, CGlyphPosition, 'Rigth');
+    blGlyphTop: StyleLookup := StyleGenerator.WriteParam(StyleLookup, CButtonStyle, CGlyphPosition, 'Top');
+    blGlyphBottom: StyleLookup := StyleGenerator.WriteParam(StyleLookup, CButtonStyle, CGlyphPosition, 'Bottom');
+  end;
 end;
 
 initialization

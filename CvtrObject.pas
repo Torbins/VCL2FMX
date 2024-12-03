@@ -72,6 +72,7 @@ type
     procedure LoadCommonProperties(AParamName: String);
     procedure GenerateObject(AProp: TDfmProperty; AObjectType: string);
     procedure GenerateStyle(const APropName, APropValue, AObjectType: String);
+    procedure SetStyle(const AType, AParam, AValue: String);
     procedure InternalProcessBody(var ABody: String);
     procedure UpdateUsesStringList(AUsesList: TStrings); virtual;
     function GetObjHeader: string; virtual;
@@ -472,13 +473,18 @@ type
 
   procedure ConvertGlyph;
   var
+    Png: TPngImage;
     NumGlyphs, Index: Integer;
   begin
     NumGlyphs := FDfmProps.GetIntValueDef('NumGlyphs', 1);
-    Index := FRoot.AddImageItem(CreateGlyphPng(AProp.Value, NumGlyphs));
+    Png := CreateGlyphPng(AProp.Value, NumGlyphs);
+    Index := FRoot.AddImageItem(Png);
 
     AddFmxProperty(Self, 'Images', 'SingletoneImageList');
     AddFmxProperty(Self, 'ImageIndex', Index.ToString);
+
+    if FClassName.ToLower = 'tbutton' then
+      SetStyle(CButtonStyle, CGlyphSize, Png.Height.ToString);
   end;
 
   procedure InitChildImage(AObj: TDfmToFmxObject);
@@ -610,21 +616,6 @@ end;
 
 procedure TDfmToFmxObject.GenerateStyle(const APropName, APropValue, AObjectType: String);
 
-  procedure SetStyle(const AType, AParam, AValue: String);
-  var
-    Prop: TFmxProperty;
-  begin
-    Prop := FFmxProps.FindByName('StyleLookup');
-
-    if not Assigned(Prop) then
-    begin
-      Prop := TFmxProperty.Create('StyleLookup', '');
-      FFmxProps.AddProp(Prop);
-    end;
-
-    Prop.Value := StyleGenerator.WriteParam(Prop.Value.DeQuotedString, AType, AParam, AValue).QuotedString;
-  end;
-
   function IsParamSet(const AType, AParam: String): Boolean;
   var
     Prop: TFmxProperty;
@@ -638,6 +629,14 @@ procedure TDfmToFmxObject.GenerateStyle(const APropName, APropValue, AObjectType
 begin
   FIniIncludeValues.Add('VCL2FMXStyleGen');
 
+  if AObjectType = 'Button' then
+  begin
+    if (APropName = 'ImageAlignment') and (APropValue <> 'iaCenter') then
+      SetStyle(CButtonStyle, CGlyphPosition, APropValue.Substring(2));
+    if APropName = 'Layout' then
+      SetStyle(CButtonStyle, CGlyphPosition, APropValue.Substring(7));
+  end
+  else
   if (AObjectType = 'CheckBox') and (APropName = 'Color') then
     SetStyle(CCheckBoxStyle, CBackgroundColor, ColorToAlphaColor(APropValue))
   else
@@ -1009,6 +1008,21 @@ begin
     Data := Trim(AStm.ReadLine);
   end;
   Result := Data.Substring(3);
+end;
+
+procedure TDfmToFmxObject.SetStyle(const AType, AParam, AValue: String);
+var
+  Prop: TFmxProperty;
+begin
+  Prop := FFmxProps.FindByName('StyleLookup');
+
+  if not Assigned(Prop) then
+  begin
+    Prop := TFmxProperty.Create('StyleLookup', '');
+    FFmxProps.AddProp(Prop);
+  end;
+
+  Prop.Value := StyleGenerator.WriteParam(Prop.Value.DeQuotedString, AType, AParam, AValue).QuotedString;
 end;
 
 function TDfmToFmxObject.TransformProperty(AProp: TDfmProperty): TFmxProperty;
