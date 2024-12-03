@@ -174,7 +174,7 @@ var
     Button.Align := TAlignLayout.Contents;
     States := [PBS_NORMAL, PBS_HOT, PBS_PRESSED];
     Size := TSize.Create(11, 11);
-    Button.Source := CreateImage(ButtonTheme, BP_PUSHBUTTON, States, Size);
+    Button.Source := CreateImage(ButtonTheme, BP_PUSHBUTTON, States, Size, Button);
     CalcLink(Button.NormalLink, PBS_NORMAL, States, Size, {AAddCapInsets} True);
     CalcLink(Button.PressedLink, PBS_PRESSED, States, Size, {AAddCapInsets} True);
     CalcLink(Button.HotLink, PBS_HOT, States, Size, {AAddCapInsets} True);
@@ -286,7 +286,7 @@ var
     Check.CapMode := TCapWrapMode.Tile;
     States := [CBS_UNCHECKEDNORMAL, CBS_CHECKEDNORMAL, CBS_UNCHECKEDHOT, CBS_CHECKEDHOT];
     Size := TSize.Create(0, 0);
-    Check.Source := CreateImage(ButtonTheme, BP_CHECKBOX, States, Size);
+    Check.Source := CreateImage(ButtonTheme, BP_CHECKBOX, States, Size, Check);
     CalcLink(Check.SourceLink, CBS_UNCHECKEDNORMAL, States, Size);
     CalcLink(Check.ActiveLink, CBS_CHECKEDNORMAL, States, Size);
     CalcLink(Check.HotLink, CBS_UNCHECKEDHOT, States, Size);
@@ -454,7 +454,7 @@ var
     Check.Align := TAlignLayout.Center;
     States := [RBS_UNCHECKEDNORMAL, RBS_CHECKEDNORMAL, RBS_UNCHECKEDHOT, RBS_CHECKEDHOT];
     Size := TSize.Create(0, 0);
-    Check.Source := CreateImage(ButtonTheme, BP_RADIOBUTTON, States, Size);
+    Check.Source := CreateImage(ButtonTheme, BP_RADIOBUTTON, States, Size, Check);
     CalcLink(Check.SourceLink, RBS_UNCHECKEDNORMAL, States, Size);
     CalcLink(Check.ActiveLink, RBS_CHECKEDNORMAL, States, Size);
     CalcLink(Check.HotLink, RBS_UNCHECKEDHOT, States, Size);

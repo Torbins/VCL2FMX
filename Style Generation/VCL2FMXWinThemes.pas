@@ -3,12 +3,13 @@ unit VCL2FMXWinThemes;
 interface
 
 uses
-  System.Types, System.UITypes, FMX.MultiResBitmap, FMX.Objects, FMX.Styles.Objects;
+  System.Types, System.UITypes, FMX.Types, FMX.MultiResBitmap, FMX.Objects, FMX.Styles.Objects;
 
 type
   TStates = TArray<Integer>;
 
-function CreateImage(const ATheme: string; APart: Integer; const AStates: TStates; var ASize: TSize): TImage;
+function CreateImage(const ATheme: string; APart: Integer; const AStates: TStates; var ASize: TSize;
+  AOwner: TFmxObject): TImage;
 procedure CalcLink(ALinks: TBitmapLinks; AState: Integer; const AStates: TStates; ASize: TSize;
   AAddCapInsets: Boolean = False);
 function GetThemeColor(const ATheme: string; APart, AState, AProp: Integer): TAlphaColor;
@@ -16,8 +17,7 @@ function GetThemeColor(const ATheme: string; APart, AState, AProp: Integer): TAl
 implementation
 
 uses
-  System.SysUtils, System.Classes, System.Win.ComObj, Winapi.UxTheme, Winapi.Windows, FMX.Types, FMX.Graphics,
-  VCL2FMXStyleGen;
+  System.SysUtils, System.Classes, System.Win.ComObj, Winapi.UxTheme, Winapi.Windows, FMX.Graphics, VCL2FMXStyleGen;
 
 type
   TScale = (One, OneHalf, Two);
@@ -53,7 +53,7 @@ begin
     FillMemory(@BmpInfo, SizeOf(BmpInfo), 0);
     BmpInfo.bmiHeader.biSize := SizeOf(TBitmapInfoHeader);
     BmpInfo.bmiHeader.biWidth := ASize.Width;
-    BmpInfo.bmiHeader.biHeight := -ASize.Height * Count;  // top-down
+    BmpInfo.bmiHeader.biHeight := -1 * ASize.Height * Count;  // negative means top-down
     BmpInfo.bmiHeader.biPlanes := 1;
     BmpInfo.bmiHeader.biBitCount := 32;
     BmpInfo.bmiHeader.biCompression := BI_RGB;
@@ -81,14 +81,15 @@ begin
   end;
 end;
 
-function CreateImage(const ATheme: string; APart: Integer; const AStates: TStates; var ASize: TSize): TImage;
+function CreateImage(const ATheme: string; APart: Integer; const AStates: TStates; var ASize: TSize;
+  AOwner: TFmxObject): TImage;
 var
   Scale: TScale;
   ThemeHandle: THandle;
   Item: TFixedBitmapItem;
   Size: TSize;
 begin
-  Result := TImage.Create(StyleGenerator);
+  Result := TImage.Create(AOwner);
 
   for Scale := One to Two do
   begin
