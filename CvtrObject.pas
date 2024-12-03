@@ -187,7 +187,7 @@ var
   Rule: TRule;
   Mask: TReflexiveMask;
   DfmProp: TDfmProperty;
-  ExistingProp: TFmxProperty;
+  ExistingProp, NewProp: TFmxProperty;
 
   procedure HandleStyledSettings(AExcludeElement: String);
   var
@@ -365,7 +365,12 @@ begin
       ReconsiderAfterRemovingRule(Rule.Parameter);
       Continue;
     end;
-    FFmxProps.AddProp(TFmxProperty.CreateFromLine(Rule.Parameter));
+
+    NewProp := TFmxProperty.CreateFromLine(Rule.Parameter);
+    if not Assigned(FFmxProps.FindByName(NewProp.Name)) then
+      FFmxProps.AddProp(NewProp)
+    else
+      NewProp.Free;
   end;
 
   for i := 0 to Pred(FIniAddProperties.Count) do
@@ -379,14 +384,18 @@ begin
         HandleStyledSettings(Rule.Parameter);
         Continue;
       end;
-      ExistingProp := FFmxProps.FindByName(Rule.Parameter.Split(['='], 1)[0].Trim);
+
+      NewProp := TFmxProperty.CreateFromLine(Rule.Parameter);
+      ExistingProp := FFmxProps.FindByName(NewProp.Name);
       if not Assigned(ExistingProp) then
       begin
         if Rule.Action = '#PutToTheTop#' then
-          FFmxProps.Insert(0, TFmxProperty.CreateFromLine(Rule.Parameter))
+          FFmxProps.Insert(0, NewProp)
         else
-          FFmxProps.AddProp(TFmxProperty.CreateFromLine(Rule.Parameter));
-      end;
+          FFmxProps.AddProp(NewProp);
+      end
+      else
+        NewProp.Free;
     end;
   end;
 
