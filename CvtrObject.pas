@@ -269,7 +269,8 @@ var
 
   procedure CopyFromParent(ACopyProp: String);
   var
-    Prop: TDfmProperty;
+    ParentProp: TDfmProperty;
+    NewProp: TFmxProperty;
     Mask: TReflexiveMask;
     Found: Boolean;
     Parent: TDfmToFmxObject;
@@ -279,10 +280,14 @@ var
       Found := False;
       Parent := FParent;
       repeat
-        for Prop in Parent.DfmProps do
-          if Mask.Matches(Prop.Name) then
+        for ParentProp in Parent.DfmProps do
+          if Mask.Matches(ParentProp.Name) then
           begin
-            FFmxProps.AddProp(TransformProperty(Prop));
+            NewProp := TransformProperty(ParentProp);
+            if Assigned(NewProp) and not Assigned(FFmxProps.FindByName(NewProp.Name)) then
+              FFmxProps.AddProp(NewProp)
+            else
+              NewProp.Free;
             Found := True;
           end;
         Parent := Parent.Parent;
@@ -368,7 +373,7 @@ begin
     end;
 
     NewProp := TFmxProperty.CreateFromLine(Rule.Parameter);
-    if not Assigned(FFmxProps.FindByName(NewProp.Name)) then
+    if Assigned(NewProp) and not Assigned(FFmxProps.FindByName(NewProp.Name)) then
       FFmxProps.AddProp(NewProp)
     else
       NewProp.Free;
@@ -387,8 +392,7 @@ begin
       end;
 
       NewProp := TFmxProperty.CreateFromLine(Rule.Parameter);
-      ExistingProp := FFmxProps.FindByName(NewProp.Name);
-      if not Assigned(ExistingProp) then
+      if Assigned(NewProp) and not Assigned(FFmxProps.FindByName(NewProp.Name)) then
       begin
         if Rule.Action = '#PutToTheTop#' then
           FFmxProps.Insert(0, NewProp)
