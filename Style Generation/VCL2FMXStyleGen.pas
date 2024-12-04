@@ -90,6 +90,17 @@ type
     property ParentBackground: Boolean read GetParentBackground write SetParentBackground;
   end;
 
+  TSpeedButtonStyleHelper = class helper for TSpeedButton
+  private
+    function GetLayout: TButtonLayout;
+    procedure SetLayout(const Value: TButtonLayout);
+    function GetGlyphSize: Single;
+    procedure SetGlyphSize(const Value: Single);
+  public
+    property GlyphSize: Single read GetGlyphSize write SetGlyphSize;
+    property Layout: TButtonLayout read GetLayout write SetLayout;
+  end;
+
 const
   CButtonStyle = 'VCL2FMXButtonStyle';
   CCheckBoxStyle = 'VCL2FMXCheckBoxStyle';
@@ -98,6 +109,7 @@ const
   CPanelStyle = 'VCL2FMXPanelStyle';
   CRadioButtonStyle = 'VCL2FMXRadioButtonStyle';
   CScrollBoxStyle = 'VCL2FMXScrollBoxStyle';
+  CSpeedButtonStyle = 'VCL2FMXSpeedButtonStyle';
   CBackgroundColor = 'BackgroundColor';
   CGlyphPosition = 'GlyphPosition';
   CGlyphSize = 'GlyphSize';
@@ -147,14 +159,14 @@ var
   const
     ButtonTheme = 'button';
   var
-    Style, GlyphLayout: TLayout;
+    Style: TLayout;
     Glyph: TGlyph;
     StyleText: TButtonStyleTextObject;
     Button: TButtonStyleObject;
     States: TStates;
     Glow: TGlowEffect;
     Size: TSize;
-    GlyphSize, GlyphPosition: String;
+    GlyphPosition: String;
   begin
     Style := TLayout.Create(Self);
     Style.StyleName := CButtonStyle;
@@ -173,7 +185,7 @@ var
     Button.StyleName := 'background';
     Button.Align := TAlignLayout.Contents;
     States := [PBS_NORMAL, PBS_HOT, PBS_PRESSED];
-    Size := TSize.Create(11, 11);
+    Size := TSize.Create(13, 13);
     Button.Source := CreateImage(ButtonTheme, BP_PUSHBUTTON, States, Size, Button);
     CalcLink(Button.NormalLink, PBS_NORMAL, States, Size, {AAddCapInsets} True);
     CalcLink(Button.PressedLink, PBS_PRESSED, States, Size, {AAddCapInsets} True);
@@ -580,6 +592,82 @@ var
     Result := Style;
   end;
 
+  function GenerateSpeedButtonStyle: TFmxObject;
+  const
+    ToolbarTheme = 'toolbar';
+  var
+    Style: TLayout;
+    Glyph: TGlyph;
+    StyleText: TButtonStyleTextObject;
+    Button: TButtonStyleObject;
+    States: TStates;
+    Size: TSize;
+    GlyphPosition: String;
+  begin
+    Style := TLayout.Create(Self);
+    Style.StyleName := CSpeedButtonStyle;
+    Style.Align := TAlignLayout.Contents;
+
+    Button := TButtonStyleObject.Create(Style);
+    Button.Parent := Style;
+    Button.StyleName := 'background';
+    Button.Align := TAlignLayout.Contents;
+    States := [TS_NORMAL, TS_HOT, TS_PRESSED];
+    Size := TSize.Create(13, 13);
+    Button.Source := CreateImage(ToolbarTheme, TP_BUTTON, States, Size, Button);
+    CalcLink(Button.NormalLink, TS_NORMAL, States, Size, {AAddCapInsets} True);
+    CalcLink(Button.PressedLink, TS_PRESSED, States, Size, {AAddCapInsets} True);
+    CalcLink(Button.HotLink, TS_HOT, States, Size, {AAddCapInsets} True);
+    CalcLink(Button.FocusedLink, TS_HOT, States, Size, {AAddCapInsets} True);
+
+    Glyph := TGlyph.Create(Style);
+    Glyph.Parent := Style;
+    Glyph.StyleName := 'glyphstyle';
+    Glyph.Margins.Left := 2;
+    Glyph.Margins.Top := 2;
+    Glyph.Margins.Right := 2;
+    Glyph.Margins.Bottom := 2;
+    GlyphPosition := Parameters.Values[CGlyphPosition];
+    if GlyphPosition.ToLower = 'top' then
+      Glyph.Align := TAlignLayout.Top
+    else
+    if GlyphPosition.ToLower = 'right' then
+      Glyph.Align := TAlignLayout.Right
+    else
+    if GlyphPosition.ToLower = 'bottom' then
+      Glyph.Align := TAlignLayout.Bottom
+    else
+      Glyph.Align := TAlignLayout.Left;
+    if Parameters.IndexOfName(CGlyphSize) >= 0 then
+    begin
+      Glyph.Size.Width := Parameters.Values[CGlyphSize].ToSingle;
+      Glyph.Size.Height := Glyph.Size.Width;
+    end
+    else
+    begin
+      Glyph.Size.Width := 16;
+      Glyph.Size.Height := 16;
+    end;
+    Glyph.Size.PlatformDefault := False;
+
+    StyleText := TButtonStyleTextObject.Create(Style);
+    StyleText.Parent := Style;
+    StyleText.StyleName := 'text';
+    StyleText.Align := TAlignLayout.Client;
+    StyleText.Margins.Left := 2;
+    StyleText.Margins.Top := 2;
+    StyleText.Margins.Right := 2;
+    StyleText.Margins.Bottom := 2;
+    StyleText.Size.PlatformDefault := False;
+    StyleText.ShadowVisible := False;
+    StyleText.HotColor := GetThemeColor(ToolbarTheme, TP_BUTTON, TS_NORMAL, TMT_TEXTCOLOR);
+    StyleText.FocusedColor := StyleText.HotColor;
+    StyleText.NormalColor := StyleText.HotColor;
+    StyleText.PressedColor := StyleText.HotColor;
+
+    Result := Style;
+  end;
+
 begin
   Parameters := nil;
   try
@@ -605,6 +693,9 @@ begin
     else
     if AStyleLookup.StartsWith(CScrollBoxStyle) then
       Result := GenerateScrollBoxStyle
+    else
+    if AStyleLookup.StartsWith(CSpeedButtonStyle) then
+      Result := GenerateSpeedButtonStyle
     else
       Result := nil;
   finally
@@ -795,7 +886,7 @@ end;
 
 function TButtonStyleHelper.GetGlyphSize: Single;
 begin
-  Result := StyleGenerator.ReadParamDef(StyleLookup, CButtonStyle, CGlyphSize, '16').ToSingle
+  Result := StyleGenerator.ReadParamDef(StyleLookup, CButtonStyle, CGlyphSize, '16').ToSingle;
 end;
 
 function TButtonStyleHelper.GetImageAlignment: TImageAlignment;
@@ -854,6 +945,45 @@ begin
     blGlyphRight: StyleLookup := StyleGenerator.WriteParam(StyleLookup, CButtonStyle, CGlyphPosition, 'Rigth');
     blGlyphTop: StyleLookup := StyleGenerator.WriteParam(StyleLookup, CButtonStyle, CGlyphPosition, 'Top');
     blGlyphBottom: StyleLookup := StyleGenerator.WriteParam(StyleLookup, CButtonStyle, CGlyphPosition, 'Bottom');
+  end;
+end;
+
+{ TSpeedButtonStyleHelper }
+
+function TSpeedButtonStyleHelper.GetGlyphSize: Single;
+begin
+  Result := StyleGenerator.ReadParamDef(StyleLookup, CSpeedButtonStyle, CGlyphSize, '16').ToSingle;
+end;
+
+function TSpeedButtonStyleHelper.GetLayout: TButtonLayout;
+var
+  GlyphPosition: String;
+begin
+  GlyphPosition := StyleGenerator.ReadParamDef(StyleLookup, CSpeedButtonStyle, CGlyphPosition, 'Left');
+  if GlyphPosition.ToLower = 'top' then
+    Result := blGlyphTop
+  else
+  if GlyphPosition.ToLower = 'right' then
+    Result := blGlyphRight
+  else
+  if GlyphPosition.ToLower = 'bottom' then
+    Result := blGlyphBottom
+  else
+    Result := blGlyphLeft;
+end;
+
+procedure TSpeedButtonStyleHelper.SetGlyphSize(const Value: Single);
+begin
+  StyleLookup := StyleGenerator.WriteParam(StyleLookup, CSpeedButtonStyle, CGlyphSize, Value.ToString);
+end;
+
+procedure TSpeedButtonStyleHelper.SetLayout(const Value: TButtonLayout);
+begin
+  case Value of
+    blGlyphLeft: StyleLookup := StyleGenerator.WriteParam(StyleLookup, CSpeedButtonStyle, CGlyphPosition, '');
+    blGlyphRight: StyleLookup := StyleGenerator.WriteParam(StyleLookup, CSpeedButtonStyle, CGlyphPosition, 'Rigth');
+    blGlyphTop: StyleLookup := StyleGenerator.WriteParam(StyleLookup, CSpeedButtonStyle, CGlyphPosition, 'Top');
+    blGlyphBottom: StyleLookup := StyleGenerator.WriteParam(StyleLookup, CSpeedButtonStyle, CGlyphPosition, 'Bottom');
   end;
 end;
 

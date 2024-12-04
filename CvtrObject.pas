@@ -489,6 +489,8 @@ type
 
     if FClassName.ToLower = 'tbutton' then
       SetStyle(CButtonStyle, CGlyphSize, Png.Height.ToString);
+    if FClassName.ToLower = 'tspeedbutton' then
+      SetStyle(CSpeedButtonStyle, CGlyphSize, Png.Height.ToString);
   end;
 
   procedure InitChildImage(AObj: TDfmToFmxObject);
@@ -692,7 +694,10 @@ begin
         if not IsParamSet(CScrollBoxStyle, CBackgroundColor) then
           SetStyle(CScrollBoxStyle, CBackgroundColor, CColorBtnFace);
     end;
-  end;
+  end
+  else
+  if (AObjectType = 'SpeedButton') and (APropName = 'Layout') then
+    SetStyle(CSpeedButtonStyle, CGlyphPosition, APropValue.Substring(7));
 end;
 
 function TDfmToFmxObject.GetObjHeader: string;
