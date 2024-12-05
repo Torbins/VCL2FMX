@@ -646,8 +646,8 @@ begin
   if (AObjectType = 'CheckBox') and (APropName = 'Color') then
     SetStyle(CCheckBoxStyle, CBackgroundColor, ColorToAlphaColor(APropValue))
   else
-  if (AObjectType = 'Label') and (APropName = 'Color') then
-    SetStyle(CLabelStyle, CBackgroundColor, ColorToAlphaColor(APropValue))
+  if (AObjectType = 'Edit') and (APropName = 'Color') then
+    SetStyle(CEditStyle, CBackgroundColor, ColorToAlphaColor(APropValue))
   else
   if AObjectType = 'GroupBox' then
   begin
@@ -664,6 +664,9 @@ begin
           SetStyle(CGroupBoxStyle, CBackgroundColor, CColorBtnFace);
     end;
   end
+  else
+  if (AObjectType = 'Label') and (APropName = 'Color') then
+    SetStyle(CLabelStyle, CBackgroundColor, ColorToAlphaColor(APropValue))
   else
   if AObjectType = 'Panel' then
   begin

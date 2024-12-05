@@ -3,7 +3,7 @@ unit VCL2FMXStyleGen;
 interface
 
 uses
-  System.UITypes, System.Classes, FMX.Types, FMX.StdCtrls, FMX.Layouts;
+  System.UITypes, System.Classes, FMX.Types, FMX.StdCtrls, FMX.Layouts, FMX.Edit;
 
 type
   TStyleGenerator = class(TComponent)
@@ -34,6 +34,14 @@ type
   end;
 
   TCheckBoxStyleHelper = class helper for TCheckBox
+  private
+    function GetColor: TAlphaColor;
+    procedure SetColor(const Value: TAlphaColor);
+  public
+    property Color: TAlphaColor read GetColor write SetColor;
+  end;
+
+  TEditStyleHelper = class helper for TEdit
   private
     function GetColor: TAlphaColor;
     procedure SetColor(const Value: TAlphaColor);
@@ -104,6 +112,7 @@ type
 const
   CButtonStyle = 'VCL2FMXButtonStyle';
   CCheckBoxStyle = 'VCL2FMXCheckBoxStyle';
+  CEditStyle = 'VCL2FMXEditStyle';
   CGroupBoxStyle = 'VCL2FMXGroupBoxStyle';
   CLabelStyle = 'VCL2FMXLabelStyle';
   CPanelStyle = 'VCL2FMXPanelStyle';
@@ -123,7 +132,7 @@ implementation
 
 uses
   System.SysUtils, System.UIConsts, System.Types, REST.Utils, Winapi.UxTheme, FMX.Objects, FMX.Controls, FMX.Graphics,
-  FMX.Effects, FMX.Styles.Objects, FMX.ImgList, VCL2FMXWinThemes;
+  FMX.Effects, FMX.Styles.Objects, FMX.ImgList, Winapi.Windows, VCL2FMXWinThemes;
 
 type
   TShadowedText = class(TText)
@@ -252,7 +261,7 @@ var
     StyleText.Margins.Bottom := 2;
     StyleText.Size.PlatformDefault := False;
     StyleText.ShadowVisible := False;
-    StyleText.HotColor := GetThemeColor(ButtonTheme, BP_PUSHBUTTON, PBS_NORMAL, TMT_TEXTCOLOR);
+    StyleText.HotColor := GetSystemColor(COLOR_BTNTEXT);
     StyleText.FocusedColor := StyleText.HotColor;
     StyleText.NormalColor := StyleText.HotColor;
     StyleText.PressedColor := StyleText.HotColor;
@@ -326,10 +335,98 @@ var
     StyleText.Margins.Left := 3;
     StyleText.Size.PlatformDefault := False;
     StyleText.ShadowVisible := False;
-    StyleText.HotColor := claBlack;
-    StyleText.FocusedColor := claBlack;
-    StyleText.NormalColor := claBlack;
-    StyleText.PressedColor := claBlack;
+    StyleText.HotColor := GetSystemColor(COLOR_BTNTEXT);
+    StyleText.FocusedColor := StyleText.HotColor;
+    StyleText.NormalColor := StyleText.HotColor;
+    StyleText.PressedColor := StyleText.HotColor;
+
+    Result := Style;
+  end;
+
+  function GenerateEditStyle: TFmxObject;
+  const
+    EditTheme = 'edit';
+  var
+    Style, Content, Buttons: TLayout;
+    Rectangle: TRectangle;
+    Glow: TGlowEffect;
+    Edit: TActiveStyleObject;
+    States: TStates;
+    Size: TSize;
+    Foreground, Selection: TBrushObject;
+    Font: TFontObject;
+    Prompt: TLabel;
+  begin
+    Style := TLayout.Create(Self);
+    Style.StyleName := CEditStyle;
+
+    Glow := TGlowEffect.Create(Style);
+    Glow.Parent := Style;
+    Glow.Softness := 0.2;
+    Glow.GlowColor := GetThemeColor(EditTheme, EP_EDITBORDER_NOSCROLL, EPSN_NORMAL, TMT_GLOWCOLOR);
+    Glow.Opacity := 1;
+    Glow.Trigger := 'IsFocused=true';
+    Glow.Enabled := False;
+
+    Edit := TActiveStyleObject.Create(Style);
+    Edit.Parent := Style;
+    Edit.StyleName := 'background';
+    Edit.Align := TAlignLayout.Contents;
+    Edit.ActiveTrigger := TStyleTrigger.Focused;
+    States := [EPSN_NORMAL, EPSN_FOCUSED];
+    Size := TSize.Create(13, 13);
+    Edit.Source := CreateImage(EditTheme, EP_EDITBORDER_NOSCROLL, States, Size, Edit);
+    CalcLink(Edit.SourceLink, EPSN_NORMAL, States, Size, {AAddCapInsets} True);
+    CalcLink(Edit.ActiveLink, EPSN_FOCUSED, States, Size, {AAddCapInsets} True);
+
+    Content := TLayout.Create(Style);
+    Content.Parent := Style;
+    Content.StyleName := 'content';
+    Content.Align := TAlignLayout.Client;
+    Content.Margins.Left := 2;
+    Content.Margins.Top := 2;
+    Content.Margins.Right := 2;
+    Content.Margins.Bottom := 2;
+    Content.Size.PlatformDefault := False;
+
+    if Parameters.IndexOfName(CBackgroundColor) >= 0 then
+    begin
+      Rectangle := TRectangle.Create(Content);
+      Rectangle.Parent := Content;
+      Rectangle.Align := TAlignLayout.Client;
+      Rectangle.Fill.Color := StringToAlphaColor(Parameters.Values[CBackgroundColor]);
+      Rectangle.HitTest := False;
+      Rectangle.Stroke.Kind := TBrushKind.None;
+    end;
+
+    Buttons := TLayout.Create(Style);
+    Buttons.Parent := Style;
+    Buttons.StyleName := 'buttons';
+    Buttons.Align := TAlignLayout.Right;
+    Buttons.Margins.Top := 2;
+    Buttons.Margins.Right := 2;
+    Buttons.Margins.Bottom := 2;
+    Buttons.Size.PlatformDefault := False;
+
+    Foreground := TBrushObject.Create(Style);
+    Foreground.Parent := Style;
+    Foreground.StyleName := 'foreground';
+    Foreground.Brush.Color := GetSystemColor(COLOR_WINDOWTEXT);
+
+    Selection := TBrushObject.Create(Style);
+    Selection.Parent := Style;
+    Selection.StyleName := 'selection';
+    Selection.Brush.Color := GetSystemColor(COLOR_HIGHLIGHT, $7F);
+
+    Font := TFontObject.Create(Style);
+    Font.Parent := Style;
+    Font.StyleName := 'font';
+
+    Prompt := TLabel.Create(Style);
+    Prompt.Parent := Style;
+    Prompt.StyleName := 'prompt';
+    Prompt.Opacity := 0.5;
+    Prompt.Visible := False;
 
     Result := Style;
   end;
@@ -494,10 +591,10 @@ var
     StyleText.Margins.Left := 3;
     StyleText.Size.PlatformDefault := False;
     StyleText.ShadowVisible := False;
-    StyleText.HotColor := claBlack;
-    StyleText.FocusedColor := claBlack;
-    StyleText.NormalColor := claBlack;
-    StyleText.PressedColor := claBlack;
+    StyleText.HotColor := GetSystemColor(COLOR_BTNTEXT);
+    StyleText.FocusedColor := StyleText.HotColor;
+    StyleText.NormalColor := StyleText.HotColor;
+    StyleText.PressedColor := StyleText.HotColor;
 
     Result := Style;
   end;
@@ -660,7 +757,7 @@ var
     StyleText.Margins.Bottom := 2;
     StyleText.Size.PlatformDefault := False;
     StyleText.ShadowVisible := False;
-    StyleText.HotColor := GetThemeColor(ToolbarTheme, TP_BUTTON, TS_NORMAL, TMT_TEXTCOLOR);
+    StyleText.HotColor := GetSystemColor(COLOR_BTNTEXT);
     StyleText.FocusedColor := StyleText.HotColor;
     StyleText.NormalColor := StyleText.HotColor;
     StyleText.PressedColor := StyleText.HotColor;
@@ -678,6 +775,9 @@ begin
     else
     if AStyleLookup.StartsWith(CCheckBoxStyle) then
       Result := GenerateCheckBoxStyle
+    else
+    if AStyleLookup.StartsWith(CEditStyle) then
+      Result := GenerateEditStyle
     else
     if AStyleLookup.StartsWith(CGroupBoxStyle) then
       Result := GenerateGroupBoxStyle
@@ -985,6 +1085,18 @@ begin
     blGlyphTop: StyleLookup := StyleGenerator.WriteParam(StyleLookup, CSpeedButtonStyle, CGlyphPosition, 'Top');
     blGlyphBottom: StyleLookup := StyleGenerator.WriteParam(StyleLookup, CSpeedButtonStyle, CGlyphPosition, 'Bottom');
   end;
+end;
+
+{ TEditStyleHelper }
+
+function TEditStyleHelper.GetColor: TAlphaColor;
+begin
+  Result := StringToAlphaColor(StyleGenerator.ReadParamDef(StyleLookup, CEditStyle, CBackgroundColor, 'claNull'));
+end;
+
+procedure TEditStyleHelper.SetColor(const Value: TAlphaColor);
+begin
+  StyleLookup := StyleGenerator.WriteParam(StyleLookup, CEditStyle, CBackgroundColor, AlphaColorToString(Value));
 end;
 
 initialization

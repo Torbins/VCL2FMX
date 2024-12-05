@@ -13,6 +13,7 @@ function CreateImage(const ATheme: string; APart: Integer; const AStates: TState
 procedure CalcLink(ALinks: TBitmapLinks; AState: Integer; const AStates: TStates; ASize: TSize;
   AAddCapInsets: Boolean = False);
 function GetThemeColor(const ATheme: string; APart, AState, AProp: Integer): TAlphaColor;
+function GetSystemColor(AType: Integer; AAlpha: Byte = 255): TAlphaColor;
 
 implementation
 
@@ -181,12 +182,24 @@ begin
     Win32Check(ThemeHandle <> 0);
 
     Color := 0;
-    Winapi.UxTheme.GetThemeColor(ThemeHandle, APart, AState, AProp, Color);
+    OleCheck(Winapi.UxTheme.GetThemeColor(ThemeHandle, APart, AState, AProp, Color));
     TAlphaColorRec(Color).A := 255;
     Result := Color;
   finally
     CloseThemeData(ThemeHandle);
   end;
+end;
+
+function GetSystemColor(AType: Integer; AAlpha: Byte = 255): TAlphaColor;
+var
+  Color: Cardinal;
+begin
+  Color := GetSysColor(AType);
+
+  TAlphaColorRec(Result).A := AAlpha;
+  TAlphaColorRec(Result).B := TColorRec(Color).B;
+  TAlphaColorRec(Result).G := TColorRec(Color).G;
+  TAlphaColorRec(Result).R := TColorRec(Color).R;
 end;
 
 end.
