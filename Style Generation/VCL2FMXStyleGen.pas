@@ -3,7 +3,7 @@ unit VCL2FMXStyleGen;
 interface
 
 uses
-  System.UITypes, System.Classes, FMX.Types, FMX.StdCtrls, FMX.Layouts, FMX.Edit;
+  System.UITypes, System.Classes, FMX.Types, FMX.StdCtrls, FMX.Layouts, FMX.Edit, FMX.Memo;
 
 type
   TStyleGenerator = class(TComponent)
@@ -68,6 +68,14 @@ type
     property Color: TAlphaColor read GetColor write SetColor;
   end;
 
+  TMemoStyleHelper = class helper for TMemo
+  private
+    function GetColor: TAlphaColor;
+    procedure SetColor(const Value: TAlphaColor);
+  public
+    property Color: TAlphaColor read GetColor write SetColor;
+  end;
+
   TPanelStyleHelper = class helper for TPanel
   private
     function GetColor: TAlphaColor;
@@ -115,6 +123,7 @@ const
   CEditStyle = 'VCL2FMXEditStyle';
   CGroupBoxStyle = 'VCL2FMXGroupBoxStyle';
   CLabelStyle = 'VCL2FMXLabelStyle';
+  CMemoStyle = 'VCL2FMXMemoStyle';
   CPanelStyle = 'VCL2FMXPanelStyle';
   CRadioButtonStyle = 'VCL2FMXRadioButtonStyle';
   CScrollBoxStyle = 'VCL2FMXScrollBoxStyle';
@@ -508,6 +517,121 @@ var
     Result := Style;
   end;
 
+  function GenerateMemoStyle: TFmxObject;
+  const
+    EditTheme = 'edit';
+  var
+    Style, Content, SmallScrolls: TLayout;
+    Rectangle: TRectangle;
+    Edit: TActiveStyleObject;
+    States: TStates;
+    Size: TSize;
+    Foreground, Selection: TBrushObject;
+    Font: TFontObject;
+    VScrollBar, HScrollBar: TScrollBar;
+    VSmallScrollBar, HSmallScrollBar: TSmallScrollBar;
+  begin
+    Style := TLayout.Create(Self);
+    Style.StyleName := CMemoStyle;
+
+    Edit := TActiveStyleObject.Create(Style);
+    Edit.Parent := Style;
+    Edit.StyleName := 'background';
+    Edit.Align := TAlignLayout.Contents;
+    Edit.ActiveTrigger := TStyleTrigger.Focused;
+    Edit.Padding.Left := 2;
+    Edit.Padding.Top := 2;
+    Edit.Padding.Right := 2;
+    Edit.Padding.Bottom := 2;
+    States := [EPSN_NORMAL, EPSN_FOCUSED];
+    Size := TSize.Create(13, 13);
+    Edit.Source := CreateImage(EditTheme, EP_EDITBORDER_NOSCROLL, States, Size, Edit);
+    CalcLink(Edit.SourceLink, EPSN_NORMAL, States, Size, {AAddCapInsets} True);
+    CalcLink(Edit.ActiveLink, EPSN_FOCUSED, States, Size, {AAddCapInsets} True);
+
+    Content := TLayout.Create(Edit);
+    Content.Parent := Edit;
+    Content.StyleName := 'content';
+    Content.Align := TAlignLayout.Client;
+    Content.Margins.Left := 2;
+    Content.Margins.Top := 2;
+    Content.Margins.Right := 2;
+    Content.Margins.Bottom := 2;
+    Content.Size.PlatformDefault := False;
+
+    if Parameters.IndexOfName(CBackgroundColor) >= 0 then
+    begin
+      Rectangle := TRectangle.Create(Content);
+      Rectangle.Parent := Content;
+      Rectangle.Align := TAlignLayout.Client;
+      Rectangle.Fill.Color := StringToAlphaColor(Parameters.Values[CBackgroundColor]);
+      Rectangle.HitTest := False;
+      Rectangle.Stroke.Kind := TBrushKind.None;
+    end;
+
+    VScrollBar := TScrollBar.Create(Edit);
+    VScrollBar.Parent := Edit;
+    VScrollBar.StyleName := 'vscrollbar';
+    VScrollBar.Align := TAlignLayout.Right;
+    VScrollBar.Cursor := crArrow;
+    VScrollBar.SmallChange := 0;
+    VScrollBar.Orientation := TOrientation.Vertical;
+    VScrollBar.Size.Width := 16;
+    VScrollBar.Size.PlatformDefault := False;
+
+    HScrollBar := TScrollBar.Create(Edit);
+    HScrollBar.Parent := Edit;
+    HScrollBar.StyleName := 'hscrollbar';
+    HScrollBar.Align := TAlignLayout.Bottom;
+    HScrollBar.Cursor := crArrow;
+    HScrollBar.SmallChange := 0;
+    HScrollBar.Orientation := TOrientation.Horizontal;
+    HScrollBar.Size.Height := 16;
+    HScrollBar.Size.PlatformDefault := False;
+
+    SmallScrolls := TLayout.Create(Edit);
+    SmallScrolls.Parent := Edit;
+    SmallScrolls.Align := TAlignLayout.Client;
+
+    VSmallScrollBar := TSmallScrollBar.Create(SmallScrolls);
+    VSmallScrollBar.Parent := SmallScrolls;
+    VSmallScrollBar.StyleName := 'vsmallscrollbar';
+    VSmallScrollBar.Align := TAlignLayout.Right;
+    VSmallScrollBar.Cursor := crArrow;
+    VSmallScrollBar.SmallChange := 0;
+    VSmallScrollBar.Orientation := TOrientation.Vertical;
+    VSmallScrollBar.Size.Width := 8;
+    VSmallScrollBar.Size.PlatformDefault := False;
+    VSmallScrollBar.Visible := False;
+
+    HSmallScrollBar := TSmallScrollBar.Create(SmallScrolls);
+    HSmallScrollBar.Parent := SmallScrolls;
+    HSmallScrollBar.StyleName := 'hsmallscrollbar';
+    HSmallScrollBar.Align := TAlignLayout.Bottom;
+    HSmallScrollBar.Cursor := crArrow;
+    HSmallScrollBar.SmallChange := 0;
+    HSmallScrollBar.Orientation := TOrientation.Horizontal;
+    HSmallScrollBar.Size.Height := 8;
+    HSmallScrollBar.Size.PlatformDefault := False;
+    HSmallScrollBar.Visible := False;
+
+    Foreground := TBrushObject.Create(Style);
+    Foreground.Parent := Style;
+    Foreground.StyleName := 'foreground';
+    Foreground.Brush.Color := GetSystemColor(COLOR_WINDOWTEXT);
+
+    Selection := TBrushObject.Create(Style);
+    Selection.Parent := Style;
+    Selection.StyleName := 'selection';
+    Selection.Brush.Color := GetSystemColor(COLOR_HIGHLIGHT, $7F);
+
+    Font := TFontObject.Create(Style);
+    Font.Parent := Style;
+    Font.StyleName := 'font';
+
+    Result := Style;
+  end;
+
   function GeneratePanelStyle: TFmxObject;
   var
     Rectangle: TRectangle;
@@ -784,6 +908,9 @@ begin
     else
     if AStyleLookup.StartsWith(CLabelStyle) then
       Result := GenerateLabelStyle
+    else
+    if AStyleLookup.StartsWith(CMemoStyle) then
+      Result := GenerateMemoStyle
     else
     if AStyleLookup.StartsWith(CPanelStyle) then
       Result := GeneratePanelStyle
@@ -1097,6 +1224,18 @@ end;
 procedure TEditStyleHelper.SetColor(const Value: TAlphaColor);
 begin
   StyleLookup := StyleGenerator.WriteParam(StyleLookup, CEditStyle, CBackgroundColor, AlphaColorToString(Value));
+end;
+
+{ TMemoStyleHelper }
+
+function TMemoStyleHelper.GetColor: TAlphaColor;
+begin
+  Result := StringToAlphaColor(StyleGenerator.ReadParamDef(StyleLookup, CMemoStyle, CBackgroundColor, 'claNull'));
+end;
+
+procedure TMemoStyleHelper.SetColor(const Value: TAlphaColor);
+begin
+  StyleLookup := StyleGenerator.WriteParam(StyleLookup, CMemoStyle, CBackgroundColor, AlphaColorToString(Value));
 end;
 
 initialization

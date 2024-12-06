@@ -668,6 +668,9 @@ begin
   if (AObjectType = 'Label') and (APropName = 'Color') then
     SetStyle(CLabelStyle, CBackgroundColor, ColorToAlphaColor(APropValue))
   else
+  if (AObjectType = 'Memo') and (APropName = 'Color') then
+    SetStyle(CMemoStyle, CBackgroundColor, ColorToAlphaColor(APropValue))
+  else
   if AObjectType = 'Panel' then
   begin
     if APropName = 'Color' then
