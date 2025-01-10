@@ -80,6 +80,7 @@ type
     property Root: IDfmToFmxRoot read FRoot;
     property Parent: TDfmToFmxObject read FParent;
     property ObjName: String read FObjName;
+    property NewClassName: String read FClassName;
     property DfmProps: TDfmProperties read FDfmProps;
     constructor Create(AParent: TDfmToFmxObject; ACreateText: String; AStm: TStreamReader);
     constructor CreateGenerated(AParent: TDfmToFmxObject; AObjName, AClassName: String);
@@ -820,7 +821,7 @@ procedure TDfmToFmxObject.InternalProcessBody(var ABody: String);
 type
   TReplacementPair = TPair<String, TCodeReplacement>;
 var
-  i, NameStart, ClassStart, LineEnd: Integer;
+  i: Integer;
   Replacement: TReplacementPair;
   RuleName: String;
   Rule: TRule;
@@ -842,29 +843,12 @@ var
 
 begin
   if FGenerated then
-  begin
-    NameStart := PosNoCase(FParent.ObjName, ABody);
-    if NameStart = 0 then
-      raise Exception.Create('Can''t find parent control ' + FParent.ObjName + ' in form class');
-
-    LineEnd := Pos(CRLF, ABody, NameStart);
-    if LineEnd = 0 then
-      LineEnd := Pos(CR, ABody, NameStart);
-    if LineEnd = 0 then
-      LineEnd := Pos(LF, ABody, NameStart);
-    if LineEnd = 0 then
-      LineEnd := NameStart;
-
-    ABody.Insert(LineEnd - 1, CRLF + '    ' + FObjName + ': ' + FClassName + ';');
-  end
+    ABody := StringReplaceSkipChars(ABody, FParent.ObjName + ':' + FParent.NewClassName + ';', FParent.ObjName + ': ' +
+      FParent.NewClassName + ';' + CRLF + '    ' + FObjName + ': ' + FClassName + ';', [CR, LF, ' '])
   else
     if (FOldClassName <> '') and (FObjName <> '') then
-    begin
-      NameStart := PosNoCase(FObjName, ABody);
-      ClassStart := PosNoCase(FOldClassName, ABody, NameStart);
-      ABody := ABody.Substring(0, NameStart + FObjName.Length - 1) + ': ' + FClassName +
-        ABody.Substring(ClassStart + FOldClassName.Length - 1);
-    end;
+      ABody := StringReplaceSkipChars(ABody, FObjName + ':' + FOldClassName, FObjName + ': ' + FClassName,
+        [CR, LF, ' ']);
 
   if (FObjName <> '') and not FGenerated then
   begin
