@@ -748,6 +748,8 @@ begin
     begin
       Result.NewName := AName;
       Result.LineFound := False;
+      Result.Action := '';
+      Result.Parameter := Result.NewName;
     end
     else
     begin
@@ -764,6 +766,7 @@ begin
       if Assigned(Mask) and Mask.ContainsWildcards(Result.NewName) then
         Result.NewName := Mask.RestoreText(Result.NewName);
 
+      Result.Action := '';
       if ActionNameStart > -1 then
       begin
         ActionNameEnd := RuleLine.IndexOf('#', ActionNameStart + 1);
