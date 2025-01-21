@@ -11,6 +11,7 @@ type
     procedure AddGridLink(AObjName: String; AProp: TDfmProperty);
     procedure AddFieldLink(AObjName: String; AProp: TDfmProperty);
     function AddImageItem(APng: TPngImage): Integer;
+    procedure PushProgress;
     function GetIniFile: TMemIniFile;
     property IniFile: TMemIniFile read GetIniFile;
   end;
@@ -85,6 +86,7 @@ type
     constructor Create(AParent: TDfmToFmxObject; ACreateText: String; AStm: TStreamReader);
     constructor CreateGenerated(AParent: TDfmToFmxObject; AObjName, AClassName: String);
     destructor Destroy; override;
+    function CountSubObjects: Integer;
     procedure IniFileLoad; virtual;
     function FMXFile(APad: String = ''): String; virtual;
   end;
@@ -115,6 +117,15 @@ uses
   System.Generics.Defaults, Image, PatchLib, ReflexiveMasks, VCL2FMXStyleGen;
 
 { TDfmToFmxObject }
+
+function TDfmToFmxObject.CountSubObjects: Integer;
+var
+  i: Integer;
+begin
+  Result := FOwnedObjs.Count;
+  for i := 0 to FOwnedObjs.Count - 1 do
+    Result := Result + FOwnedObjs.Items[i].CountSubObjects;
+end;
 
 constructor TDfmToFmxObject.Create(AParent: TDfmToFmxObject; ACreateText: String; AStm: TStreamReader);
 var
@@ -871,6 +882,8 @@ begin
       else
         ReplaceEventParams(Replacement);
   end;
+
+  FRoot.PushProgress;
 
   for i := 0 to Pred(FOwnedObjs.Count) do
     FOwnedObjs[i].InternalProcessBody(ABody);

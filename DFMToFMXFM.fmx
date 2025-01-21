@@ -32,8 +32,8 @@ object DFMtoFMXConvert: TDFMtoFMXConvert
     Size.Height = 255.000000000000000000
     Size.PlatformDefault = False
     TabOrder = 2
-    Viewport.Width = 596.000000000000000000
-    Viewport.Height = 255.000000000000000000
+    Viewport.Width = 592.000000000000000000
+    Viewport.Height = 251.000000000000000000
   end
   object BtnProcess: TButton
     Position.X = 96.000000000000000000
@@ -77,8 +77,8 @@ object DFMtoFMXConvert: TDFMtoFMXConvert
     Size.Height = 243.000000000000000000
     Size.PlatformDefault = False
     TabOrder = 1
-    Viewport.Width = 596.000000000000000000
-    Viewport.Height = 243.000000000000000000
+    Viewport.Width = 592.000000000000000000
+    Viewport.Height = 239.000000000000000000
   end
   object dlgOpen: TOpenDialog
     Filter = 
@@ -92,5 +92,15 @@ object DFMtoFMXConvert: TDFMtoFMXConvert
     Filter = 'Firemonkey|*.FMX|All Files *.*| *.*'
     Left = 240
     Top = 40
+  end
+  object pbPasFileProcessing: TProgressBar
+    Enabled = True
+    Orientation = Horizontal
+    Position.X = 272.000000000000000000
+    Position.Y = 9.000000000000000000
+    Size.Width = 228.000000000000000000
+    Size.Height = 20.000000000000000000
+    Size.PlatformDefault = False
+    Visible = False
   end
 end

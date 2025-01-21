@@ -36,6 +36,7 @@ type
     procedure AddGridLink(AObjName: String; AProp: TDfmProperty);
     procedure AddGridColumns(AObjName: String; AProp: TFmxProperty);
     function AddImageItem(APng: TPngImage): Integer;
+    procedure PushProgress;
     function GetIniFile: TMemIniFile;
     procedure InitObjects; override;
     procedure UpdateUsesStringList(AUsesList: TStrings); override;
@@ -44,6 +45,7 @@ type
     function GetFMXSingletons: String;
     function GetPASSingletons: String;
   public
+    OnProgress: TNotifyEvent;
     constructor CreateRoot(const AIniConfigFile, ACreateText: String; AStm: TStreamReader);
     destructor Destroy; override;
     procedure IniFileLoad; override;
@@ -361,6 +363,12 @@ begin
   finally
     UsesList.Free;
   end;
+end;
+
+procedure TDfmToFmxObjRoot.PushProgress;
+begin
+  if Assigned(OnProgress) then
+    OnProgress(Self);
 end;
 
 function TDfmToFmxObjRoot.QueryInterface(const IID: TGUID; out Obj): HResult;

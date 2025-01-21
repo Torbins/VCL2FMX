@@ -17,6 +17,7 @@ type
     mmInput: TMemo;
     dlgOpen: TOpenDialog;
     dlgSave: TSaveDialog;
+    pbPasFileProcessing: TProgressBar;
     procedure BtnOpenFileClick(Sender: TObject);
     procedure BtnProcessClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
@@ -35,6 +36,7 @@ type
     Procedure RegIniSave;
     Procedure UpdateForm;
     procedure SaveFiles;
+    procedure UpdateProgress(Sender: TObject);
   end;
 
 var
@@ -91,7 +93,10 @@ begin
     try
       Data := Trim(Stm.ReadLine);
       if Pos('object', Data) = 1 then
+      begin
         DFMObj := TDfmToFmxObjRoot.CreateRoot(FIniFileName, Data, Stm);
+        DFMObj.OnProgress := UpdateProgress;
+      end;
     finally
       Stm.Free;
     end;
@@ -152,7 +157,12 @@ begin
   if FileExists(FOutPasFileName) then
     raise Exception.Create(FOutPasFileName + 'Already exists');
 
+  pbPasFileProcessing.Max := DFMObj.CountSubObjects;
+  pbPasFileProcessing.Visible := True;
+
   DFMObj.WritePasToFile(FOutPasFileName, FInPasFileName);
+
+  pbPasFileProcessing.Visible := False;
 end;
 
 procedure TDFMtoFMXConvert.FormClose(Sender: TObject; var Action: TCloseAction);
@@ -216,6 +226,12 @@ end;
 procedure TDFMtoFMXConvert.UpdateForm;
 begin
   BtnSaveFMX.Visible := DFMObj <> nil;
+end;
+
+procedure TDFMtoFMXConvert.UpdateProgress(Sender: TObject);
+begin
+  pbPasFileProcessing.Value := pbPasFileProcessing.Value + 1;
+  Application.ProcessMessages;
 end;
 
 end.
