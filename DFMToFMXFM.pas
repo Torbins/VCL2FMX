@@ -159,10 +159,15 @@ begin
 
   pbPasFileProcessing.Max := DFMObj.CountSubObjects;
   pbPasFileProcessing.Visible := True;
-
-  DFMObj.WritePasToFile(FOutPasFileName, FInPasFileName);
-
-  pbPasFileProcessing.Visible := False;
+  BtnOpenFile.Enabled := False;
+  BtnSaveFMX.Enabled := False;
+  try
+    DFMObj.WritePasToFile(FOutPasFileName, FInPasFileName);
+  finally
+    BtnOpenFile.Enabled := True;
+    BtnSaveFMX.Enabled := True;
+    pbPasFileProcessing.Visible := False;
+  end;
 end;
 
 procedure TDFMtoFMXConvert.FormClose(Sender: TObject; var Action: TCloseAction);
