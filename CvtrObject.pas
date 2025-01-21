@@ -847,11 +847,10 @@ var
 begin
   if FGenerated then
     ABody := StringReplaceSkipChars(ABody, FParent.ObjName + ':' + FParent.NewClassName + ';', FParent.ObjName + ': ' +
-      FParent.NewClassName + ';' + CRLF + '    ' + FObjName + ': ' + FClassName + ';', [CR, LF, ' '])
+      FParent.NewClassName + ';' + CRLF + '    ' + FObjName + ': ' + FClassName + ';')
   else
     if (FOldClassName <> '') and (FObjName <> '') then
-      ABody := StringReplaceSkipChars(ABody, FObjName + ':' + FOldClassName, FObjName + ': ' + FClassName,
-        [CR, LF, ' ']);
+      ABody := StringReplaceSkipChars(ABody, FObjName + ':' + FOldClassName, FObjName + ': ' + FClassName);
 
   if (FObjName <> '') and not FGenerated then
   begin
@@ -868,8 +867,7 @@ begin
 
     for Replacement in FCodeReplacements do
       if not Replacement.Value.IsEvent then
-        ABody := StringReplaceSkipChars(ABody, FObjName + Replacement.Key, FObjName + Replacement.Value.NewCode,
-          [CR, LF, ' '])
+        ABody := StringReplaceSkipChars(ABody, FObjName + Replacement.Key, FObjName + Replacement.Value.NewCode)
       else
         ReplaceEventParams(Replacement);
   end;

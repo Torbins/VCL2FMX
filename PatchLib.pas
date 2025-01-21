@@ -21,8 +21,8 @@ type
 function ColorToAlphaColor(const AColor: String): String;
 function PosNoCase(const ASubstr: String; AFullString: String; Offset: Integer = 1;
   const ASkipChars: TArray<Char> = []): Integer;
-function StringReplaceSkipChars(const Source, OldPattern, NewPattern: string; const ASkipChars: TArray<Char> = []):
-  string;
+function StringReplaceSkipChars(const Source, OldPattern, NewPattern: string): string; overload;
+function StringReplaceSkipChars(const Source, OldPattern, NewPattern: string; const ASkipChars: TArray<Char>): string; overload;
 procedure PopulateStringsFromArray(AStrings: TStrings; AArray: TArray<String>);
 function BreakIntoLines(const AData, APad: String; ALineLen: Integer = LineTruncLength): String;
 function StreamToHex(AMemStream:TMemoryStream): String;
@@ -110,8 +110,12 @@ begin
   Result := 0;
 end;
 
-function StringReplaceSkipChars(const Source, OldPattern, NewPattern: string; const ASkipChars: TArray<Char> = []):
-  string;
+function StringReplaceSkipChars(const Source, OldPattern, NewPattern: string): string;
+begin
+  Result := StringReplaceSkipChars(Source, OldPattern, NewPattern, [CR, LF, ' ']);
+end;
+
+function StringReplaceSkipChars(const Source, OldPattern, NewPattern: string; const ASkipChars: TArray<Char>): string;
 var
   SourceLength, OldLength, SkipCount, Pos, Len, i, PrevEnd: Integer;
   PatternStarts, PatternEnds: array of Integer;
