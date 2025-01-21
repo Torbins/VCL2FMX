@@ -27,7 +27,7 @@ object INI: TINI
     Size.Height = 74.000000000000000000
     Size.PlatformDefault = False
     TabOrder = 1
-    object btnAdicionar: TButton
+    object btnAdd: TButton
       Position.X = 296.000000000000000000
       Position.Y = 42.000000000000000000
       Size.Width = 73.000000000000000000
@@ -35,7 +35,7 @@ object INI: TINI
       Size.PlatformDefault = False
       TabOrder = 1
       Text = 'Add'
-      OnClick = btnAdicionarClick
+      OnClick = btnAddClick
     end
     object edtVCL: TEdit
       Touch.InteractiveGestures = [LongTap, DoubleTap]
@@ -66,7 +66,7 @@ object INI: TINI
       Text = '='
       TabOrder = 4
     end
-    object btnRemover: TButton
+    object btnRemove: TButton
       Position.X = 376.000000000000000000
       Position.Y = 42.000000000000000000
       Size.Width = 73.000000000000000000
@@ -74,9 +74,9 @@ object INI: TINI
       Size.PlatformDefault = False
       TabOrder = 0
       Text = 'Remove'
-      OnClick = btnRemoverClick
+      OnClick = btnRemoveClick
     end
-    object btnSalvar: TButton
+    object btnSave: TButton
       Position.X = 376.000000000000000000
       Position.Y = 10.000000000000000000
       Size.Width = 72.000000000000000000
@@ -84,9 +84,9 @@ object INI: TINI
       Size.PlatformDefault = False
       TabOrder = 5
       Text = 'Save'
-      OnClick = btnSalvarClick
+      OnClick = btnSaveClick
     end
-    object btnAbrir: TButton
+    object btnOpen: TButton
       Position.X = 296.000000000000000000
       Position.Y = 10.000000000000000000
       Size.Width = 72.000000000000000000
@@ -94,7 +94,7 @@ object INI: TINI
       Size.PlatformDefault = False
       TabOrder = 6
       Text = 'Open'
-      OnClick = btnAbrirClick
+      OnClick = btnOpenClick
     end
     object edtINI: TEdit
       Touch.InteractiveGestures = [LongTap, DoubleTap]

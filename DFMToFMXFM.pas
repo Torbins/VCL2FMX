@@ -3,39 +3,25 @@
 interface
 
 uses
-  System.SysUtils,
-  System.Types,
-  System.UITypes,
-  System.Classes,
-  System.Variants,
-  System.Win.Registry,
-  FMX.Types,
-  FMX.Controls,
-  FMX.Forms,
-  FMX.Dialogs,
-  FMX.Layouts,
-  FMX.Memo,
-  CvtrObjRoot,
-  FMX.StdCtrls,
-  FMX.ScrollBox,
-  FMX.Controls.Presentation,
-  FMX.Objects, FMX.Memo.Types;
+  System.SysUtils, System.Types, System.UITypes, System.Classes, System.Variants, System.Win.Registry, FMX.Types,
+  FMX.Controls, FMX.Forms, FMX.Dialogs, FMX.Layouts, FMX.Memo, CvtrObjRoot, FMX.StdCtrls, FMX.ScrollBox,
+  FMX.Controls.Presentation, FMX.Objects, FMX.Memo.Types;
 
 type
   TDFMtoFMXConvert = class(TForm)
     BtnOpenFile: TButton;
     mmOutput: TMemo;
     BtnProcess: TButton;
-    btnConfiguracoes: TButton;
+    btnConfiguration: TButton;
     BtnSaveFMX: TButton;
     mmInput: TMemo;
-    dlgAbrir: TOpenDialog;
-    dlgSalvar: TSaveDialog;
+    dlgOpen: TOpenDialog;
+    dlgSave: TSaveDialog;
     procedure BtnOpenFileClick(Sender: TObject);
     procedure BtnProcessClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure BtnSaveFMXClick(Sender: TObject);
-    procedure btnConfiguracoesClick(Sender: TObject);
+    procedure btnConfigurationClick(Sender: TObject);
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
   private
     DFMObj: TDfmToFmxObjRoot;
@@ -59,11 +45,9 @@ implementation
 {$R *.fmx}
 
 uses
-  PatchLib,
-  CONFIGINI,
-  FMX.DialogService;
+  FMX.DialogService, PatchLib, CONFIGINI;
 
-procedure TDFMtoFMXConvert.btnConfiguracoesClick(Sender: TObject);
+procedure TDFMtoFMXConvert.btnConfigurationClick(Sender: TObject);
 begin
   TINI.Create(Self).ShowModal;
   RegIniLoad;
@@ -74,10 +58,10 @@ begin
   BtnProcess.Enabled := False;
   FreeAndNil(DFMObj);
   if FInDfmFileName <> EmptyStr then
-    dlgAbrir.InitialDir := ExtractFileDir(FInDfmFileName);
-  if dlgAbrir.Execute then
+    dlgOpen.InitialDir := ExtractFileDir(FInDfmFileName);
+  if dlgOpen.Execute then
   begin
-    FInPasFileName := ChangeFileExt(dlgAbrir.FileName, '.pas');
+    FInPasFileName := ChangeFileExt(dlgOpen.FileName, '.pas');
     FInDfmFileName := ChangeFileExt(FInPasFileName, '.dfm');
     if FileExists(FInDfmFileName) then
     begin
@@ -128,13 +112,13 @@ begin
 
     if not FOutPasFileName.IsEmpty then
     begin
-      dlgSalvar.InitialDir := ExtractFileDir(FOutPasFileName);
-      dlgSalvar.FileName   := ExtractFileName(ChangeFileExt(FOutPasFileName, '.fmx'));
+      dlgSave.InitialDir := ExtractFileDir(FOutPasFileName);
+      dlgSave.FileName   := ExtractFileName(ChangeFileExt(FOutPasFileName, '.fmx'));
     end;
 
-    if dlgSalvar.Execute then
+    if dlgSave.Execute then
     begin
-      FOutPasFileName := ChangeFileExt(dlgSalvar.FileName, '.pas');
+      FOutPasFileName := ChangeFileExt(dlgSave.FileName, '.pas');
       FOutFmxFileName := ChangeFileExt(FOutPasFileName, '.fmx');
 
       if FileExists(FOutFmxFileName) or FileExists(FOutPasFileName) then
@@ -204,7 +188,7 @@ begin
     if FOutPasFileName <> EmptyStr then
     begin
       FOutFmxFileName := ChangeFileExt(FOutPasFileName, '.fmx');
-      dlgAbrir.InitialDir := ExtractFileDir(FOutPasFileName);
+      dlgOpen.InitialDir := ExtractFileDir(FOutPasFileName);
     end;
     if FileExists(FInDfmFileName) and TDfmToFmxObjRoot.DFMIsTextBased(FInDfmFileName) then
     begin

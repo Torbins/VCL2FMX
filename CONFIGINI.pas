@@ -9,39 +9,26 @@ unit CONFIGINI;
 interface
 
 uses
-  System.SysUtils,
-  System.Types,
-  System.UITypes,
-  System.Classes,
-  System.Variants,
-  FMX.Types,
-  FMX.Controls,
-  FMX.Forms,
-  FMX.Graphics,
-  FMX.Dialogs,
-  FMX.TreeView,
-  FMX.Layouts,
-  FMX.Controls.Presentation,
-  FMX.StdCtrls,
-  FMX.Edit;
+  System.SysUtils, System.Types, System.UITypes, System.Classes, System.Variants, FMX.Types, FMX.Controls, FMX.Forms,
+  FMX.Graphics, FMX.Dialogs, FMX.TreeView, FMX.Layouts, FMX.Controls.Presentation, FMX.StdCtrls, FMX.Edit;
 
 type
   TINI = class(TForm)
     tvINI: TTreeView;
     pnlTop: TPanel;
-    btnAdicionar: TButton;
+    btnAdd: TButton;
     edtVCL: TEdit;
     edtFMX: TEdit;
     lbEqual: TLabel;
-    btnRemover: TButton;
-    btnSalvar: TButton;
-    btnAbrir: TButton;
+    btnRemove: TButton;
+    btnSave: TButton;
+    btnOpen: TButton;
     edtINI: TEdit;
     procedure FormCreate(Sender: TObject);
-    procedure btnAdicionarClick(Sender: TObject);
-    procedure btnRemoverClick(Sender: TObject);
-    procedure btnSalvarClick(Sender: TObject);
-    procedure btnAbrirClick(Sender: TObject);
+    procedure btnAddClick(Sender: TObject);
+    procedure btnRemoveClick(Sender: TObject);
+    procedure btnSaveClick(Sender: TObject);
+    procedure btnOpenClick(Sender: TObject);
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
     procedure tvINIClick(Sender: TObject);
   end;
@@ -49,12 +36,11 @@ type
 implementation
 
 uses
-  System.Win.Registry,
-  System.IniFiles;
+  System.Win.Registry, System.IniFiles;
 
 {$R *.fmx}
 
-procedure TINI.btnAbrirClick(Sender: TObject);
+procedure TINI.btnOpenClick(Sender: TObject);
 var
   Dlg: TOpenDialog;
   RegFile: TRegistryIniFile;
@@ -79,7 +65,7 @@ begin
   end;
 end;
 
-procedure TINI.btnAdicionarClick(Sender: TObject);
+procedure TINI.btnAddClick(Sender: TObject);
 var
   tvSec: TTreeViewItem;
 begin
@@ -93,7 +79,7 @@ begin
     tvINI.Selected.ParentItem.AddObject(tvSec);
 end;
 
-procedure TINI.btnRemoverClick(Sender: TObject);
+procedure TINI.btnRemoveClick(Sender: TObject);
 begin
   if not Assigned(tvINI.Selected) then
     Exit;
@@ -104,7 +90,7 @@ begin
     tvINI.Selected.ParentItem.RemoveObject(tvINI.Selected);
 end;
 
-procedure TINI.btnSalvarClick(Sender: TObject);
+procedure TINI.btnSaveClick(Sender: TObject);
 var
   RegFile: TRegistryIniFile;
   Ini: TIniFile;
