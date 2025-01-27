@@ -348,6 +348,7 @@ var
     StyleText.FocusedColor := StyleText.HotColor;
     StyleText.NormalColor := StyleText.HotColor;
     StyleText.PressedColor := StyleText.HotColor;
+    StyleText.TextSettings.HorzAlign := TTextAlign.Leading;
 
     Result := Style;
   end;
@@ -719,6 +720,7 @@ var
     StyleText.FocusedColor := StyleText.HotColor;
     StyleText.NormalColor := StyleText.HotColor;
     StyleText.PressedColor := StyleText.HotColor;
+    StyleText.TextSettings.HorzAlign := TTextAlign.Leading;
 
     Result := Style;
   end;
