@@ -3,7 +3,12 @@
 <img src="Converter.png" width="614" height="582"/>
 
 The aim of this project is to help you to convert your existing VCL forms to FireMonkey framework, automating as much work as possible. Some changes in Pas-file are also made, but they are related only to form itself, all logic stays intact, so do not expect to have a fully working app after conversion.
-Also you should remember, that FMX framework puts all responsibility for external looks of the controls on styles, so, for example, buttons do not even have properties to select icon size or position. This should be handled by styles. Lets imagine, that your app uses four different icon sizes, these icons can be in three different positions, and button can be either normal or a speedbutton. This means that you will have to create 4 * 3 * 2 = 24 separate custom styles just for buttons. This would be a nightmare to maintain, that is why this project also provides a few custom styles in "Style Generation" folder. These styles are special because they allow you to tweak how they look. For example for buttons you can select one of four icon positions and any icon size.
+
+Here you can see a demo converted to FMX:
+<img src="BeforeAndAfter.png"/>
+
+You should remember, that FMX framework puts all responsibility for external looks of the controls on styles, so, for example, buttons do not even have properties to select icon size or position. This should be handled by styles. Lets imagine, that your app uses four different icon sizes, these icons can be in three different positions, and button can be either normal or a speedbutton. This means that you will have to create 4 * 3 * 2 = 24 separate custom styles just for buttons. This would be a nightmare to maintain, that is why this project also provides a few custom styles in "Style Generation" folder. These styles are special because they allow you to tweak how they look. For example for buttons you can select one of four icon positions and any icon size.
+
 To select some style, you need to enter its name into StyleLookup property of the control, like this:
 
     StyleLookup = 'VCL2FMXButtonStyle'
@@ -14,7 +19,9 @@ If you need two parameters, than you can specify them like this:
 
     StyleLookup = 'VCL2FMXButtonStyle?GlyphSize=64&GlyphPosition=Top'
 As you probably already guessed, URL parsing code is used here, so all rules for parameters are the same.
+
 When a control asks for that style, it will be built on the fly, according to provided parameters.
+
 How these styles look, you ask? - Like regular VCL controls, because they use Windows Theme API. However implementation is quite simple, so it is possible to find differences. Also amount of supported controls is rather small at the moment. Below is a full list of styles with details about supported parameters.
 
 ## Styles and their parameters
@@ -101,4 +108,5 @@ TEdit in FMX does not have Color property, but thanks to class helper, you can k
 
     Edit1.Color := claRed;
 The only thing that you need to change here is a switch from regular color to alphacolor, clRed -> claRed. Maybe in future converter will be able to do such replacements automatically.
+
 Under the hood these class helpers read and write StyleLookup property of the control, adding style parameters when necessary.
