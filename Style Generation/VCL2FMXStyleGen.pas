@@ -153,6 +153,7 @@ type
     procedure Resize; override;
   public
     property Shadow: TControl read FShadow write SetShadow;
+    destructor Destroy; override;
   end;
 
 { TStyleGenerator }
@@ -988,6 +989,12 @@ begin
 end;
 
 { TShadowedText }
+
+destructor TShadowedText.Destroy;
+begin
+  SetShadow(nil);
+  inherited;
+end;
 
 procedure TShadowedText.FreeNotification(AObject: TObject);
 begin
