@@ -530,14 +530,14 @@ const
   ChildImageInitParams: array [0..2] of TProp = ((Name: 'Align'; Value: 'Client'), (Name: 'HitTest'; Value: 'False'),
     (Name: 'WrapMode'; Value: 'Fit'));
   ChildImageReplacements: array [0..0] of TProp = ((Name: 'Picture'; Value: '_Glyph.Bitmap'));
-  ColoredRectInitParams: array [0..5] of TProp = ((Name: 'Align'; Value: 'Client'), (Name: 'Margins.Left'; Value: '1'),
-    (Name: 'Margins.Top'; Value: '1'), (Name: 'Margins.Right'; Value: '1'), (Name: 'Margins.Bottom'; Value: '1'),
-    (Name: 'Stroke.Kind'; Value: 'None'));
+  ColoredRectInitParams: array [0..6] of TProp = ((Name: 'Align'; Value: 'Client'), (Name: 'HitTest'; Value: 'False'),
+    (Name: 'Margins.Left'; Value: '1'), (Name: 'Margins.Top'; Value: '1'), (Name: 'Margins.Right'; Value: '1'),
+    (Name: 'Margins.Bottom'; Value: '1'), (Name: 'Stroke.Kind'; Value: 'None'));
   ColoredRectReplacements: array [0..0] of TProp = ((Name: 'Color'; Value: '_Color.Fill.Color'));
   RadioButtonInitParams: array [0..2] of TProp = ((Name: 'Size.Height'; Value: '19'), (Name: 'Position.X'; Value: '8'),
     (Name: 'Size.Width'; Value: '50'));
-  SeparateCaptionInitParams: array [0..1] of TProp = ((Name: 'Align'; Value: 'Client'),
-    (Name: 'TabStop'; Value: 'False'));
+  SeparateCaptionInitParams: array [0..2] of TProp = ((Name: 'Align'; Value: 'Client'),
+    (Name: 'HitTest'; Value: 'False'), (Name: 'TabStop'; Value: 'False'));
   SeparateCaptionReplacements: array [0..7] of TProp = ((Name: 'ShowCaption'; Value: '_Caption.Visible'),
     (Name: 'VerticalAlignment'; Value: '_Caption.TextSettings.VertAlign'),
     (Name: 'Alignment'; Value: '_Caption.TextSettings.HorzAlign'), (Name: 'Caption'; Value: '_Caption.Text'),
