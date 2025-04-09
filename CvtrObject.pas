@@ -45,12 +45,15 @@ type
     function GetEnum(const AName: String; var AItems: TStringList): Boolean;
   end;
 
+  TObjectKind = (okNormal, okInline, okInherited);
+
   TDfmToFmxObject = class
   private
     FFMXFileText: String;
   protected
     FRoot: IDfmToFmxRoot;
     FParent: TDfmToFmxObject;
+    FObjectKind: TObjectKind;
     FClassName: String;
     FOldClassName: String;
     FObjName: String;
@@ -67,6 +70,7 @@ type
     procedure InitObjects; virtual;
     function FMXProperties(APad: String): String;
     function FMXSubObjects(APad: String): String;
+    function IsObjectFound(ALine: String; ARemember: Boolean = False): Boolean;
     function ReadContents(AStm: TStreamReader): String;
     function GetRule(const AName: string; AList: TStringList = nil): TRule;
     function TransformProperty(AProp: TDfmProperty): TFmxProperty;
@@ -135,7 +139,7 @@ begin
   if Assigned(AParent) then
     FRoot := FParent.Root;
   InitObjects;
-  if Pos('object', Trim(ACreateText)) = 1 then
+  if IsObjectFound(Trim(ACreateText), {ARemember} True) then
   begin
     InputArray := ACreateText.Split([' ']);
     if Length(InputArray) > 2 then
@@ -719,11 +723,14 @@ begin
 end;
 
 function TDfmToFmxObject.GetObjHeader: string;
+const
+  ObjectKindStrings: array [TObjectKind] of String = ('object', 'inline', 'inherited');
 begin
+  Result := ObjectKindStrings[FObjectKind] + ' ';
   if FObjName <> '' then
-    Result := 'object ' + FObjName + ': ' + FClassName + CRLF
+    Result := Result + FObjName + ': ' + FClassName + CRLF
   else
-    Result := 'object ' + FClassName + CRLF;
+    Result := Result + FClassName + CRLF;
 end;
 
 function TDfmToFmxObject.GetRule(const AName: string; AList: TStringList = nil): TRule;
@@ -889,6 +896,29 @@ begin
     FOwnedObjs[i].InternalProcessBody(ABody);
 end;
 
+function TDfmToFmxObject.IsObjectFound(ALine: String; ARemember: Boolean = False): Boolean;
+begin
+  Result := False;
+  if ALine.StartsWith('object') then
+  begin
+    Result := True;
+    if ARemember then
+      FObjectKind := okNormal;
+  end;
+  if ALine.StartsWith('inline') then
+  begin
+    Result := True;
+    if ARemember then
+      FObjectKind := okInline;
+  end;
+  if ALine.StartsWith('inherited') then
+  begin
+    Result := True;
+    if ARemember then
+      FObjectKind := okInherited;
+  end;
+end;
+
 procedure TDfmToFmxObject.LoadCommonProperties(AParamName: String);
 var
   i, j: integer;
@@ -977,7 +1007,7 @@ begin
   Data := Trim(AStm.ReadLine);
   while not Data.StartsWith('end') do
   begin
-    if Pos('object', Data) = 1 then
+    if IsObjectFound(Data) then
       FOwnedObjs.Add(TDfmToFmxObject.Create(Self, Data, AStm))
     else
     begin
