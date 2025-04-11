@@ -9,6 +9,7 @@ type
   IDfmToFmxRoot = interface
     procedure AddGridColumns(AObjName: String; AProp: TFmxProperty);
     procedure AddGridLink(AObjName: String; AProp: TDfmProperty);
+    procedure AddListControlLink(AObjName: String; AProp: TDfmProperty);
     procedure AddFieldLink(AObjName: String; AProp: TDfmProperty);
     function AddImageItem(APng: TPngImage): Integer;
     procedure PushProgress;
@@ -578,6 +579,9 @@ begin
 
   if AObjectType = 'GridLink' then
     FRoot.AddGridLink(FObjName, AProp);
+
+  if AObjectType = 'ListControlLink' then
+    FRoot.AddListControlLink(FObjName, AProp);
 
   if AObjectType = 'MultipleRadioButtons' then
   begin
