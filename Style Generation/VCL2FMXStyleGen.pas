@@ -187,7 +187,7 @@ var
     Size: TSize;
     GlyphPosition: String;
   begin
-    Style := TLayout.Create(Self);
+    Style := TLayout.Create(nil);
     Style.StyleName := CButtonStyle;
     Style.Align := TAlignLayout.Contents;
 
@@ -291,7 +291,7 @@ var
     Glow: TGlowEffect;
     Size: TSize;
   begin
-    Style := TLayout.Create(Self);
+    Style := TLayout.Create(nil);
     Style.StyleName := CCheckBoxStyle;
 
     if Parameters.IndexOfName(CBackgroundColor) >= 0 then
@@ -368,7 +368,7 @@ var
     Font: TFontObject;
     Prompt: TLabel;
   begin
-    Style := TLayout.Create(Self);
+    Style := TLayout.Create(nil);
     Style.StyleName := CEditStyle;
 
     Glow := TGlowEffect.Create(Style);
@@ -448,7 +448,7 @@ var
     Rectangle, Shadow: TRectangle;
     ShadowedText: TShadowedText;
   begin
-    Style := TLayout.Create(Self);
+    Style := TLayout.Create(nil);
     Style.StyleName := CGroupBoxStyle;
     Style.Padding.Left := 2;
     Style.Padding.Top := 8;
@@ -497,7 +497,7 @@ var
     Rectangle: TRectangle;
     StyleText: TText;
   begin
-    Style := TLayout.Create(Self);
+    Style := TLayout.Create(nil);
     Style.StyleName := CLabelStyle;
 
     if Parameters.IndexOfName(CBackgroundColor) >= 0 then
@@ -533,7 +533,7 @@ var
     VScrollBar, HScrollBar: TScrollBar;
     VSmallScrollBar, HSmallScrollBar: TSmallScrollBar;
   begin
-    Style := TLayout.Create(Self);
+    Style := TLayout.Create(nil);
     Style.StyleName := CMemoStyle;
 
     Edit := TActiveStyleObject.Create(Style);
@@ -638,7 +638,7 @@ var
   var
     Rectangle: TRectangle;
   begin
-    Rectangle := TRectangle.Create(Self);
+    Rectangle := TRectangle.Create(nil);
     Rectangle.StyleName := CPanelStyle;
     if Parameters.IndexOfName(CBackgroundColor) >= 0 then
       Rectangle.Fill.Color := StringToAlphaColor(Parameters.Values[CBackgroundColor])
@@ -664,7 +664,7 @@ var
     Glow: TGlowEffect;
     Size: TSize;
   begin
-    Style := TLayout.Create(Self);
+    Style := TLayout.Create(nil);
     Style.StyleName := CRadioButtonStyle;
 
     if Parameters.IndexOfName(CBackgroundColor) >= 0 then
@@ -734,7 +734,7 @@ var
     VSmallScrollBar, HSmallScrollBar: TSmallScrollBar;
     Grip: TSizeGrip;
   begin
-    Style := TLayout.Create(Self);
+    Style := TLayout.Create(nil);
     Style.StyleName := CScrollBoxStyle;
 
     Background := TLayout.Create(Style);
@@ -828,7 +828,7 @@ var
     Size: TSize;
     GlyphPosition: String;
   begin
-    Style := TLayout.Create(Self);
+    Style := TLayout.Create(nil);
     Style.StyleName := CSpeedButtonStyle;
     Style.Align := TAlignLayout.Contents;
 
