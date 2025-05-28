@@ -1,6 +1,4 @@
-﻿{$I InnovaLibDefs.inc}
-
-unit PatchLib;
+﻿unit PatchLib;
 
 interface
 
