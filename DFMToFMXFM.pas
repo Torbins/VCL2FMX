@@ -81,25 +81,13 @@ begin
 end;
 
 procedure TDFMtoFMXConvert.BtnProcessClick(Sender: TObject);
-var
-  Data: String;
-  Stm: TStreamReader;
 begin
   if mmInput.Text <> EmptyStr then
   begin
     FreeAndNil(DFMObj);
-    Data := mmInput.Text;
-    Stm := TStreamReader.Create(FInDfmFileName);
-    try
-      Data := Trim(Stm.ReadLine);
-      if Pos('object', Data) = 1 then
-      begin
-        DFMObj := TDfmToFmxObjRoot.CreateRoot(FIniFileName, Data, Stm);
-        DFMObj.OnProgress := UpdateProgress;
-      end;
-    finally
-      Stm.Free;
-    end;
+
+    DFMObj := TDfmToFmxObjRoot.CreateRoot(FIniFileName, FInDfmFileName);
+    DFMObj.OnProgress := UpdateProgress;
   end;
 
   mmOutput.Text := DFMObj.FMXFile;

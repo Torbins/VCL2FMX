@@ -9,36 +9,30 @@ unit ImageList;
 interface
 
 uses
-  PatchLib;
+  System.Classes, PatchLib;
 
 function EncodeImageList(AImageList: TImageList; APad: String): String;
-procedure ParseImageList(sData: String; AImageList: TImageList);
+procedure ParseImageList(AData: TMemoryStream; AImageList: TImageList);
 
 implementation
 
 uses
-  System.SysUtils, System.Classes, System.Generics.Collections, Vcl.ImgList, Vcl.Graphics, Vcl.Imaging.PngImage;
+  System.SysUtils, System.Generics.Collections, Vcl.ImgList, Vcl.Graphics, Vcl.Imaging.PngImage;
 
 type
   TImageListAccess = class(Vcl.ImgList.TCustomImageList)
   end;
 
-procedure ParseImageList(sData: String; AImageList: TImageList);
+procedure ParseImageList(AData: TMemoryStream; AImageList: TImageList);
 var
-  Stream: TMemoryStream;
   ImgList: TImageListAccess;
   Png: TPngImage;
   Bmp: TBitmap;
   I: Integer;
 begin
-  Stream := nil;
-  ImgList := nil;
+  ImgList := TImageListAccess.Create(nil);
   try
-    Stream := TMemoryStream.Create;
-    ImgList := TImageListAccess.Create(nil);
-
-    HexToStream(sData, Stream);
-    TImageListAccess(ImgList).ReadData(Stream);
+    TImageListAccess(ImgList).ReadData(AData);
 
     for I := 0 to Pred(ImgList.Count) do
     begin
@@ -54,7 +48,6 @@ begin
     end;
   finally
     ImgList.Free;
-    Stream.Free;
   end;
 end;
 

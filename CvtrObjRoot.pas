@@ -30,6 +30,8 @@ type
     FImageList: TImageList;
     FIniReplaceValues: TStringlist;
     FIniFile: TMemIniFile;
+    FParser: TParser;
+    FDFMStream: TBufferedFileStream;
     function QueryInterface(const IID: TGUID; out Obj): HResult; stdcall;
     function _AddRef: Integer; stdcall;
     function _Release: Integer; stdcall;
@@ -48,10 +50,10 @@ type
     function GetPASSingletons: String;
   public
     OnProgress: TNotifyEvent;
-    constructor CreateRoot(const AIniConfigFile, ACreateText: String; AStm: TStreamReader);
+    constructor CreateRoot(const AIniConfigFile, ADfmFileName: String);
     destructor Destroy; override;
     procedure IniFileLoad; override;
-    class function DFMIsTextBased(ADfmFileName: String): Boolean;
+    class function DFMIsTextBased(const ADfmFileName: String): Boolean;
     function GenPasFile(const APascalSourceFileName: String): String;
     function FMXFile(APad: String = ''): String; override;
     function WriteFMXToFile(const AFmxFileName: String): Boolean;
@@ -268,11 +270,18 @@ begin
     CurrentLink.DataSource := AProp.Value;
 end;
 
-constructor TDfmToFmxObjRoot.CreateRoot(const AIniConfigFile, ACreateText: String; AStm: TStreamReader);
+constructor TDfmToFmxObjRoot.CreateRoot(const AIniConfigFile, ADfmFileName: String);
+var
+  FS: TFormatSettings;
 begin
   FRoot := Self;
   FIniFile := TMemIniFile.Create(AIniConfigFile);
-  Create(nil, ACreateText, AStm);
+  FDFMStream := TBufferedFileStream.Create(ADfmFileName, fmOpenRead);
+  FS := TFormatSettings.Create('en-US');
+  FS.DecimalSeparator := '.';
+  FParser := TParser.Create(FDFMStream, FS);
+
+  Create(nil, FParser);
 end;
 
 destructor TDfmToFmxObjRoot.Destroy;
@@ -283,10 +292,12 @@ begin
   FImageList.Free;
   FIniReplaceValues.Free;
   FIniFile.Free;
+  FParser.Free;
+  FDFMStream.Free;
   inherited;
 end;
 
-class function TDfmToFmxObjRoot.DFMIsTextBased(ADfmFileName: String): Boolean;
+class function TDfmToFmxObjRoot.DFMIsTextBased(const ADfmFileName: String): Boolean;
 var
   DFMFile: TStreamReader;
 begin

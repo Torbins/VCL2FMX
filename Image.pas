@@ -9,43 +9,36 @@ unit Image;
 interface
 
 uses
-  Vcl.Imaging.PngImage;
+  Vcl.Imaging.PngImage, System.Classes;
 
-function CreateGlyphPng(const AData: String; ANumGlyphs: Integer): TPngImage;
+function CreateGlyphPng(const AData: TMemoryStream; ANumGlyphs: Integer): TPngImage;
 function EncodePicture(APng: TPngImage; const APad: String): String;
-function ConvertPicture(const AData, APad: String; out AWidth, AHeight: Integer): String;
+function ConvertPicture(AData: TMemoryStream; const APad: String; out AWidth, AHeight: Integer): String;
 
 implementation
 
 uses
-  System.Classes, System.SysUtils, Vcl.Graphics, Vcl.Imaging.Jpeg, Vcl.Imaging.GIFImg, PatchLib;
+  System.SysUtils, Vcl.Graphics, Vcl.Imaging.Jpeg, Vcl.Imaging.GIFImg, PatchLib;
 
 type
   TGraphicAccess = class(Vcl.Graphics.TGraphic)
   end;
 
-function CreateGlyphPng(const AData: String; ANumGlyphs: Integer): TPngImage;
+function CreateGlyphPng(const AData: TMemoryStream; ANumGlyphs: Integer): TPngImage;
 const
   StreamLenghtFieldLen = 4;
 var
   GlyphBmp: TBitmap;
-  Stream: TMemoryStream;
 begin
-  GlyphBmp := nil;
-  Stream := nil;
+  GlyphBmp := TBitmap.Create;
   try
-    GlyphBmp := TBitmap.Create;
-    Stream := TMemoryStream.Create;
-
-    HexToStream(AData, Stream);
-    Stream.Position := StreamLenghtFieldLen;
-    GlyphBmp.LoadFromStream(Stream);
+    AData.Position := StreamLenghtFieldLen;
+    GlyphBmp.LoadFromStream(AData);
 
     Result := TPngImage.CreateBlank(COLOR_RGB, 8, GlyphBmp.Width div ANumGlyphs, GlyphBmp.Height);
     Result.Canvas.Draw(0, 0, GlyphBmp);
   finally
     GlyphBmp.Free;
-    Stream.Free;
   end;
 end;
 
@@ -62,23 +55,20 @@ begin
   end;
 end;
 
-function ConvertPicture(const AData, APad: String; out AWidth, AHeight: Integer): String;
+function ConvertPicture(AData: TMemoryStream; const APad: String; out AWidth, AHeight: Integer): String;
 var
-  Stream: TMemoryStream;
   GraphClassName: ShortString;
   Graphic: TGraphic;
   Png: TPngImage;
 begin
   Graphic := nil;
   Png := nil;
-  Stream := TMemoryStream.Create;
   try
-    HexToStream(AData, Stream);
-    GraphClassName := PShortString(Stream.Memory)^;
+    GraphClassName := PShortString(AData.Memory)^;
 
     Graphic := TGraphicClass(FindClass(UTF8ToString(GraphClassName))).Create;
-    Stream.Position := 1 + Length(GraphClassName);
-    TGraphicAccess(Graphic).ReadData(Stream);
+    AData.Position := 1 + Length(GraphClassName);
+    TGraphicAccess(Graphic).ReadData(AData);
 
     if (Graphic is TPngImage) or (Graphic is TBitmap) or (Graphic is TWICImage) then
     begin
@@ -95,7 +85,6 @@ begin
     AHeight := Graphic.Height;
     AWidth := Graphic.Width;
   finally
-    Stream.Free;
     Png.Free;
     Graphic.Free;
   end;

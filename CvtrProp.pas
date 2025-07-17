@@ -14,13 +14,19 @@ type
   public
     property Name: String read FName;
     property Value: String read GetValue write FValue;
+    constructor Create(const AName: string); overload; virtual;
     constructor Create(const AName, AValue: string); overload; virtual;
-    procedure ReadMultiline(AStm: TStreamReader);
+    procedure ParseValue(AParser: TParser); virtual;
   end;
 
   TDfmDataProp = class(TDfmProperty)
+  private
+    FData: TMemoryStream;
   public
-    procedure ReadData(AStm: TStreamReader);
+    property Data: TMemoryStream read FData;
+    constructor Create(const AName: string); override;
+    destructor Destroy; override;
+    procedure ParseValue(AParser: TParser); override;
   end;
 
   TDfmStringsProp = class(TDfmProperty)
@@ -29,9 +35,9 @@ type
     function GetValue: String; override;
   public
     property Strings: TStringList read FStrings;
-    constructor Create(const AName, AValue: string); override;
+    constructor Create(const AName: string); override;
     destructor Destroy; override;
-    procedure ReadLines(AStm: TStreamReader);
+    procedure ParseValue(AParser: TParser); override;
   end;
 
   TDfmSetProp = class(TDfmProperty)
@@ -39,9 +45,9 @@ type
     FItems: TStringList;
   public
     property Items: TStringList read FItems;
-    constructor Create(const AName, AValue: string); override;
+    constructor Create(const AName: string); override;
     destructor Destroy; override;
-    procedure ReadSetItems(AStm: TStreamReader);
+    procedure ParseValue(AParser: TParser); override;
   end;
 
   TDfmProperties = class(TObjectList<TDfmProperty>)
@@ -63,7 +69,16 @@ type
     function ToString(APad: String): String; reintroduce; virtual;
   end;
 
-  TFmxImageProp = class(TFmxProperty)
+  TFmxDataProp = class(TFmxProperty)
+  protected
+    FData: TMemoryStream;
+  public
+    constructor Create(const AName: string; AStream: TStream); overload;
+    destructor Destroy; override;
+    function ToString(APad: String): String; override;
+  end;
+
+  TFmxImageProp = class(TFmxDataProp)
   protected
     FPng: TPngImage;
   public
@@ -72,7 +87,7 @@ type
     function ToString(APad: String): String; override;
   end;
 
-  TFmxImageListProp = class(TFmxProperty)
+  TFmxImageListProp = class(TFmxDataProp)
   public
     function ToString(APad: String): String; override;
   end;
@@ -84,11 +99,6 @@ type
     property Strings: TStringList read FStrings;
     constructor Create(const AName: string; AStrings: TStrings); overload; virtual;
     destructor Destroy; override;
-    function ToString(APad: String): String; override;
-  end;
-
-  TFmxDataProp = class(TFmxProperty)
-  public
     function ToString(APad: String): String; override;
   end;
 
@@ -112,7 +122,7 @@ type
     function ToString(APad: String): String; override;
   end;
 
-  TFmxPictureProp = class(TFmxProperty)
+  TFmxPictureProp = class(TFmxDataProp)
   public
     function ToString(APad: String): String; override;
   end;
@@ -133,8 +143,13 @@ uses
 
 constructor TDfmProperty.Create(const AName, AValue: string);
 begin
-  FName := AName;
+  Create(AName);
   FValue := AValue;
+end;
+
+constructor TDfmProperty.Create(const AName: string);
+begin
+  FName := AName;
 end;
 
 function TDfmProperty.GetValue: String;
@@ -142,31 +157,21 @@ begin
   Result := FValue;
 end;
 
-procedure TDfmProperty.ReadMultiline(AStm: TStreamReader);
-var
-  Data: String;
-  Quoted: Boolean;
+procedure TDfmProperty.ParseValue(AParser: TParser);
 begin
-  Data := AStm.ReadLine.Trim;
-  Quoted := Data[1] = '''';
-  while Data.EndsWith('+') do
+  FValue := FValue + AParser.TokenWideString;
+  while AParser.NextToken = '+' do
   begin
-    if Quoted then
-      FValue := FValue + Data.Trim(['+']).Trim.DeQuotedString
-    else
-      FValue := FValue + Data.Trim(['+']).Trim;
-    Data := Trim(AStm.ReadLine);
+    AParser.NextToken;
+    if not (AParser.Token in [System.Classes.toString, toWString]) then
+      AParser.CheckToken(System.Classes.toString);
+    FValue := FValue + AParser.TokenWideString;
   end;
-  if Quoted then
-    FValue := FValue + Data.Trim(['+']).Trim.DeQuotedString
-  else
-    FValue := FValue + Data.Trim(['+']).Trim;
-  FValue := FValue.QuotedString;
 end;
 
 { TDfmStringsProp }
 
-constructor TDfmStringsProp.Create(const AName, AValue: string);
+constructor TDfmStringsProp.Create(const AName: string);
 begin
   inherited;
   FStrings := TStringList.Create;
@@ -183,46 +188,34 @@ begin
   Result := FStrings.Text;
 end;
 
-procedure TDfmStringsProp.ReadLines(AStm: TStreamReader);
-var
-  Data: String;
+procedure TDfmStringsProp.ParseValue(AParser: TParser);
 begin
-  if FValue.EndsWith(')') then
-    Exit;
+  AParser.NextToken;
+  while AParser.Token <> ')' do inherited ParseValue(AParser);
 
-  Data := Trim(AStm.ReadLine);
-
-  while not Data.EndsWith(')') do
-  begin
-    FStrings.Add(Data);
-    Data := Trim(AStm.ReadLine);
-  end;
-
-  FStrings.Add(Data.TrimRight([')']));
+  FStrings.Text := FValue;
+  AParser.NextToken;
 end;
 
 { TDfmDataProp }
 
-procedure TDfmDataProp.ReadData(AStm: TStreamReader);
-var
-  Data: String;
+constructor TDfmDataProp.Create(const AName: string);
 begin
-  if FValue.EndsWith('}') then
-  begin
-    FValue := FValue.Trim(['{', '}']);
-    Exit;
-  end;
+  inherited;
+  FData := TMemoryStream.Create;
+end;
 
-  FValue := FValue.TrimLeft(['{']);
-  Data := Trim(AStm.ReadLine);
+destructor TDfmDataProp.Destroy;
+begin
+  FData.Free;
+  inherited;
+end;
 
-  while not Data.EndsWith('}') do
-  begin
-    FValue := FValue + Data;
-    Data := Trim(AStm.ReadLine);
-  end;
-
-  FValue := FValue + Data.TrimRight(['}']);
+procedure TDfmDataProp.ParseValue(AParser: TParser);
+begin
+  AParser.HexToBinary(FData);
+  FData.Position := 0;
+  AParser.NextToken;
 end;
 
 { TFmxProperty }
@@ -256,7 +249,7 @@ begin
     Result := APad + '  ' + FName + ' = ' + FValue + CRLF
   else
   begin
-    Result := APad + '  ' + FName + ' =';
+    Result := APad + '  ' + FName + ' = ';
     LineNum := 0;
     Data := FValue.DeQuotedString;
 
@@ -288,14 +281,17 @@ var
   Width, Height: Integer;
   BitmapData: String;
 begin
-  if not Assigned(FPng) then
-    BitmapData := ConvertPicture(FValue, APad + '    ', Width, Height)
+  if Assigned(FData) then
+    BitmapData := ConvertPicture(FData, APad + '    ', Width, Height)
   else
-  begin
-    BitmapData := EncodePicture(FPng, APad + '    ');
-    Height := FPng.Height;
-    Width := FPng.Width;
-  end;
+    if Assigned(FPng) then
+    begin
+      BitmapData := EncodePicture(FPng, APad + '    ');
+      Height := FPng.Height;
+      Width := FPng.Width;
+    end
+    else
+      raise Exception.Create('No data for image');
 
   if FName = 'Picture.Data' then
     Result := APad + '  MultiResBitmap'
@@ -318,7 +314,7 @@ var
 begin
   ImageList := TImageList.Create;
   try
-    ParseImageList(FValue, ImageList);
+    ParseImageList(FData, ImageList);
     Result := EncodeImageList(ImageList, APad) + CRLF;
   finally
     ImageList.Free;
@@ -354,6 +350,20 @@ end;
 
 { TFmxDataProp }
 
+constructor TFmxDataProp.Create(const AName: string; AStream: TStream);
+begin
+  FName := AName;
+  FData := TMemoryStream.Create;
+  FData.CopyFrom(AStream);
+  FData.Position := 0;
+end;
+
+destructor TFmxDataProp.Destroy;
+begin
+  FData.Free;
+  inherited;
+end;
+
 function TFmxDataProp.ToString(APad: String): String;
 begin
   Result := APad + '  ' + FName + ' = {';
@@ -386,7 +396,7 @@ end;
 
 { TDfmSetProp }
 
-constructor TDfmSetProp.Create(const AName, AValue: string);
+constructor TDfmSetProp.Create(const AName: string);
 begin
   inherited;
   FItems := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
@@ -398,33 +408,27 @@ begin
   inherited;
 end;
 
-procedure TDfmSetProp.ReadSetItems(AStm: TStreamReader);
+procedure TDfmSetProp.ParseValue(AParser: TParser);
 var
-  Data: String;
-
-  procedure AddItems(const AItemsLine: String);
-  var
-    ItemsArray: TArray<String>;
-    Item: String;
-  begin
-    ItemsArray := AItemsLine.TrimRight([',']).Split([', ']);
-    for Item in ItemsArray do
-      FItems.Add(Item);
-  end;
-
+  TokenStr: String;
 begin
-  AddItems(FValue.Trim(['[', ']']));
-  if FValue.EndsWith(']') then
-    Exit;
-
-  Data := Trim(AStm.ReadLine);
-  while not Data.EndsWith(']') do
-  begin
-    AddItems(Data);
-    Data := Trim(AStm.ReadLine);
-  end;
-
-  AddItems(Data.TrimRight([']']));
+  AParser.NextToken;
+  if AParser.Token <> ']' then
+    while True do
+    begin
+      TokenStr := AParser.TokenString;
+      case AParser.Token of
+        toInteger: begin end;
+        System.Classes.toString,toWString: TokenStr := '#' + IntToStr(Ord(TokenStr.Chars[0]));
+      else
+        AParser.CheckToken(toSymbol);
+      end;
+      FItems.Add(TokenStr);
+      if AParser.NextToken = ']' then Break;
+      AParser.CheckToken(',');
+      AParser.NextToken;
+    end;
+  AParser.NextToken;
 end;
 
 { TFmxSetProp }
@@ -467,7 +471,7 @@ var
   Width, Height: Integer;
   BitmapData: String;
 begin
-  BitmapData := ConvertPicture(FValue, APad, Width, Height);
+  BitmapData := ConvertPicture(FData, APad, Width, Height);
 
   if FName.EndsWith('.Data') then
     FName := FName.Substring(0, FName.Length - 5);

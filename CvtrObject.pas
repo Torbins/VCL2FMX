@@ -71,8 +71,8 @@ type
     procedure InitObjects; virtual;
     function FMXProperties(APad: String): String;
     function FMXSubObjects(APad: String): String;
-    function IsObjectFound(ALine: String; ARemember: Boolean = False): Boolean;
-    function ReadContents(AStm: TStreamReader): String;
+    function IsObjectFound(AParser: TParser; ARemember: Boolean = False): Boolean;
+    procedure ReadContents(AParser: TParser);
     function GetRule(const AName: string; AList: TStringList = nil): TRule;
     function TransformProperty(AProp: TDfmProperty): TFmxProperty;
     procedure LoadCommonProperties(AParamName: String);
@@ -88,7 +88,7 @@ type
     property ObjName: String read FObjName;
     property NewClassName: String read FClassName;
     property DfmProps: TDfmProperties read FDfmProps;
-    constructor Create(AParent: TDfmToFmxObject; ACreateText: String; AStm: TStreamReader);
+    constructor Create(AParent: TDfmToFmxObject; AParser: TParser);
     constructor CreateGenerated(AParent: TDfmToFmxObject; AObjName, AClassName: String);
     destructor Destroy; override;
     function CountSubObjects: Integer;
@@ -100,7 +100,7 @@ type
   protected
     function GetObjHeader: String; override;
   public
-    constructor CreateItem(AParent: TDfmToFmxObject; AClassName: String; AStm: TStreamReader; out ListEndFound: Boolean);
+    constructor CreateItem(AParent: TDfmToFmxObject; AClassName: String; AParser: TParser);
   end;
 
   TDfmToFmxItems = class(TObjectList<TDfmToFmxItem>);
@@ -110,9 +110,9 @@ type
     FItems: TDfmToFmxItems;
   public
     property Items: TDfmToFmxItems read FItems;
-    constructor Create(const AName, AValue: string); override;
+    constructor Create(const AName: string); override;
     destructor Destroy; override;
-    procedure ReadItems(AParent: TDfmToFmxObject; AClassName: String; AStm: TStreamReader);
+    procedure ParseItems(AParent: TDfmToFmxObject; AClassName: String; AParser: TParser);
     procedure Transform(AItemStrings: TStrings);
   end;
 
@@ -132,32 +132,32 @@ begin
     Result := Result + FOwnedObjs.Items[i].CountSubObjects;
 end;
 
-constructor TDfmToFmxObject.Create(AParent: TDfmToFmxObject; ACreateText: String; AStm: TStreamReader);
-var
-  InputArray: TArray<String>;
+constructor TDfmToFmxObject.Create(AParent: TDfmToFmxObject; AParser: TParser);
 begin
   FParent := AParent;
   if Assigned(AParent) then
     FRoot := FParent.Root;
   InitObjects;
-  if IsObjectFound(Trim(ACreateText), {ARemember} True) then
+  if IsObjectFound(AParser, {ARemember} True) then
   begin
-    InputArray := ACreateText.Split([' ']);
-    if Length(InputArray) > 2 then
+    AParser.NextToken;
+    AParser.CheckToken(toSymbol);
+    FClassName := AParser.TokenString;
+    FObjName := '';
+    if AParser.NextToken = ':' then
     begin
-      FObjName := InputArray[1].TrimRight([':']);
-      FClassName := InputArray[2];
-    end
-    else
-    begin
-      FObjName := '';
-      FClassName := InputArray[1];
+      AParser.NextToken;
+      AParser.CheckToken(toSymbol);
+      FObjName := FClassName;
+      FClassName := AParser.TokenString;
+      AParser.NextToken;
     end;
+
     IniFileLoad;
-    ReadContents(AStm);
+    ReadContents(AParser);
   end
   else
-    raise Exception.Create('Bad Start::' + ACreateText);
+    raise Exception.Create('Bad Start::' + AParser.TokenString);
 end;
 
 constructor TDfmToFmxObject.CreateGenerated(AParent: TDfmToFmxObject; AObjName, AClassName: String);
@@ -498,7 +498,7 @@ type
     NumGlyphs, Index: Integer;
   begin
     NumGlyphs := FDfmProps.GetIntValueDef('NumGlyphs', 1);
-    Png := CreateGlyphPng(AProp.Value, NumGlyphs);
+    Png := CreateGlyphPng((AProp as TDfmDataProp).Data, NumGlyphs);
     Index := FRoot.AddImageItem(Png);
 
     AddFmxProperty(Self, 'Images', 'SingletoneImageList');
@@ -519,7 +519,7 @@ type
     Width := FDfmProps.GetIntValueDef('Width', 23);
     Height := FDfmProps.GetIntValueDef('Height', 22);
 
-    Png := CreateGlyphPng(AProp.Value, NumGlyphs);
+    Png := CreateGlyphPng((AProp as TDfmDataProp).Data, NumGlyphs);
 
     Width := (Width - Png.Width) div 2;
     Height := (Height - Png.Height) div 2;
@@ -900,22 +900,22 @@ begin
     FOwnedObjs[i].InternalProcessBody(ABody);
 end;
 
-function TDfmToFmxObject.IsObjectFound(ALine: String; ARemember: Boolean = False): Boolean;
+function TDfmToFmxObject.IsObjectFound(AParser: TParser; ARemember: Boolean = False): Boolean;
 begin
   Result := False;
-  if ALine.StartsWith('object') then
+  if AParser.TokenSymbolIs('object') then
   begin
     Result := True;
     if ARemember then
       FObjectKind := okNormal;
   end;
-  if ALine.StartsWith('inline') then
+  if AParser.TokenSymbolIs('inline') then
   begin
     Result := True;
     if ARemember then
       FObjectKind := okInline;
   end;
-  if ALine.StartsWith('inherited') then
+  if AParser.TokenSymbolIs('inherited') then
   begin
     Result := True;
     if ARemember then
@@ -990,12 +990,10 @@ begin
   end;
 end;
 
-function TDfmToFmxObject.ReadContents(AStm: TStreamReader): String;
+procedure TDfmToFmxObject.ReadContents(AParser: TParser);
 var
-  PropEqSign: Integer;
-  Name, Value: String;
+  Name: String;
   Prop: TDfmProperty;
-  Data: String;
 
   function GetItemsClass: String;
   var
@@ -1008,53 +1006,70 @@ var
   end;
 
 begin
-  Data := Trim(AStm.ReadLine);
-  while not Data.StartsWith('end') do
+  while not AParser.TokenSymbolIs('end') do
   begin
-    if IsObjectFound(Data) then
-      FOwnedObjs.Add(TDfmToFmxObject.Create(Self, Data, AStm))
+    if IsObjectFound(AParser) then
+      FOwnedObjs.Add(TDfmToFmxObject.Create(Self, AParser))
     else
     begin
-      PropEqSign := Data.IndexOf('=');
-      Name := Data.Substring(0, PropEqSign).Trim;
-      Value := Data.Substring(PropEqSign + 1).Trim;
+      AParser.CheckToken(toSymbol);
+      Name := AParser.TokenString;
+      AParser.NextToken;
+      while AParser.Token = '.' do
+      begin
+        AParser.NextToken;
+        AParser.CheckToken(toSymbol);
+        Name := Name + '.' + AParser.TokenString;
+        AParser.NextToken;
+      end;
 
-      if Value = '' then
-      begin
-        Prop := TDfmProperty.Create(Name, '');
-        Prop.ReadMultiline(AStm);
-      end
+      AParser.CheckToken('=');
+      AParser.NextToken;
+
+      case AParser.Token of
+        toSymbol:
+          begin
+            Prop := TDfmProperty.Create(Name, AParser.TokenComponentIdent);
+            AParser.NextToken;
+          end;
+        System.Classes.toString, toWString:
+          begin
+            Prop := TDfmProperty.Create(Name);
+            Prop.ParseValue(AParser);
+          end;
+        toInteger, toFloat:
+          begin
+            Prop := TDfmProperty.Create(Name, AParser.TokenString);
+            AParser.NextToken;
+          end;
+        '[':
+          begin
+            Prop := TDfmSetProp.Create(Name);
+            Prop.ParseValue(AParser);
+          end;
+        '(':
+          begin
+            Prop := TDfmStringsProp.Create(Name);
+            Prop.ParseValue(AParser);
+          end;
+        '{':
+          begin
+            Prop := TDfmDataProp.Create(Name);
+            Prop.ParseValue(AParser);
+          end;
+        '<':
+          begin
+            Prop := TDfmItemsProp.Create(Name);
+            TDfmItemsProp(Prop).ParseItems(Self, GetItemsClass, AParser);
+          end;
       else
-      if Value[1] = '(' then
-      begin
-        Prop := TDfmStringsProp.Create(Name, Value);
-        TDfmStringsProp(Prop).ReadLines(AStm);
-      end
-      else
-      if Value[1] = '<' then
-      begin
-        Prop := TDfmItemsProp.Create(Name, Value);
-        TDfmItemsProp(Prop).ReadItems(Self, GetItemsClass, AStm);
-      end
-      else
-      if Value[1] = '{' then
-      begin
-        Prop := TDfmDataProp.Create(Name, Value);
-        TDfmDataProp(Prop).ReadData(AStm);
-      end
-      else
-      if Value[1] = '[' then
-      begin
-        Prop := TDfmSetProp.Create(Name, Value);
-        TDfmSetProp(Prop).ReadSetItems(AStm);
-      end
-      else
-        Prop := TDfmProperty.Create(Name, Value);
+        raise Exception.Create('Invalid property');
+      end;
+
       FDfmProps.Add(Prop);
     end;
-    Data := Trim(AStm.ReadLine);
   end;
-  Result := Data.Substring(3);
+  AParser.NextToken;
 end;
 
 procedure TDfmToFmxObject.SetStyle(const AType, AParam, AValue: String);
@@ -1076,6 +1091,7 @@ function TDfmToFmxObject.TransformProperty(AProp: TDfmProperty): TFmxProperty;
 var
   Rule: TRule;
   EnumValue, Item: String;
+  Data: TStream;
 
   function ReplaceEnum(const APropValue: String): String;
   var
@@ -1114,14 +1130,15 @@ begin
   else
   if Rule.Action = '#ConvertData#' then
   begin
+    Data := (AProp as TDfmDataProp).Data;
     if Rule.Parameter = 'Image' then
-      Result := TFmxImageProp.Create(Rule.NewName, AProp.Value)
+      Result := TFmxImageProp.Create(Rule.NewName, Data)
     else
     if Rule.Parameter = 'ImageList' then
-      Result := TFmxImageListProp.Create(Rule.NewName, AProp.Value)
+      Result := TFmxImageListProp.Create(Rule.NewName, Data)
     else
     if Rule.Parameter = 'Picture' then
-      Result := TFmxPictureProp.Create(Rule.NewName, AProp.Value)
+      Result := TFmxPictureProp.Create(Rule.NewName, Data)
     else
       raise Exception.Create('Unknown data type ' + Rule.Parameter + ' for property ' + AProp.Name);
   end
@@ -1200,7 +1217,7 @@ begin
       Result := TFmxStringsProp.Create(Rule.NewName, TDfmStringsProp(AProp).Strings)
     else
     if AProp is TDfmDataProp then
-      Result := TFmxDataProp.Create(Rule.NewName, AProp.Value)
+      Result := TFmxDataProp.Create(Rule.NewName, TDfmDataProp(AProp).Data)
     else
     if AProp is TDfmItemsProp then
     begin
@@ -1245,15 +1262,14 @@ end;
 
 { TDfmToFmxItem }
 
-constructor TDfmToFmxItem.CreateItem(AParent: TDfmToFmxObject; AClassName: String; AStm: TStreamReader; out
-    ListEndFound: Boolean);
+constructor TDfmToFmxItem.CreateItem(AParent: TDfmToFmxObject; AClassName: String; AParser: TParser);
 begin
   FParent := AParent;
   FRoot := FParent.FRoot;
   FClassName := AClassName;
   InitObjects;
   IniFileLoad;
-  ListEndFound := ReadContents(AStm) = '>';
+  ReadContents(AParser);
 end;
 
 function TDfmToFmxItem.GetObjHeader: String;
@@ -1317,7 +1333,7 @@ end;
 
 { TDfmItemsProp }
 
-constructor TDfmItemsProp.Create(const AName, AValue: string);
+constructor TDfmItemsProp.Create(const AName: string);
 begin
   inherited;
   FItems := TDfmToFmxItems.Create({AOwnsObjects} True);
@@ -1329,25 +1345,16 @@ begin
   inherited;
 end;
 
-procedure TDfmItemsProp.ReadItems(AParent: TDfmToFmxObject; AClassName: String; AStm: TStreamReader);
-var
-  Data: String;
-  ClosingBracketFound: Boolean;
+procedure TDfmItemsProp.ParseItems(AParent: TDfmToFmxObject; AClassName: String; AParser: TParser);
 begin
-  if FValue.EndsWith('>') then
-    Exit;
-
-  ClosingBracketFound := False;
-  Data := Trim(AStm.ReadLine);
-  while (not Data.EndsWith('>')) and (not ClosingBracketFound) do
+  AParser.NextToken;
+  while AParser.Token <> '>' do
   begin
-    if Data.StartsWith('item') then
-      FItems.Add(TDfmToFmxItem.CreateItem(AParent, AClassName, AStm, ClosingBracketFound))
-    else
-      raise Exception.Create('Error reading items in ' + AParent.ObjName + '.' + FName);
-    if not ClosingBracketFound then
-      Data := Trim(AStm.ReadLine);
+    AParser.CheckTokenSymbol('item');
+    AParser.NextToken;
+    FItems.Add(TDfmToFmxItem.CreateItem(AParent, AClassName, AParser));
   end;
+  AParser.NextToken;
 end;
 
 procedure TDfmItemsProp.Transform(AItemStrings: TStrings);
