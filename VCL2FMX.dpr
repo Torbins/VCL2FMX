@@ -13,7 +13,8 @@ uses
   CvtrObject in 'CvtrObject.pas',
   ReflexiveMasks in 'ReflexiveMasks.pas',
   VCL2FMXStyleGen in 'Style Generation\VCL2FMXStyleGen.pas',
-  VCL2FMXWinThemes in 'Style Generation\VCL2FMXWinThemes.pas';
+  VCL2FMXWinThemes in 'Style Generation\VCL2FMXWinThemes.pas',
+  CvtrPropValue in 'CvtrPropValue.pas';
 
 {$R *.res}
 

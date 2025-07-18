@@ -106,20 +106,22 @@ type
   TDfmToFmxItems = class(TObjectList<TDfmToFmxItem>);
 
   TDfmItemsProp = class(TDfmProperty)
+  private
+    function GetItems: TDfmToFmxItems;
   protected
-    FItems: TDfmToFmxItems;
+    FParent: TDfmToFmxObject;
+    FClassName: String;
+    procedure ParseValue(AParser: TParser); override;
   public
-    property Items: TDfmToFmxItems read FItems;
-    constructor Create(const AName: string); override;
-    destructor Destroy; override;
-    procedure ParseItems(AParent: TDfmToFmxObject; AClassName: String; AParser: TParser);
+    property Items: TDfmToFmxItems read GetItems;
+    constructor Create(const AName: string; AParent: TDfmToFmxObject; AClassName: String; AParser: TParser);
     procedure Transform(AItemStrings: TStrings);
   end;
 
 implementation
 
 uses
-  System.Generics.Defaults, Image, PatchLib, ReflexiveMasks, VCL2FMXStyleGen;
+  System.Generics.Defaults, Image, PatchLib, ReflexiveMasks, CvtrPropValue, VCL2FMXStyleGen;
 
 { TDfmToFmxObject }
 
@@ -450,14 +452,14 @@ procedure TDfmToFmxObject.GenerateObject(AProp: TDfmProperty; AObjectType: strin
     end;
   end;
 
-  procedure GenerateProperty(AObj: TDfmToFmxObject; const APropName, APropValue: String);
+  procedure GenerateProperty(AObj: TDfmToFmxObject; const APropName: String; const APropValue: TPropValue);
   var
     Prop: TDfmProperty;
   begin
     Prop := AObj.FDfmProps.FindByName(APropName);
 
     if Assigned(Prop) then
-      Prop.Value := APropValue
+      Prop.Value.Text := APropValue.Text
     else
     begin
       Prop := TDfmProperty.Create(APropName, APropValue);
@@ -498,7 +500,7 @@ type
     NumGlyphs, Index: Integer;
   begin
     NumGlyphs := FDfmProps.GetIntValueDef('NumGlyphs', 1);
-    Png := CreateGlyphPng((AProp as TDfmDataProp).Data, NumGlyphs);
+    Png := CreateGlyphPng(AProp.Value.Data, NumGlyphs);
     Index := FRoot.AddImageItem(Png);
 
     AddFmxProperty(Self, 'Images', 'SingletoneImageList');
@@ -519,7 +521,7 @@ type
     Width := FDfmProps.GetIntValueDef('Width', 23);
     Height := FDfmProps.GetIntValueDef('Height', 22);
 
-    Png := CreateGlyphPng((AProp as TDfmDataProp).Data, NumGlyphs);
+    Png := CreateGlyphPng(AProp.Value.Data, NumGlyphs);
 
     Width := (Width - Png.Width) div 2;
     Height := (Height - Png.Height) div 2;
@@ -587,7 +589,7 @@ begin
   begin
     Num := 0;
 
-    for Caption in (AProp as TDfmStringsProp).Strings do
+    for Caption in AProp.Value.Strings do
     begin
       Obj := GetObject(FObjName + '_RadioButton' + (Num + 1).ToString, 'TRadioButton', RadioButtonInitParams, [], Num);
       AddFmxProperty(Obj, 'Text', Caption);
@@ -601,7 +603,7 @@ begin
   begin
     Num := 1;
 
-    for Caption in (AProp as TDfmStringsProp).Strings do
+    for Caption in AProp.Value.Strings do
     begin
       Obj := GetObject(FObjName + 'Tab' + Num.ToString, 'TTabSheet', [], [], Num - 1);
       AddFmxProperty(Obj, 'Text', Caption);
@@ -611,7 +613,7 @@ begin
 
   if AObjectType = 'SelectRadioButton' then
   begin
-    Num := AProp.Value.ToInteger;
+    Num := AProp.Value.Int;
     Obj := nil;
     for i := 0 to Num do
       Obj := GetObject(FObjName + '_RadioButton' + (i + 1).ToString, 'TRadioButton', RadioButtonInitParams, [], i);
@@ -623,8 +625,8 @@ begin
     Obj := GetObject(FObjName + '_Caption', 'TLabel', SeparateCaptionInitParams, SeparateCaptionReplacements);
     if Obj.FDfmProps.Count = 0 then
     begin
-      GenerateProperty(Obj, 'Alignment', 'taCenter');
-      GenerateProperty(Obj, 'Layout', 'tlCenter');
+      GenerateProperty(Obj, 'Alignment', TPropValue.CreateSymbolVal('taCenter'));
+      GenerateProperty(Obj, 'Layout', TPropValue.CreateSymbolVal('tlCenter'));
     end;
 
     if AProp.Name = 'ShowCaption' then
@@ -633,7 +635,7 @@ begin
     if AProp.Name = 'VerticalAlignment' then
     begin
       if AProp.Value = 'taAlignBottom' then
-        GenerateProperty(Obj, 'Layout', 'tlBottom'); //Center is default for panel and top - for label
+        GenerateProperty(Obj, 'Layout', TPropValue.CreateSymbolVal('tlBottom')); //Center is default for panel and top - for label
     end
     else
       GenerateProperty(Obj, AProp.Name, AProp.Value);
@@ -1027,43 +1029,18 @@ begin
       AParser.NextToken;
 
       case AParser.Token of
-        toSymbol:
-          begin
-            Prop := TDfmProperty.Create(Name, AParser.TokenComponentIdent);
-            AParser.NextToken;
-          end;
-        System.Classes.toString, toWString:
-          begin
-            Prop := TDfmProperty.Create(Name);
-            Prop.ParseValue(AParser);
-          end;
-        toInteger, toFloat:
-          begin
-            Prop := TDfmProperty.Create(Name, AParser.TokenString);
-            AParser.NextToken;
-          end;
+        toSymbol, System.Classes.toString, toWString, toInteger, toFloat:
+          Prop := TDfmProperty.Create(Name, AParser);
         '[':
-          begin
-            Prop := TDfmSetProp.Create(Name);
-            Prop.ParseValue(AParser);
-          end;
+          Prop := TDfmSetProp.Create(Name, AParser);
         '(':
-          begin
-            Prop := TDfmStringsProp.Create(Name);
-            Prop.ParseValue(AParser);
-          end;
+          Prop := TDfmStringsProp.Create(Name, AParser);
         '{':
-          begin
-            Prop := TDfmDataProp.Create(Name);
-            Prop.ParseValue(AParser);
-          end;
+          Prop := TDfmDataProp.Create(Name, AParser);
         '<':
-          begin
-            Prop := TDfmItemsProp.Create(Name);
-            TDfmItemsProp(Prop).ParseItems(Self, GetItemsClass, AParser);
-          end;
+          Prop := TDfmItemsProp.Create(Name, Self, GetItemsClass, AParser);
       else
-        raise Exception.Create('Invalid property');
+        raise Exception.Create('Invalid property at line ' + AParser.SourceLine.ToString);
       end;
 
       FDfmProps.Add(Prop);
@@ -1091,7 +1068,6 @@ function TDfmToFmxObject.TransformProperty(AProp: TDfmProperty): TFmxProperty;
 var
   Rule: TRule;
   EnumValue, Item: String;
-  Data: TStream;
 
   function ReplaceEnum(const APropValue: String): String;
   var
@@ -1130,15 +1106,14 @@ begin
   else
   if Rule.Action = '#ConvertData#' then
   begin
-    Data := (AProp as TDfmDataProp).Data;
     if Rule.Parameter = 'Image' then
-      Result := TFmxImageProp.Create(Rule.NewName, Data)
+      Result := TFmxImageProp.Create(Rule.NewName, AProp.Value.Data)
     else
     if Rule.Parameter = 'ImageList' then
-      Result := TFmxImageListProp.Create(Rule.NewName, Data)
+      Result := TFmxImageListProp.Create(Rule.NewName, AProp.Value.Data)
     else
     if Rule.Parameter = 'Picture' then
-      Result := TFmxPictureProp.Create(Rule.NewName, Data)
+      Result := TFmxPictureProp.Create(Rule.NewName, AProp.Value.Data)
     else
       raise Exception.Create('Unknown data type ' + Rule.Parameter + ' for property ' + AProp.Name);
   end
@@ -1157,7 +1132,7 @@ begin
   end
   else
   if Rule.Action = '#FontSize#' then
-    Result := TFmxProperty.Create(Rule.NewName, Abs(AProp.Value.ToInteger).ToString)
+    Result := TFmxProperty.Create(Rule.NewName, Abs(AProp.Value.Int).ToString)
   else
   if Rule.Action = '#GenerateLinkColumns#' then
   begin
@@ -1184,10 +1159,10 @@ begin
   else
   if Rule.Action = '#ItemEnum#' then
   begin
-    if AProp is TDfmSetProp then
+    if AProp.Value.VType = vtSet then
     begin
       Result := TFmxSetProp.Create(Rule.NewName);
-      for Item in TDfmSetProp(AProp).Items do
+      for Item in AProp.Value.SetItems do
       begin
         EnumValue := ReplaceEnum(Item);
         if EnumValue <> '' then
@@ -1209,26 +1184,26 @@ begin
   end
   else
   if Rule.Action = '#ToString#' then
-    Result := TFmxProperty.Create(Rule.NewName, AProp.Value.QuotedString)
+    Result := TFmxProperty.Create(Rule.NewName, AProp.Value.Text.QuotedString)
   else
   if (Rule.Action = '') or (Rule.Action = '#ItemClass#') then
   begin
-    if AProp is TDfmStringsProp then
-      Result := TFmxStringsProp.Create(Rule.NewName, TDfmStringsProp(AProp).Strings)
+    if AProp.Value.VType = vtStrings then
+      Result := TFmxStringsProp.Create(Rule.NewName, AProp.Value.Strings)
     else
-    if AProp is TDfmDataProp then
-      Result := TFmxDataProp.Create(Rule.NewName, TDfmDataProp(AProp).Data)
+    if AProp.Value.VType = vtData then
+      Result := TFmxDataProp.Create(Rule.NewName, AProp.Value.Data)
     else
-    if AProp is TDfmItemsProp then
+    if AProp.Value.VType = vtItems then
     begin
       Result := TFmxItemsProp.Create(Rule.NewName);
       TDfmItemsProp(AProp).Transform(TFmxItemsProp(Result).Items);
     end
     else
-    if AProp is TDfmSetProp then
+    if AProp.Value.VType = vtSet then
     begin
       Result := TFmxSetProp.Create(Rule.NewName);
-      for Item in TDfmSetProp(AProp).Items do
+      for Item in AProp.Value.SetItems do
         TFmxSetProp(Result).Items.Add(Item);
     end
     else
@@ -1333,28 +1308,34 @@ end;
 
 { TDfmItemsProp }
 
-constructor TDfmItemsProp.Create(const AName: string);
+constructor TDfmItemsProp.Create(const AName: string; AParent: TDfmToFmxObject; AClassName: String; AParser: TParser);
 begin
-  inherited;
-  FItems := TDfmToFmxItems.Create({AOwnsObjects} True);
+  FParent := AParent;
+  FClassName := AClassName;
+  inherited Create(AName, AParser);
 end;
 
-destructor TDfmItemsProp.Destroy;
+function TDfmItemsProp.GetItems: TDfmToFmxItems;
 begin
-  FItems.Free;
-  inherited;
+  Result := FValue.Items as TDfmToFmxItems;
 end;
 
-procedure TDfmItemsProp.ParseItems(AParent: TDfmToFmxObject; AClassName: String; AParser: TParser);
+procedure TDfmItemsProp.ParseValue(AParser: TParser);
+var
+  Items: TDfmToFmxItems;
 begin
+  Items := TDfmToFmxItems.Create({AOwnsObjects} True);
+
   AParser.NextToken;
   while AParser.Token <> '>' do
   begin
     AParser.CheckTokenSymbol('item');
     AParser.NextToken;
-    FItems.Add(TDfmToFmxItem.CreateItem(AParent, AClassName, AParser));
+    Items.Add(TDfmToFmxItem.CreateItem(FParent, FClassName, AParser));
   end;
   AParser.NextToken;
+
+  FValue := TPropValue.CreateItemsVal(Items);
 end;
 
 procedure TDfmItemsProp.Transform(AItemStrings: TStrings);
@@ -1362,7 +1343,7 @@ var
   Item: TDfmToFmxItem;
   Transformed: String;
 begin
-  for Item in FItems do
+  for Item in GetItems do
   begin
     Transformed := Item.FMXFile;
     if Assigned(AItemStrings) then

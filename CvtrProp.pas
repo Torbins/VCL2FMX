@@ -3,50 +3,34 @@ unit CvtrProp;
 interface
 
 uses
-  System.Classes, System.Generics.Collections, Vcl.Imaging.PngImage;
+  System.Classes, System.Generics.Collections, Vcl.Imaging.PngImage, CvtrPropValue;
 
 type
   TDfmProperty = class
   protected
     FName: String;
-    FValue: string;
-    function GetValue: String; virtual;
+    FValue: TPropValue;
+    function ParseString(AParser: TParser): String;
+    procedure ParseValue(AParser: TParser); virtual;
   public
     property Name: String read FName;
-    property Value: String read GetValue write FValue;
-    constructor Create(const AName: string); overload; virtual;
-    constructor Create(const AName, AValue: string); overload; virtual;
-    procedure ParseValue(AParser: TParser); virtual;
+    property Value: TPropValue read FValue;
+    constructor Create(const AName: string; AParser: TParser); overload; virtual;
+    constructor Create(const AName: string; const AValue: TPropValue); overload; virtual;
   end;
 
   TDfmDataProp = class(TDfmProperty)
-  private
-    FData: TMemoryStream;
-  public
-    property Data: TMemoryStream read FData;
-    constructor Create(const AName: string); override;
-    destructor Destroy; override;
+  protected
     procedure ParseValue(AParser: TParser); override;
   end;
 
   TDfmStringsProp = class(TDfmProperty)
   protected
-    FStrings: TStringList;
-    function GetValue: String; override;
-  public
-    property Strings: TStringList read FStrings;
-    constructor Create(const AName: string); override;
-    destructor Destroy; override;
     procedure ParseValue(AParser: TParser); override;
   end;
 
   TDfmSetProp = class(TDfmProperty)
   protected
-    FItems: TStringList;
-  public
-    property Items: TStringList read FItems;
-    constructor Create(const AName: string); override;
-    destructor Destroy; override;
     procedure ParseValue(AParser: TParser); override;
   end;
 
@@ -141,81 +125,112 @@ uses
 
 { TDfmProperty }
 
-constructor TDfmProperty.Create(const AName, AValue: string);
+constructor TDfmProperty.Create(const AName: string; const AValue: TPropValue);
 begin
-  Create(AName);
+  FName := AName;
   FValue := AValue;
 end;
 
-constructor TDfmProperty.Create(const AName: string);
+constructor TDfmProperty.Create(const AName: string; AParser: TParser);
 begin
   FName := AName;
+  ParseValue(AParser);
 end;
 
-function TDfmProperty.GetValue: String;
+function TDfmProperty.ParseString(AParser: TParser): String;
 begin
-  Result := FValue;
-end;
-
-procedure TDfmProperty.ParseValue(AParser: TParser);
-begin
-  FValue := FValue + AParser.TokenWideString;
+  Result := AParser.TokenWideString;
   while AParser.NextToken = '+' do
   begin
     AParser.NextToken;
     if not (AParser.Token in [System.Classes.toString, toWString]) then
       AParser.CheckToken(System.Classes.toString);
-    FValue := FValue + AParser.TokenWideString;
+    Result := Result + AParser.TokenWideString;
+  end;
+end;
+
+procedure TDfmProperty.ParseValue(AParser: TParser);
+begin
+  case AParser.Token of
+    toSymbol:
+      begin
+        FValue := TPropValue.CreateSymbolVal(AParser.TokenComponentIdent);
+        AParser.NextToken;
+      end;
+    System.Classes.toString, toWString:
+        FValue := TPropValue.CreateStringVal(ParseString(AParser));
+    toInteger:
+      begin
+        FValue := TPropValue.CreateIntegerVal(AParser.TokenString);
+        AParser.NextToken;
+      end;
+    toFloat:
+      begin
+        FValue := TPropValue.CreateFloatVal(AParser.TokenString);
+        AParser.NextToken;
+      end;
   end;
 end;
 
 { TDfmStringsProp }
 
-constructor TDfmStringsProp.Create(const AName: string);
-begin
-  inherited;
-  FStrings := TStringList.Create;
-end;
-
-destructor TDfmStringsProp.Destroy;
-begin
-  FStrings.Free;
-  inherited;
-end;
-
-function TDfmStringsProp.GetValue: String;
-begin
-  Result := FStrings.Text;
-end;
-
 procedure TDfmStringsProp.ParseValue(AParser: TParser);
+var
+  Strings: TStringList;
 begin
-  AParser.NextToken;
-  while AParser.Token <> ')' do inherited ParseValue(AParser);
+  Strings := TStringList.Create;
 
-  FStrings.Text := FValue;
   AParser.NextToken;
+  while AParser.Token <> ')' do
+    Strings.Add(ParseString(AParser));
+  AParser.NextToken;
+
+  FValue := TPropValue.CreateStringsVal(Strings);
 end;
 
 { TDfmDataProp }
 
-constructor TDfmDataProp.Create(const AName: string);
-begin
-  inherited;
-  FData := TMemoryStream.Create;
-end;
-
-destructor TDfmDataProp.Destroy;
-begin
-  FData.Free;
-  inherited;
-end;
-
 procedure TDfmDataProp.ParseValue(AParser: TParser);
+var
+  Data: TMemoryStream;
 begin
-  AParser.HexToBinary(FData);
-  FData.Position := 0;
+  Data := TMemoryStream.Create;
+
+  AParser.HexToBinary(Data);
+  Data.Position := 0;
   AParser.NextToken;
+
+  FValue := TPropValue.CreateDataVal(Data);
+end;
+
+{ TDfmSetProp }
+
+procedure TDfmSetProp.ParseValue(AParser: TParser);
+var
+  TokenStr: String;
+  Items: TStringList;
+begin
+  Items := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
+
+  AParser.NextToken;
+  if AParser.Token <> ']' then
+    while True do
+    begin
+      TokenStr := AParser.TokenString;
+      case AParser.Token of
+        toInteger: begin end;
+        System.Classes.toString,toWString: TokenStr := '#' + IntToStr(Ord(TokenStr.Chars[0]));
+      else
+        AParser.CheckToken(toSymbol);
+      end;
+      Items.Add(TokenStr);
+      if AParser.NextToken = ']' then Break;
+      AParser.CheckToken(',');
+      AParser.NextToken;
+    end;
+  AParser.NextToken;
+
+  FValue := TPropValue.CreateSetVal(Items);
 end;
 
 { TFmxProperty }
@@ -392,43 +407,6 @@ begin
   for i := 0 to FItems.Count - 1 do
     Result := Result + FItems[i].Replace(CRLF, CRLF + APad + '    ');
   Result := Result.TrimRight([CR, LF, ' ']) + '>' + CRLF;
-end;
-
-{ TDfmSetProp }
-
-constructor TDfmSetProp.Create(const AName: string);
-begin
-  inherited;
-  FItems := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
-end;
-
-destructor TDfmSetProp.Destroy;
-begin
-  FItems.Free;
-  inherited;
-end;
-
-procedure TDfmSetProp.ParseValue(AParser: TParser);
-var
-  TokenStr: String;
-begin
-  AParser.NextToken;
-  if AParser.Token <> ']' then
-    while True do
-    begin
-      TokenStr := AParser.TokenString;
-      case AParser.Token of
-        toInteger: begin end;
-        System.Classes.toString,toWString: TokenStr := '#' + IntToStr(Ord(TokenStr.Chars[0]));
-      else
-        AParser.CheckToken(toSymbol);
-      end;
-      FItems.Add(TokenStr);
-      if AParser.NextToken = ']' then Break;
-      AParser.CheckToken(',');
-      AParser.NextToken;
-    end;
-  AParser.NextToken;
 end;
 
 { TFmxSetProp }

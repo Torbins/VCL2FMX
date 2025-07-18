@@ -159,6 +159,7 @@
         <DCCReference Include="ReflexiveMasks.pas"/>
         <DCCReference Include="Style Generation\VCL2FMXStyleGen.pas"/>
         <DCCReference Include="Style Generation\VCL2FMXWinThemes.pas"/>
+        <DCCReference Include="CvtrPropValue.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
