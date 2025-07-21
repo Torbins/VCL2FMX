@@ -44,7 +44,7 @@ type
     constructor CreateDataVal(AData: TMemoryStream);
     constructor CreateItemsVal(AItems: TObject);
     constructor CreateSetVal(ASet: TStringList); overload;
-    constructor CreateSetVal(const Strings: array of string); overload;
+    constructor CreateSetVal(const SetItems: array of string); overload;
     constructor CreateListVal(APropValueList: TPropValueList);
     class operator Implicit(AVal: TPropValue): Int64;
     class operator Implicit(AVal: TPropValue): String;
@@ -134,12 +134,12 @@ begin
   FHolder := TObjectHolder.Create(ASet);
 end;
 
-constructor TPropValue.CreateSetVal(const Strings: array of string);
+constructor TPropValue.CreateSetVal(const SetItems: array of string);
 var
   SL: TStringList;
 begin
-  SL := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
-  SL.AddStrings(Strings);
+  SL := TStringList.Create(dupIgnore, {Sorted} False, {CaseSensitive} False);
+  SL.AddStrings(SetItems);
   CreateSetVal(SL);
 end;
 

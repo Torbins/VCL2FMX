@@ -196,7 +196,7 @@ var
   TokenStr: String;
   Items: TStringList;
 begin
-  Items := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
+  Items := TStringList.Create(dupIgnore, {Sorted} False, {CaseSensitive} False);
 
   AParser.NextToken;
   if AParser.Token <> ']' then
@@ -205,7 +205,7 @@ begin
       TokenStr := AParser.TokenString;
       case AParser.Token of
         toInteger: begin end;
-        System.Classes.toString,toWString: TokenStr := '#' + IntToStr(Ord(TokenStr.Chars[0]));
+        System.Classes.toString, toWString: TokenStr := '#' + IntToStr(Ord(TokenStr.Chars[0]));
       else
         AParser.CheckToken(toSymbol);
       end;
