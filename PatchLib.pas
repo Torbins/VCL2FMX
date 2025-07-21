@@ -3,8 +3,7 @@
 interface
 
 uses
-  System.Classes, System.UITypes, System.IOUtils, Winapi.Windows, System.SysUtils, System.Generics.Collections,
-  Vcl.Imaging.PngImage, CvtrPropValue;
+  System.Classes, System.UITypes, System.IOUtils, Winapi.Windows, System.SysUtils, CvtrPropValue;
 
 const
   CRLF = #13#10;
@@ -12,9 +11,6 @@ const
   LF = #10;
   ZSISOffset = 0;
   LineTruncLength = 64;
-
-type
-  TImageList = class(TObjectList<TPngImage>);
 
 function ColorToAlphaColor(const AColor: String): TPropValue;
 function PosNoCase(const ASubstr: String; AFullString: String; Offset: Integer = 1;

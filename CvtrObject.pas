@@ -8,10 +8,10 @@ uses
 
 type
   IDfmToFmxRoot = interface
-    procedure AddGridColumns(AObjName: String; AProp: TFmxProperty);
-    procedure AddGridLink(AObjName: String; AProp: TDfmProperty);
-    procedure AddListControlLink(AObjName: String; AProp: TDfmProperty);
-    procedure AddFieldLink(AObjName: String; AProp: TDfmProperty);
+    procedure AddGridColumns(const AObjName: String; AProp: TFmxProperty);
+    procedure AddGridLink(const AObjName: String; const AValue: TPropValue);
+    procedure AddListControlLink(const AObjName: String; AProp: TDfmProperty);
+    procedure AddFieldLink(const AObjName: String; AProp: TDfmProperty);
     function AddImageItem(APng: TPngImage): Integer;
     procedure PushProgress;
     function GetIniFile: TMemIniFile;
@@ -50,8 +50,6 @@ type
   TObjectKind = (okNormal, okInline, okInherited);
 
   TDfmToFmxObject = class
-  private
-    FFMXFileText: String;
   protected
     FRoot: IDfmToFmxRoot;
     FParent: TDfmToFmxObject;
@@ -69,6 +67,7 @@ type
     FIniIncludeValues: TStringlist;
     FIniSectionValues: TStringlist;
     FCodeReplacements: TCodeReplacements;
+    FFMXFileText: String;
     procedure InitObjects; virtual;
     function FMXProperties(APad: String): String;
     function FMXSubObjects(APad: String): String;
@@ -89,6 +88,8 @@ type
     property ObjName: String read FObjName;
     property NewClassName: String read FClassName;
     property DfmProps: TDfmProperties read FDfmProps;
+    property FmxProps: TFmxProperties read FFmxProps;
+    property OwnedObjs: TOwnedObjects read FOwnedObjs;
     constructor Create(AParent: TDfmToFmxObject; AParser: TParser);
     constructor CreateGenerated(AParent: TDfmToFmxObject; AObjName, AClassName: String);
     destructor Destroy; override;
@@ -197,7 +198,7 @@ begin
 
   Properties := FMXProperties(APad); // This can change FClassName, see FMXProperties.CalcShapeClass
   FFMXFileText := APad + GetObjHeader;
-  FFMXFileText := FFMXFileText + Properties + FMXSubObjects(APad + ' ');
+  FFMXFileText := FFMXFileText + Properties + FMXSubObjects(APad);
   FFMXFileText := FFMXFileText + APad +'end' + CRLF;
   Result := FFMXFileText;
 end;
@@ -433,7 +434,7 @@ var
   i: integer;
 begin
   for i := 0 to Pred(FOwnedObjs.Count) do
-    Result := Result + FOwnedObjs[i].FMXFile(APad +' ');
+    Result := Result + FOwnedObjs[i].FMXFile(APad + '  ');
 end;
 
 procedure TDfmToFmxObject.GenerateObject(AProp: TDfmProperty; AObjectType: string);
@@ -581,7 +582,7 @@ begin
     ConvertGlyph;
 
   if AObjectType = 'GridLink' then
-    FRoot.AddGridLink(FObjName, AProp);
+    FRoot.AddGridLink(FObjName, AProp.Value);
 
   if AObjectType = 'ListControlLink' then
     FRoot.AddListControlLink(FObjName, AProp);

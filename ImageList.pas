@@ -9,7 +9,10 @@ unit ImageList;
 interface
 
 uses
-  System.Classes, PatchLib;
+  System.Classes, System.Generics.Collections, Vcl.Imaging.PngImage;
+
+type
+  TImageList = class(TObjectList<TPngImage>);
 
 function EncodeImageList(AImageList: TImageList; APad: String): String;
 procedure ParseImageList(AData: TMemoryStream; AImageList: TImageList);
@@ -17,7 +20,7 @@ procedure ParseImageList(AData: TMemoryStream; AImageList: TImageList);
 implementation
 
 uses
-  System.SysUtils, System.Generics.Collections, Vcl.ImgList, Vcl.Graphics, Vcl.Imaging.PngImage;
+  System.SysUtils, Vcl.ImgList, Vcl.Graphics, PatchLib;
 
 type
   TImageListAccess = class(Vcl.ImgList.TCustomImageList)
@@ -80,7 +83,7 @@ begin
         CRLF + APad + '    end';
     end;
 
-    Result := Result + '>' + CRLF + APad + '  Destination = < ';
+    Result := Result + '>' + CRLF + APad + '  Destination = <';
 
     // Adiciona os itens
     for i := 0 to AImageList.Count - 1 do

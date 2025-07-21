@@ -352,13 +352,18 @@ function TFmxImageListProp.ToString(APad: String): String;
 var
   ImageList: TImageList;
 begin
-  ImageList := TImageList.Create;
-  try
-    ParseImageList(FValue.Data, ImageList);
-    Result := EncodeImageList(ImageList, APad) + CRLF;
-  finally
-    ImageList.Free;
-  end;
+  if FValue.VType = vtData then
+  begin
+    ImageList := TImageList.Create;
+    try
+      ParseImageList(FValue.Data, ImageList);
+      Result := EncodeImageList(ImageList, APad) + CRLF;
+    finally
+      ImageList.Free;
+    end;
+  end
+  else
+    Result := EncodeImageList(FValue.Images, APad) + CRLF;
 end;
 
 { TFmxListProp }

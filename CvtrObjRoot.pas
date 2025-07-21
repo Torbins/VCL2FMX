@@ -4,21 +4,20 @@ interface
 
 uses
   System.Classes, System.Types, System.SysUtils, Winapi.Windows, System.IniFiles, FMX.Objects,
-  System.Generics.Collections, Vcl.Imaging.PngImage, PatchLib, CvtrObject, CvtrProp;
+  System.Generics.Collections, Vcl.Imaging.PngImage, PatchLib, CvtrObject, CvtrProp, CvtrPropValue, ImageList;
 
 type
   TLinkControl = class
-    DataSource: String;
-    FieldName: String;
-    Control: String;
+    DataSource: TPropValue;
+    FieldName: TPropValue;
+    Control: TPropValue;
   end;
   TLinkControlList = class(TObjectList<TLinkControl>);
 
   TLinkGrid = class
-    DataSource: String;
-    GridControl: String;
+    DataSource: TPropValue;
+    GridControl: TPropValue;
     Columns: TFmxProperty;
-    destructor Destroy; override;
   end;
   TLinkGridList = class(TObjectList<TLinkGrid>);
 
@@ -27,7 +26,8 @@ type
     FLinkControlList: TLinkControlList;
     FLinkListControlList: TLinkControlList;
     FLinkGridList: TLinkGridList;
-    FImageList: TImageList;
+    FIList: TPropValue;
+    FSingletoneObjs: TOwnedObjects;
     FIniReplaceValues: TStringlist;
     FIniFile: TMemIniFile;
     FParser: TParser;
@@ -35,10 +35,10 @@ type
     function QueryInterface(const IID: TGUID; out Obj): HResult; stdcall;
     function _AddRef: Integer; stdcall;
     function _Release: Integer; stdcall;
-    procedure AddFieldLink(AObjName: String; AProp: TDfmProperty);
-    procedure AddListControlLink(AObjName: String; AProp: TDfmProperty);
-    procedure AddGridLink(AObjName: String; AProp: TDfmProperty);
-    procedure AddGridColumns(AObjName: String; AProp: TFmxProperty);
+    procedure AddFieldLink(const AObjName: String; AProp: TDfmProperty);
+    procedure AddListControlLink(const AObjName: String; AProp: TDfmProperty);
+    procedure AddGridLink(const AObjName: String; const AValue: TPropValue);
+    procedure AddGridColumns(const AObjName: String; AProp: TFmxProperty);
     function AddImageItem(APng: TPngImage): Integer;
     procedure PushProgress;
     function GetIniFile: TMemIniFile;
@@ -46,7 +46,7 @@ type
     procedure UpdateUsesStringList(AUsesList: TStrings); override;
     function ProcessUsesString(AOrigUsesArray: TArray<String>): String;
     function ProcessCodeBody(const ACodeBody: String): String;
-    function GetFMXSingletons: String;
+    procedure GenerateFMXSingletons;
     function GetPASSingletons: String;
   public
     OnProgress: TNotifyEvent;
@@ -62,42 +62,39 @@ type
 
 implementation
 
-uses
-  ImageList;
-
-function TDfmToFmxObjRoot.GetFMXSingletons: String;
+procedure TDfmToFmxObjRoot.GenerateFMXSingletons;
 var
   I: Integer;
+  Obj, Link: TDfmToFmxObject;
 begin
-  Result := '';
-  if FImageList.Count > 0 then
+  if FIList.Images.Count > 0 then
   begin
-    Result := '  object SingletoneImageList: TImageList' + CRLF;
-    Result := Result + EncodeImageList(FImageList, '  ') + CRLF;
-    Result := Result + '    Left = 40' + CRLF + '    Top = 5' + CRLF + '  end' + CRLF;
+    Obj := TDfmToFmxObject.CreateGenerated(Self, 'SingletoneImageList', 'TImageList');
+    Obj.FmxProps.AddProp(TFmxProperty.CreateFromLine('Left=40'));
+    Obj.FmxProps.AddProp(TFmxProperty.CreateFromLine('Top=5'));
+    Obj.FmxProps.AddProp(TFmxImageListProp.Create('Bitmap', FIList));
+    FSingletoneObjs.Add(Obj);
   end;
 
   if (FLinkControlList.Count = 0) and (FLinkListControlList.Count = 0) and (FLinkGridList.Count = 0) then
-    Exit(Result.TrimRight([CR, LF]));
+    Exit;
 
-  Result := Result + '  object SingletoneBindingsList: TBindingsList' +
-    CRLF + '    Methods = <>' +
-    CRLF + '    OutputConverters = <>' +
-    CRLF + '    Left = 20' +
-    CRLF + '    Top = 5';
+  Obj := TDfmToFmxObject.CreateGenerated(Self, 'SingletoneBindingsList', 'TBindingsList');
+  Obj.FmxProps.AddProp(TFmxProperty.CreateFromLine('Left=20'));
+  Obj.FmxProps.AddProp(TFmxProperty.CreateFromLine('Top=5'));
+  FSingletoneObjs.Add(Obj);
 
   for I := 0 to FLinkControlList.Count - 1 do
     if (FLinkControlList[I].DataSource <> '') and (FLinkControlList[I].FieldName <> '') and
       (FLinkControlList[I].Control <> '') then
     begin
-      Result := Result +
-        CRLF + '    object LinkControlToField' + I.ToString + ': TLinkControlToField' +
-        CRLF + '      Category = ''Quick Bindings''' +
-        CRLF + '      DataSource = ' + FLinkControlList[I].DataSource +
-        CRLF + '      FieldName = ' + FLinkControlList[I].FieldName +
-        CRLF + '      Control = ' + FLinkControlList[I].Control +
-        CRLF + '      Track = False' +
-        CRLF + '    end';
+      Link := TDfmToFmxObject.CreateGenerated(Obj, 'LinkControlToField' + I.ToString, 'TLinkControlToField');
+      Link.FmxProps.AddProp(TFmxProperty.CreateFromLine('Category=''Quick Bindings'''));
+      Link.FmxProps.AddProp(TFmxProperty.Create('DataSource', FLinkControlList[I].DataSource));
+      Link.FmxProps.AddProp(TFmxProperty.Create('FieldName', FLinkControlList[I].FieldName));
+      Link.FmxProps.AddProp(TFmxProperty.Create('Control', FLinkControlList[I].Control));
+      Link.FmxProps.AddProp(TFmxProperty.CreateFromLine('Track=False'));
+      Obj.OwnedObjs.Add(Link);
     end
     else
       raise Exception.Create('Binding incomplete for control ' + FLinkControlList[I].Control + ', datasource ' +
@@ -107,16 +104,12 @@ begin
     if (FLinkListControlList[I].DataSource <> '') and (FLinkListControlList[I].FieldName <> '') and
       (FLinkListControlList[I].Control <> '') then
     begin
-      Result := Result +
-        CRLF + '    object LinkListControlToField' + I.ToString + ': TLinkListControlToField' +
-        CRLF + '      Category = ''Quick Bindings''' +
-        CRLF + '      DataSource = ' + FLinkListControlList[I].DataSource +
-        CRLF + '      FieldName = ' + FLinkListControlList[I].FieldName +
-        CRLF + '      Control = ' + FLinkListControlList[I].Control +
-        CRLF + '      FillExpressions = <>' +
-        CRLF + '      FillHeaderExpressions = <>' +
-        CRLF + '      FillBreakGroups = <>' +
-        CRLF + '    end';
+      Link := TDfmToFmxObject.CreateGenerated(Obj, 'LinkListControlToField' + I.ToString, 'TLinkListControlToField');
+      Link.FmxProps.AddProp(TFmxProperty.CreateFromLine('Category=''Quick Bindings'''));
+      Link.FmxProps.AddProp(TFmxProperty.Create('DataSource', FLinkListControlList[I].DataSource));
+      Link.FmxProps.AddProp(TFmxProperty.Create('FieldName', FLinkListControlList[I].FieldName));
+      Link.FmxProps.AddProp(TFmxProperty.Create('Control', FLinkListControlList[I].Control));
+      Obj.OwnedObjs.Add(Link);
     end
     else
       raise Exception.Create('Binding incomplete for control ' + FLinkListControlList[I].Control + ', datasource ' +
@@ -125,22 +118,20 @@ begin
   for I := 0 to FLinkGridList.Count - 1 do
     if (FLinkGridList[I].DataSource <> '') and (FLinkGridList[I].GridControl <> '') then
     begin
-      Result := Result +
-        CRLF + '    object LinkGridToDataSourceBindSourceDB' + I.ToString + ': TLinkGridToDataSource' +
-        CRLF + '      Category = ''Quick Bindings''' +
-        CRLF + '      DataSource = ' + FLinkGridList[I].DataSource +
-        CRLF + '      GridControl = ' + FLinkGridList[I].GridControl + CRLF;
+      Link := TDfmToFmxObject.CreateGenerated(Obj, 'LinkGridToDataSourceBindSourceDB' + I.ToString,
+        'TLinkGridToDataSource');
+      Link.FmxProps.AddProp(TFmxProperty.CreateFromLine('Category=''Quick Bindings'''));
+      Link.FmxProps.AddProp(TFmxProperty.Create('DataSource', FLinkGridList[I].DataSource));
+      Link.FmxProps.AddProp(TFmxProperty.Create('GridControl', FLinkGridList[I].GridControl));
 
       if Assigned(FLinkGridList[I].Columns) then
-        Result := Result + FLinkGridList[I].Columns.ToString('    ') + '    end'
-      else
-        Result := Result + '    end';
+        Link.FmxProps.AddProp(FLinkGridList[I].Columns);
+
+      Obj.OwnedObjs.Add(Link);
     end
     else
       raise Exception.Create('Binding incomplete for grid ' + FLinkGridList[I].GridControl + ' and datasource ' +
         FLinkGridList[I].DataSource);
-
-  Result := Result + CRLF + '  end';
 end;
 
 function TDfmToFmxObjRoot.GetIniFile: TMemIniFile;
@@ -153,7 +144,7 @@ var
   I: Integer;
 begin
   Result := '';
-  if FImageList.Count > 0 then
+  if FIList.Images.Count > 0 then
   begin
     Result := CRLF + '    SingletoneImageList: TImageList;';
   end;
@@ -178,7 +169,7 @@ begin
       Result := Result + CRLF + '    LinkGridToDataSourceBindSourceDB' + I.ToString + ': TLinkGridToDataSource;';
 end;
 
-procedure TDfmToFmxObjRoot.AddFieldLink(AObjName: String; AProp: TDfmProperty);
+procedure TDfmToFmxObjRoot.AddFieldLink(const AObjName: String; AProp: TDfmProperty);
 var
   i: Integer;
   CurrentLink: TLinkControl;
@@ -195,7 +186,7 @@ begin
   if not Assigned(CurrentLink) then
   begin
     CurrentLink := TLinkControl.Create;
-    CurrentLink.Control := AObjName;
+    CurrentLink.Control := TPropValue.CreateSymbolVal(AObjName);
     FLinkControlList.Add(CurrentLink);
   end;
 
@@ -206,7 +197,7 @@ begin
     CurrentLink.DataSource := AProp.Value;
 end;
 
-procedure TDfmToFmxObjRoot.AddGridColumns(AObjName: String; AProp: TFmxProperty);
+procedure TDfmToFmxObjRoot.AddGridColumns(const AObjName: String; AProp: TFmxProperty);
 var
   i: Integer;
   CurrentLink: TLinkGrid;
@@ -226,23 +217,23 @@ begin
   CurrentLink.Columns := AProp;
 end;
 
-procedure TDfmToFmxObjRoot.AddGridLink(AObjName: String; AProp: TDfmProperty);
+procedure TDfmToFmxObjRoot.AddGridLink(const AObjName: String; const AValue: TPropValue);
 var
   Link: TLinkGrid;
 begin
   Link := TLinkGrid.Create;
-  Link.GridControl := AObjName;
-  Link.DataSource := AProp.Value;
+  Link.GridControl := TPropValue.CreateSymbolVal(AObjName);
+  Link.DataSource := AValue;
 
   FLinkGridList.Add(Link);
 end;
 
 function TDfmToFmxObjRoot.AddImageItem(APng: TPngImage): Integer;
 begin
-  Result := FImageList.Add(APng);
+  Result := FIList.Images.Add(APng);
 end;
 
-procedure TDfmToFmxObjRoot.AddListControlLink(AObjName: String; AProp: TDfmProperty);
+procedure TDfmToFmxObjRoot.AddListControlLink(const AObjName: String; AProp: TDfmProperty);
 var
   i: Integer;
   CurrentLink: TLinkControl;
@@ -259,7 +250,7 @@ begin
   if not Assigned(CurrentLink) then
   begin
     CurrentLink := TLinkControl.Create;
-    CurrentLink.Control := AObjName;
+    CurrentLink.Control := TPropValue.CreateSymbolVal(AObjName);
     FLinkListControlList.Add(CurrentLink);
   end;
 
@@ -286,10 +277,10 @@ end;
 
 destructor TDfmToFmxObjRoot.Destroy;
 begin
+  FSingletoneObjs.Free;
   FLinkControlList.Free;
   FLinkListControlList.Free;
   FLinkGridList.Free;
-  FImageList.Free;
   FIniReplaceValues.Free;
   FIniFile.Free;
   FParser.Free;
@@ -316,14 +307,21 @@ end;
 
 function TDfmToFmxObjRoot.FMXFile(APad: String = ''): String;
 var
-  LB: String;
+  i: integer;
 begin
+  if FFMXFileText <> '' then
+    Exit(FFMXFileText);
+
   Result := inherited;
   Result := Result.Substring(0, Result.Length - 5);
-  LB := GetFMXSingletons;
-  if LB <> '' then
-    Result := Result + LB + CRLF;
+  GenerateFMXSingletons;
+  if FSingletoneObjs.Count > 0 then
+  begin
+    for i := 0 to Pred(FSingletoneObjs.Count) do
+      Result := Result + FSingletoneObjs[i].FMXFile(APad + '  ');
+  end;
   Result := Result + APad +'end' + CRLF;
+  FFMXFileText := Result;
 end;
 
 function TDfmToFmxObjRoot.GenPasFile(const APascalSourceFileName: String): String;
@@ -386,11 +384,12 @@ end;
 procedure TDfmToFmxObjRoot.InitObjects;
 begin
   inherited;
-  FImageList := TImageList.Create;
+  FIList := TPropValue.CreateImagesVal(TImageList.Create);
   FIniReplaceValues := TStringlist.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
   FLinkControlList := TLinkControlList.Create;
   FLinkListControlList := TLinkControlList.Create;
   FLinkGridList := TLinkGridList.Create;
+  FSingletoneObjs := TOwnedObjects.Create;
 end;
 
 function TDfmToFmxObjRoot.ProcessCodeBody(const ACodeBody: String): String;
@@ -530,14 +529,6 @@ end;
 function TDfmToFmxObjRoot._Release: Integer;
 begin
   Result := -1;
-end;
-
-{ TLinkGrid }
-
-destructor TLinkGrid.Destroy;
-begin
-  Columns.Free;
-  inherited;
 end;
 
 end.
