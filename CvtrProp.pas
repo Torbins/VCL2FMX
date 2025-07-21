@@ -10,8 +10,7 @@ type
   protected
     FName: String;
     FValue: TPropValue;
-    function ParseString(AParser: TParser): String;
-    procedure ParseValue(AParser: TParser); virtual;
+    function ParseValue(AParser: TParser): TPropValue; virtual;
   public
     property Name: String read FName;
     property Value: TPropValue read FValue;
@@ -21,17 +20,17 @@ type
 
   TDfmDataProp = class(TDfmProperty)
   protected
-    procedure ParseValue(AParser: TParser); override;
+    function ParseValue(AParser: TParser): TPropValue; override;
   end;
 
-  TDfmStringsProp = class(TDfmProperty)
+  TDfmListProp = class(TDfmProperty)
   protected
-    procedure ParseValue(AParser: TParser); override;
+    function ParseValue(AParser: TParser): TPropValue; override;
   end;
 
   TDfmSetProp = class(TDfmProperty)
   protected
-    procedure ParseValue(AParser: TParser); override;
+    function ParseValue(AParser: TParser): TPropValue; override;
   end;
 
   TDfmProperties = class(TObjectList<TDfmProperty>)
@@ -44,7 +43,7 @@ type
   protected
     FName: String;
     FValue: TPropValue;
-    function WriteString(const APad, AData: string): string;
+    function WriteValue(const APad: string; const AValue: TPropValue): string;
   public
     property Name: String read FName;
     property Value: TPropValue read FValue;
@@ -72,7 +71,7 @@ type
     function ToString(APad: String): String; override;
   end;
 
-  TFmxStringsProp = class(TFmxProperty)
+  TFmxListProp = class(TFmxProperty)
   public
     function ToString(APad: String): String; override;
   end;
@@ -120,63 +119,64 @@ end;
 constructor TDfmProperty.Create(const AName: string; AParser: TParser);
 begin
   FName := AName;
-  ParseValue(AParser);
+  FValue := ParseValue(AParser);
 end;
 
-function TDfmProperty.ParseString(AParser: TParser): String;
-begin
-  Result := AParser.TokenWideString;
-  while AParser.NextToken = '+' do
+function TDfmProperty.ParseValue(AParser: TParser): TPropValue;
+
+  function ParseString(AParser: TParser): String;
   begin
-    AParser.NextToken;
-    if not (AParser.Token in [System.Classes.toString, toWString]) then
-      AParser.CheckToken(System.Classes.toString);
-    Result := Result + AParser.TokenWideString;
+    Result := AParser.TokenWideString;
+    while AParser.NextToken = '+' do
+    begin
+      AParser.NextToken;
+      if not (AParser.Token in [System.Classes.toString, toWString]) then
+        AParser.CheckToken(System.Classes.toString);
+      Result := Result + AParser.TokenWideString;
+    end;
   end;
-end;
 
-procedure TDfmProperty.ParseValue(AParser: TParser);
 begin
   case AParser.Token of
     toSymbol:
       begin
-        FValue := TPropValue.CreateSymbolVal(AParser.TokenComponentIdent);
+        Result := TPropValue.CreateSymbolVal(AParser.TokenComponentIdent);
         AParser.NextToken;
       end;
     System.Classes.toString, toWString:
-        FValue := TPropValue.CreateStringVal(ParseString(AParser));
+        Result := TPropValue.CreateStringVal(ParseString(AParser));
     toInteger:
       begin
-        FValue := TPropValue.CreateIntegerVal(AParser.TokenString);
+        Result := TPropValue.CreateIntegerVal(AParser.TokenString);
         AParser.NextToken;
       end;
     toFloat:
       begin
-        FValue := TPropValue.CreateFloatVal(AParser.TokenString);
+        Result := TPropValue.CreateFloatVal(AParser.TokenString);
         AParser.NextToken;
       end;
   end;
 end;
 
-{ TDfmStringsProp }
+{ TDfmListProp }
 
-procedure TDfmStringsProp.ParseValue(AParser: TParser);
+function TDfmListProp.ParseValue(AParser: TParser): TPropValue;
 var
-  Strings: TStringList;
+  List: TPropValueList;
 begin
-  Strings := TStringList.Create;
+  List := TPropValueList.Create();
 
   AParser.NextToken;
   while AParser.Token <> ')' do
-    Strings.Add(ParseString(AParser));
+    List.Add(inherited ParseValue(AParser));
   AParser.NextToken;
 
-  FValue := TPropValue.CreateStringsVal(Strings);
+  Result := TPropValue.CreateListVal(List);
 end;
 
 { TDfmDataProp }
 
-procedure TDfmDataProp.ParseValue(AParser: TParser);
+function TDfmDataProp.ParseValue(AParser: TParser): TPropValue;
 var
   Data: TMemoryStream;
 begin
@@ -186,12 +186,12 @@ begin
   Data.Position := 0;
   AParser.NextToken;
 
-  FValue := TPropValue.CreateDataVal(Data);
+  Result := TPropValue.CreateDataVal(Data);
 end;
 
 { TDfmSetProp }
 
-procedure TDfmSetProp.ParseValue(AParser: TParser);
+function TDfmSetProp.ParseValue(AParser: TParser): TPropValue;
 var
   TokenStr: String;
   Items: TStringList;
@@ -216,7 +216,7 @@ begin
     end;
   AParser.NextToken;
 
-  FValue := TPropValue.CreateSetVal(Items);
+  Result := TPropValue.CreateSetVal(Items);
 end;
 
 { TFmxProperty }
@@ -240,47 +240,49 @@ function TFmxProperty.ToString(APad: String): String;
 begin
   Result := APad + '  ' + FName + ' = ';
 
-  if FValue.VType = vtString then
-    Result := Result + WriteString(APad, FValue.Text)
-  else
-    Result := Result + FValue.Text;
+  Result := Result + WriteValue(APad, FValue);
 
   Result := Result + CRLF;
 end;
 
-function TFmxProperty.WriteString(const APad, AData: string): string;
+function TFmxProperty.WriteValue(const APad: string; const AValue: TPropValue): string;
 var
+  Data: String;
   CurrPos, StartPos, Len: Integer;
   LineBreak: Boolean;
 begin
   Result := ''; // compiler quirk
-  if AData = '' then
+  Data := AValue.Text;
+  if AValue.VType <> vtString then
+    Result := Result + Data
+  else
+  if Data = '' then
     Result := Result + ''''''
   else
   begin
-    Len := High(AData);
-    CurrPos := Low(AData);
+    Len := High(Data);
+    CurrPos := Low(Data);
     StartPos := CurrPos;
     if Len > LineTruncLength then
       Result := Result + CRLF + APad + '    ';
 
     repeat
       LineBreak := False;
-      if (AData[CurrPos] >= ' ') and (AData[CurrPos] <> '''') and (Ord(AData[CurrPos]) <= 127) then
+      if (Data[CurrPos] >= ' ') and (Data[CurrPos] <> '''') and (Ord(Data[CurrPos]) <= 127) then
       begin
         repeat
           Inc(CurrPos)
-        until (CurrPos > Len) or (AData[CurrPos] < ' ') or (AData[CurrPos] = '''') or
-          ((CurrPos - StartPos) >= LineTruncLength) or (Ord(AData[CurrPos]) > 127);
+        until (CurrPos > Len) or (Data[CurrPos] < ' ') or (Data[CurrPos] = '''') or
+          ((CurrPos - StartPos) >= LineTruncLength) or (Ord(Data[CurrPos]) > 127);
 
         if ((CurrPos - StartPos) >= LineTruncLength) then
           LineBreak := True;
 
-        Result := Result + '''' + AData.Substring(StartPos - 1, CurrPos - StartPos) + '''';
+        Result := Result + '''' + Data.Substring(StartPos - 1, CurrPos - StartPos) + '''';
       end
       else
       begin
-        Result := Result +'#' + IntToStr(Ord(AData[CurrPos]));
+        Result := Result +'#' + IntToStr(Ord(Data[CurrPos]));
         Inc(CurrPos);
 
         if ((CurrPos - StartPos) >= LineTruncLength) then
@@ -359,15 +361,15 @@ begin
   end;
 end;
 
-{ TFmxStringsProp }
+{ TFmxListProp }
 
-function TFmxStringsProp.ToString(APad: String): String;
+function TFmxListProp.ToString(APad: String): String;
 var
-  Str: String;
+  Val: TPropValue;
 begin
   Result := APad + '  ' + FName + ' = (';
-  for Str in FValue.Strings do
-    Result := Result + CRLF + APad + '    ' + WriteString(APad, Str);
+  for Val in FValue.List do
+    Result := Result + CRLF + APad + '    ' + WriteValue(APad, Val);
   Result := Result + ')' + CRLF;
 end;
 

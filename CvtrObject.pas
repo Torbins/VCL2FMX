@@ -112,7 +112,7 @@ type
   protected
     FParent: TDfmToFmxObject;
     FClassName: String;
-    procedure ParseValue(AParser: TParser); override;
+    function ParseValue(AParser: TParser): TPropValue; override;
   public
     property Items: TDfmToFmxItems read GetItems;
     constructor Create(const AName: string; AParent: TDfmToFmxObject; AClassName: String; AParser: TParser);
@@ -556,7 +556,7 @@ const
 var
   Obj: TDfmToFmxObject;
   Num, i: Integer;
-  Caption: String;
+  Caption: TPropValue;
 begin
   if AObjectType = 'ChildImage' then
   begin
@@ -590,10 +590,10 @@ begin
   begin
     Num := 0;
 
-    for Caption in AProp.Value.Strings do
+    for Caption in AProp.Value.List do
     begin
       Obj := GetObject(FObjName + '_RadioButton' + (Num + 1).ToString, 'TRadioButton', RadioButtonInitParams, [], Num);
-      AddFmxProperty(Obj, 'Text', TPropValue.CreateStringVal(Caption));
+      AddFmxProperty(Obj, 'Text', Caption);
       AddFmxProperty(Obj, 'TabOrder', TPropValue.CreateIntegerVal(Num));
       AddFmxProperty(Obj, 'Position.Y', TPropValue.CreateIntegerVal(16 + Num * 20));
       Inc(Num);
@@ -604,10 +604,10 @@ begin
   begin
     Num := 1;
 
-    for Caption in AProp.Value.Strings do
+    for Caption in AProp.Value.List do
     begin
       Obj := GetObject(FObjName + 'Tab' + Num.ToString, 'TTabSheet', [], [], Num - 1);
-      AddFmxProperty(Obj, 'Text', TPropValue.CreateStringVal(Caption));
+      AddFmxProperty(Obj, 'Text', Caption);
       Inc(Num);
     end;
   end;
@@ -1035,7 +1035,7 @@ begin
         '[':
           Prop := TDfmSetProp.Create(Name, AParser);
         '(':
-          Prop := TDfmStringsProp.Create(Name, AParser);
+          Prop := TDfmListProp.Create(Name, AParser);
         '{':
           Prop := TDfmDataProp.Create(Name, AParser);
         '<':
@@ -1192,8 +1192,8 @@ begin
   else
   if (Rule.Action = '') or (Rule.Action = '#ItemClass#') then
   begin
-    if AProp.Value.VType = vtStrings then
-      Result := TFmxStringsProp.Create(Rule.NewName, AProp.Value)
+    if AProp.Value.VType = vtList then
+      Result := TFmxListProp.Create(Rule.NewName, AProp.Value)
     else
     if AProp.Value.VType = vtData then
       Result := TFmxDataProp.Create(Rule.NewName, AProp.Value)
@@ -1320,7 +1320,7 @@ begin
   Result := FValue.Items as TDfmToFmxItems;
 end;
 
-procedure TDfmItemsProp.ParseValue(AParser: TParser);
+function TDfmItemsProp.ParseValue(AParser: TParser): TPropValue;
 var
   Items: TDfmToFmxItems;
 begin
@@ -1335,7 +1335,7 @@ begin
   end;
   AParser.NextToken;
 
-  FValue := TPropValue.CreateItemsVal(Items);
+  Result := TPropValue.CreateItemsVal(Items);
 end;
 
 procedure TDfmItemsProp.Transform(AItemStrings: TStrings);

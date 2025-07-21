@@ -3,7 +3,7 @@ unit CvtrPropValue;
 interface
 
 uses
-  System.SysUtils, System.Classes;
+  System.SysUtils, System.Classes, System.Generics.Collections;
 
 type
   IHolder = interface(IInterface)
@@ -11,7 +11,9 @@ type
     property Ref: TObject read GetRef;
   end;
 
-  TValueType = (vtSymbol, vtInteger, vtFloat, vtString, vtData, vtItems, vtSet, vtStrings);
+  TValueType = (vtSymbol, vtInteger, vtFloat, vtString, vtData, vtItems, vtSet, vtList);
+
+  TPropValueList = class;
 
   TPropValue = record
   private
@@ -23,7 +25,7 @@ type
     function GetData: TMemoryStream;
     function GetItems: TObject;
     function GetSet: TStringList;
-    function GetStrings: TStringList;
+    function GetList: TPropValueList;
     function GetInt: Int64;
     procedure SetInt(const Value: Int64);
   public
@@ -33,7 +35,7 @@ type
     property Data: TMemoryStream read GetData;
     property Items: TObject read GetItems;
     property SetItems: TStringList read GetSet;
-    property Strings: TStringList read GetStrings;
+    property List: TPropValueList read GetList;
     constructor CreateSymbolVal(AText: String);
     constructor CreateIntegerVal(AInt: Integer); overload;
     constructor CreateIntegerVal(AText: String); overload;
@@ -43,11 +45,13 @@ type
     constructor CreateItemsVal(AItems: TObject);
     constructor CreateSetVal(ASet: TStringList); overload;
     constructor CreateSetVal(const Strings: array of string); overload;
-    constructor CreateStringsVal(AStrings: TStringList);
+    constructor CreateListVal(APropValueList: TPropValueList);
     class operator Implicit(AVal: TPropValue): Int64;
     class operator Implicit(AVal: TPropValue): String;
     class operator Implicit(AVal: TPropValue): TMemoryStream;
   end;
+
+  TPropValueList = class(TList<TPropValue>);
 
 implementation
 
@@ -69,7 +73,7 @@ type
 
 const
   TypeToStr: array[TValueType] of string = ('vtSymbol', 'vtInteger', 'vtFloat', 'vtString', 'vtData', 'vtItems',
-    'vtSet', 'vtStrings');
+    'vtSet', 'vtList');
   STypeExceptionMessage = '%s type expected, but %s found';
   STextTypeExceptionMessage = 'vtSymbol, vtInteger, vtFloat or vtString type expected, but %s found';
   TextTypes: set of TValueType = [vtSymbol, vtInteger, vtFloat, vtString];
@@ -139,10 +143,10 @@ begin
   CreateSetVal(SL);
 end;
 
-constructor TPropValue.CreateStringsVal(AStrings: TStringList);
+constructor TPropValue.CreateListVal(APropValueList: TPropValueList);
 begin
-  FVType := vtStrings;
-  FHolder := TObjectHolder.Create(AStrings);
+  FVType := vtList;
+  FHolder := TObjectHolder.Create(APropValueList);
 end;
 
 constructor TPropValue.CreateStringVal(AText: String);
@@ -189,12 +193,12 @@ begin
     raise EValueTypeException.Create(vtSet, FVType);
 end;
 
-function TPropValue.GetStrings: TStringList;
+function TPropValue.GetList: TPropValueList;
 begin
-  if FVType = vtStrings then
-    Result := FHolder.Ref as TStringList
+  if FVType = vtList then
+    Result := FHolder.Ref as TPropValueList
   else
-    raise EValueTypeException.Create(vtStrings, FVType);
+    raise EValueTypeException.Create(vtList, FVType);
 end;
 
 function TPropValue.GetText: String;
