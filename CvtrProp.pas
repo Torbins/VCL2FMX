@@ -43,22 +43,18 @@ type
   TFmxProperty = class
   protected
     FName: String;
-    FValue: string;
-    function GetValue: String; virtual;
+    FValue: TPropValue;
+    function WriteString(const APad, AData: string): string;
   public
     property Name: String read FName;
-    property Value: String read GetValue write FValue;
-    constructor Create(const AName, AValue: string); overload; virtual;
+    property Value: TPropValue read FValue;
+    constructor Create(const AName: string; const AValue: TPropValue); overload; virtual;
     constructor CreateFromLine(const APropLine: string); virtual;
     function ToString(APad: String): String; reintroduce; virtual;
   end;
 
   TFmxDataProp = class(TFmxProperty)
-  protected
-    FData: TMemoryStream;
   public
-    constructor Create(const AName: string; AStream: TStream); overload;
-    destructor Destroy; override;
     function ToString(APad: String): String; override;
   end;
 
@@ -77,12 +73,7 @@ type
   end;
 
   TFmxStringsProp = class(TFmxProperty)
-  protected
-    FStrings: TStringList;
   public
-    property Strings: TStringList read FStrings;
-    constructor Create(const AName: string; AStrings: TStrings); overload; virtual;
-    destructor Destroy; override;
     function ToString(APad: String): String; override;
   end;
 
@@ -97,12 +88,7 @@ type
   end;
 
   TFmxSetProp = class(TFmxProperty)
-  protected
-    FItems: TStringList;
   public
-    property Items: TStringList read FItems;
-    constructor Create(const AName: string); overload;
-    destructor Destroy; override;
     function ToString(APad: String): String; override;
   end;
 
@@ -235,7 +221,7 @@ end;
 
 { TFmxProperty }
 
-constructor TFmxProperty.Create(const AName, AValue: string);
+constructor TFmxProperty.Create(const AName: string; const AValue: TPropValue);
 begin
   FName := AName;
   FValue := AValue;
@@ -247,36 +233,76 @@ var
 begin
   PropEqSign := APropLine.IndexOf('=');
   FName := APropLine.Substring(0, PropEqSign).Trim;
-  FValue := APropLine.Substring(PropEqSign + 1).Trim;
-end;
-
-function TFmxProperty.GetValue: String;
-begin
-  Result := FValue;
+  FValue := TPropValue.CreateSymbolVal(APropLine.Substring(PropEqSign + 1).Trim);
 end;
 
 function TFmxProperty.ToString(APad: String): String;
-var
-  Line, Data: String;
-  LineNum: Integer;
 begin
-  if (FValue.Length <= LineTruncLength) or (FValue[1] <> '''') then
-    Result := APad + '  ' + FName + ' = ' + FValue + CRLF
+  Result := APad + '  ' + FName + ' = ';
+
+  if FValue.VType = vtString then
+    Result := Result + WriteString(APad, FValue.Text)
+  else
+    Result := Result + FValue.Text;
+
+  Result := Result + CRLF;
+end;
+
+function TFmxProperty.WriteString(const APad, AData: string): string;
+var
+  CurrPos, StartPos, Len: Integer;
+  LineBreak: Boolean;
+begin
+  Result := ''; // compiler quirk
+  if AData = '' then
+    Result := Result + ''''''
   else
   begin
-    Result := APad + '  ' + FName + ' = ';
-    LineNum := 0;
-    Data := FValue.DeQuotedString;
+    Len := High(AData);
+    CurrPos := Low(AData);
+    StartPos := CurrPos;
+    if Len > LineTruncLength then
+      Result := Result + CRLF + APad + '    ';
 
     repeat
-      Line := Copy(Data, LineTruncLength * LineNum + 1, LineTruncLength);
-      if Line <> '' then
-        Result := Result + CRLF + APad + '    ' + Line.QuotedString + ' +';
-      Inc(LineNum);
-    until Length(Line) < LineTruncLength;
+      LineBreak := False;
+      if (AData[CurrPos] >= ' ') and (AData[CurrPos] <> '''') and (Ord(AData[CurrPos]) <= 127) then
+      begin
+        repeat
+          Inc(CurrPos)
+        until (CurrPos > Len) or (AData[CurrPos] < ' ') or (AData[CurrPos] = '''') or
+          ((CurrPos - StartPos) >= LineTruncLength) or (Ord(AData[CurrPos]) > 127);
 
-    Result := Result.TrimRight(['+', ' ']) + CRLF;
+        if ((CurrPos - StartPos) >= LineTruncLength) then
+          LineBreak := True;
+
+        Result := Result + '''' + AData.Substring(StartPos - 1, CurrPos - StartPos) + '''';
+      end
+      else
+      begin
+        Result := Result +'#' + IntToStr(Ord(AData[CurrPos]));
+        Inc(CurrPos);
+
+        if ((CurrPos - StartPos) >= LineTruncLength) then
+          LineBreak := True;
+      end;
+
+      if LineBreak and (CurrPos <= Len) then
+      begin
+        Result := Result + ' +' + CRLF + APad + '    ';
+        StartPos := CurrPos;
+      end;
+    until CurrPos > Len;
   end;
+end;
+
+function TFmxDataProp.ToString(APad: String): String;
+var
+  Data: String;
+begin
+  Data := StreamToHex(FValue.Data);
+  Result := APad + '  ' + FName + ' = {';
+  Result := Result + BreakIntoLines(Data, APad) + '}' + CRLF;
 end;
 
 constructor TFmxImageProp.Create(const AName: string; AImage: TPngImage);
@@ -296,17 +322,14 @@ var
   Width, Height: Integer;
   BitmapData: String;
 begin
-  if Assigned(FData) then
-    BitmapData := ConvertPicture(FData, APad + '    ', Width, Height)
+  if Assigned(FPng) then
+  begin
+    BitmapData := EncodePicture(FPng, APad + '    ');
+    Height := FPng.Height;
+    Width := FPng.Width;
+  end
   else
-    if Assigned(FPng) then
-    begin
-      BitmapData := EncodePicture(FPng, APad + '    ');
-      Height := FPng.Height;
-      Width := FPng.Width;
-    end
-    else
-      raise Exception.Create('No data for image');
+    BitmapData := ConvertPicture(FValue.Data, APad + '    ', Width, Height);
 
   if FName = 'Picture.Data' then
     Result := APad + '  MultiResBitmap'
@@ -329,7 +352,7 @@ var
 begin
   ImageList := TImageList.Create;
   try
-    ParseImageList(FData, ImageList);
+    ParseImageList(FValue.Data, ImageList);
     Result := EncodeImageList(ImageList, APad) + CRLF;
   finally
     ImageList.Free;
@@ -338,51 +361,14 @@ end;
 
 { TFmxStringsProp }
 
-constructor TFmxStringsProp.Create(const AName: string; AStrings: TStrings);
-begin
-  FName := AName;
-  FStrings := TStringList.Create;
-  if not Assigned(AStrings) then
-    raise Exception.Create('AStrings parameter should be assigned');
-  FStrings.Assign(AStrings);
-end;
-
-destructor TFmxStringsProp.Destroy;
-begin
-  FStrings.Free;
-  inherited;
-end;
-
 function TFmxStringsProp.ToString(APad: String): String;
 var
   Str: String;
 begin
   Result := APad + '  ' + FName + ' = (';
-  for Str in FStrings do
-    Result := Result + CRLF + APad + '    ' + Str;
+  for Str in FValue.Strings do
+    Result := Result + CRLF + APad + '    ' + WriteString(APad, Str);
   Result := Result + ')' + CRLF;
-end;
-
-{ TFmxDataProp }
-
-constructor TFmxDataProp.Create(const AName: string; AStream: TStream);
-begin
-  FName := AName;
-  FData := TMemoryStream.Create;
-  FData.CopyFrom(AStream);
-  FData.Position := 0;
-end;
-
-destructor TFmxDataProp.Destroy;
-begin
-  FData.Free;
-  inherited;
-end;
-
-function TFmxDataProp.ToString(APad: String): String;
-begin
-  Result := APad + '  ' + FName + ' = {';
-  Result := Result + BreakIntoLines(FValue, APad) + '}' + CRLF;
 end;
 
 { TFmxItemsProp }
@@ -411,25 +397,13 @@ end;
 
 { TFmxSetProp }
 
-constructor TFmxSetProp.Create(const AName: string);
-begin
-  FName := AName;
-  FItems := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
-end;
-
-destructor TFmxSetProp.Destroy;
-begin
-  FItems.Free;
-  inherited;
-end;
-
 function TFmxSetProp.ToString(APad: String): String;
 var
   Item, Line: String;
 begin
   Result := APad + '  ' + FName + ' = [';
 
-  for Item in FItems do
+  for Item in FValue.SetItems do
   begin
     Line := Line + Item + ', ';
     if Line.Length >= LineTruncLength then
@@ -449,7 +423,7 @@ var
   Width, Height: Integer;
   BitmapData: String;
 begin
-  BitmapData := ConvertPicture(FData, APad, Width, Height);
+  BitmapData := ConvertPicture(FValue.Data, APad, Width, Height);
 
   if FName.EndsWith('.Data') then
     FName := FName.Substring(0, FName.Length - 5);

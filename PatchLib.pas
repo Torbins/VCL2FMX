@@ -4,7 +4,7 @@ interface
 
 uses
   System.Classes, System.UITypes, System.IOUtils, Winapi.Windows, System.SysUtils, System.Generics.Collections,
-  Vcl.Imaging.PngImage;
+  Vcl.Imaging.PngImage, CvtrPropValue;
 
 const
   CRLF = #13#10;
@@ -16,7 +16,7 @@ const
 type
   TImageList = class(TObjectList<TPngImage>);
 
-function ColorToAlphaColor(const AColor: String): String;
+function ColorToAlphaColor(const AColor: String): TPropValue;
 function PosNoCase(const ASubstr: String; AFullString: String; Offset: Integer = 1;
   const ASkipChars: TArray<Char> = []): Integer;
 function StringReplaceSkipChars(const Source, OldPattern, NewPattern: string): string; overload;
@@ -31,9 +31,10 @@ implementation
 uses
   System.UIConsts, Vcl.Graphics;
 
-function ColorToAlphaColor(const AColor: String): String;
+function ColorToAlphaColor(const AColor: String): TPropValue;
 var
   Color, AlphaColor: Integer;
+  ColorStr: String;
 begin
   Color := ColorToRGB(StringToColor(AColor));
 
@@ -42,7 +43,8 @@ begin
   TAlphaColorRec(AlphaColor).G := TColorRec(Color).G;
   TAlphaColorRec(AlphaColor).R := TColorRec(Color).R;
 
-  AlphaColorToIdent(AlphaColor, Result);
+  AlphaColorToIdent(AlphaColor, ColorStr);
+  Result := TPropValue.CreateSymbolVal(ColorStr);
 end;
 
 function CheckSubstr(const AFullString, ASubUp, ASubLow: String; APos: Integer; const ASkipChars: TArray<Char>;

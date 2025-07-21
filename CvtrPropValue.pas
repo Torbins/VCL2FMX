@@ -35,12 +35,14 @@ type
     property SetItems: TStringList read GetSet;
     property Strings: TStringList read GetStrings;
     constructor CreateSymbolVal(AText: String);
-    constructor CreateIntegerVal(AText: String);
+    constructor CreateIntegerVal(AInt: Integer); overload;
+    constructor CreateIntegerVal(AText: String); overload;
     constructor CreateFloatVal(AText: String);
     constructor CreateStringVal(AText: String);
     constructor CreateDataVal(AData: TMemoryStream);
     constructor CreateItemsVal(AItems: TObject);
-    constructor CreateSetVal(ASet: TStringList);
+    constructor CreateSetVal(ASet: TStringList); overload;
+    constructor CreateSetVal(const Strings: array of string); overload;
     constructor CreateStringsVal(AStrings: TStringList);
     class operator Implicit(AVal: TPropValue): Int64;
     class operator Implicit(AVal: TPropValue): String;
@@ -110,6 +112,12 @@ begin
   FText := AText;
 end;
 
+constructor TPropValue.CreateIntegerVal(AInt: Integer);
+begin
+  FVType := vtInteger;
+  FText := AInt.ToString;
+end;
+
 constructor TPropValue.CreateItemsVal(AItems: TObject);
 begin
   FVType := vtItems;
@@ -120,6 +128,15 @@ constructor TPropValue.CreateSetVal(ASet: TStringList);
 begin
   FVType := vtSet;
   FHolder := TObjectHolder.Create(ASet);
+end;
+
+constructor TPropValue.CreateSetVal(const Strings: array of string);
+var
+  SL: TStringList;
+begin
+  SL := TStringList.Create(dupIgnore, {Sorted} True, {CaseSensitive} False);
+  SL.AddStrings(Strings);
+  CreateSetVal(SL);
 end;
 
 constructor TPropValue.CreateStringsVal(AStrings: TStringList);

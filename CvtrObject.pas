@@ -3,7 +3,8 @@ unit CvtrObject;
 interface
 
 uses
-  System.Classes, System.SysUtils, System.Generics.Collections, System.IniFiles, Vcl.Imaging.PngImage, CvtrProp;
+  System.Classes, System.SysUtils, System.Generics.Collections, System.IniFiles, Vcl.Imaging.PngImage, CvtrProp,
+  CvtrPropValue;
 
 type
   IDfmToFmxRoot = interface
@@ -77,8 +78,8 @@ type
     function TransformProperty(AProp: TDfmProperty): TFmxProperty;
     procedure LoadCommonProperties(AParamName: String);
     procedure GenerateObject(AProp: TDfmProperty; AObjectType: string);
-    procedure GenerateStyle(const APropName, APropValue, AObjectType: String);
-    procedure SetStyle(const AType, AParam, AValue: String);
+    procedure GenerateStyle(const AObjectType, APropName: String; const APropValue: TPropValue);
+    procedure SetStyle(const AType, AParam: String; const AValue: TPropValue);
     procedure InternalProcessBody(var ABody: String);
     procedure UpdateUsesStringList(AUsesList: TStrings); virtual;
     function GetObjHeader: string; virtual;
@@ -121,7 +122,7 @@ type
 implementation
 
 uses
-  System.Generics.Defaults, Image, PatchLib, ReflexiveMasks, CvtrPropValue, VCL2FMXStyleGen;
+  System.Generics.Defaults, Image, PatchLib, ReflexiveMasks, VCL2FMXStyleGen;
 
 { TDfmToFmxObject }
 
@@ -218,14 +219,14 @@ var
 
     if not Assigned(Prop) then
     begin
-      Prop := TFmxSetProp.Create('StyledSettings');
-      TFmxSetProp(Prop).Items.AddStrings(['Family', 'Size', 'Style', 'FontColor', 'Other']);
+      Prop := TFmxSetProp.Create('StyledSettings',
+        TPropValue.CreateSetVal(['Family', 'Size', 'Style', 'FontColor', 'Other']));
       FFmxProps.AddProp(Prop);
     end;
 
-    Item := (Prop as TFmxSetProp).Items.IndexOf(AExcludeElement);
+    Item := Prop.Value.SetItems.IndexOf(AExcludeElement);
     if Item >= 0 then
-      (Prop as TFmxSetProp).Items.Delete(Item);
+      Prop.Value.SetItems.Delete(Item);
   end;
 
   procedure CalcImageWrapMode;
@@ -263,7 +264,7 @@ var
     else
       Value := 'Original';
 
-    FFmxProps.AddProp(TFmxProperty.Create('WrapMode', Value));
+    FFmxProps.AddProp(TFmxProperty.Create('WrapMode', TPropValue.CreateSymbolVal(Value)));
   end;
 
   procedure CalcShapeClass;
@@ -382,7 +383,7 @@ begin
     end;
     if Rule.Action = '#GenerateStyle#' then
     begin
-      GenerateStyle(Rule.NewName, '', Rule.Parameter);
+      GenerateStyle(Rule.Parameter, Rule.NewName, TPropValue.CreateSymbolVal(''));
       Continue;
     end;
     if Rule.Action = '#ReconsiderAfterRemovingRule#' then
@@ -437,14 +438,14 @@ end;
 
 procedure TDfmToFmxObject.GenerateObject(AProp: TDfmProperty; AObjectType: string);
 
-  procedure AddFmxProperty(AObj: TDfmToFmxObject; const APropName, APropValue: String);
+  procedure AddFmxProperty(AObj: TDfmToFmxObject; const APropName: String; const APropValue: TPropValue);
   var
     Prop: TFmxProperty;
   begin
     Prop := AObj.FFmxProps.FindByName(APropName);
 
     if Assigned(Prop) then
-      Prop.Value := APropValue
+      Prop.Value.Text := APropValue.Text
     else
     begin
       Prop := TFmxProperty.Create(APropName, APropValue);
@@ -489,7 +490,7 @@ type
     Result := TDfmToFmxObject.CreateGenerated(Self, AObjName, ADFMClass);
     FOwnedObjs.Insert(APosition, Result);
     for Prop in AInitProps do
-      AddFmxProperty(Result, Prop.Name, Prop.Value);
+      AddFmxProperty(Result, Prop.Name, TPropValue.CreateSymbolVal(Prop.Value));
     for Prop in AReplacements do
       FCodeReplacements.AddProperty(Prop.Name, Prop.Value);
   end;
@@ -503,13 +504,13 @@ type
     Png := CreateGlyphPng(AProp.Value.Data, NumGlyphs);
     Index := FRoot.AddImageItem(Png);
 
-    AddFmxProperty(Self, 'Images', 'SingletoneImageList');
-    AddFmxProperty(Self, 'ImageIndex', Index.ToString);
+    AddFmxProperty(Self, 'Images', TPropValue.CreateSymbolVal('SingletoneImageList'));
+    AddFmxProperty(Self, 'ImageIndex', TPropValue.CreateIntegerVal(Index));
 
     if FClassName.ToLower = 'tbutton' then
-      SetStyle(CButtonStyle, CGlyphSize, Png.Height.ToString);
+      SetStyle(CButtonStyle, CGlyphSize, TPropValue.CreateIntegerVal(Png.Height));
     if FClassName.ToLower = 'tspeedbutton' then
-      SetStyle(CSpeedButtonStyle, CGlyphSize, Png.Height.ToString);
+      SetStyle(CSpeedButtonStyle, CGlyphSize, TPropValue.CreateIntegerVal(Png.Height));
   end;
 
   procedure InitChildImage(AObj: TDfmToFmxObject);
@@ -525,10 +526,10 @@ type
 
     Width := (Width - Png.Width) div 2;
     Height := (Height - Png.Height) div 2;
-    AddFmxProperty(AObj, 'Margins.Left', Width.ToString);
-    AddFmxProperty(AObj, 'Margins.Right', Width.ToString);
-    AddFmxProperty(AObj, 'Margins.Top', Height.ToString);
-    AddFmxProperty(AObj, 'Margins.Bottom', Height.ToString);
+    AddFmxProperty(AObj, 'Margins.Left', TPropValue.CreateIntegerVal(Width));
+    AddFmxProperty(AObj, 'Margins.Right', TPropValue.CreateIntegerVal(Width));
+    AddFmxProperty(AObj, 'Margins.Top', TPropValue.CreateIntegerVal(Height));
+    AddFmxProperty(AObj, 'Margins.Bottom', TPropValue.CreateIntegerVal(Height));
 
     AObj.FFmxProps.AddProp(TFmxImageProp.Create('Picture.Data', Png));
   end;
@@ -592,9 +593,9 @@ begin
     for Caption in AProp.Value.Strings do
     begin
       Obj := GetObject(FObjName + '_RadioButton' + (Num + 1).ToString, 'TRadioButton', RadioButtonInitParams, [], Num);
-      AddFmxProperty(Obj, 'Text', Caption);
-      AddFmxProperty(Obj, 'TabOrder', Num.ToString);
-      AddFmxProperty(Obj, 'Position.Y', (16 + Num * 20).ToString);
+      AddFmxProperty(Obj, 'Text', TPropValue.CreateStringVal(Caption));
+      AddFmxProperty(Obj, 'TabOrder', TPropValue.CreateIntegerVal(Num));
+      AddFmxProperty(Obj, 'Position.Y', TPropValue.CreateIntegerVal(16 + Num * 20));
       Inc(Num);
     end;
   end;
@@ -606,7 +607,7 @@ begin
     for Caption in AProp.Value.Strings do
     begin
       Obj := GetObject(FObjName + 'Tab' + Num.ToString, 'TTabSheet', [], [], Num - 1);
-      AddFmxProperty(Obj, 'Text', Caption);
+      AddFmxProperty(Obj, 'Text', TPropValue.CreateStringVal(Caption));
       Inc(Num);
     end;
   end;
@@ -617,7 +618,7 @@ begin
     Obj := nil;
     for i := 0 to Num do
       Obj := GetObject(FObjName + '_RadioButton' + (i + 1).ToString, 'TRadioButton', RadioButtonInitParams, [], i);
-    AddFmxProperty(Obj, 'IsChecked', 'True');
+    AddFmxProperty(Obj, 'IsChecked', TPropValue.CreateSymbolVal('True'));
   end;
 
   if AObjectType = 'SeparateCaption' then
@@ -642,7 +643,7 @@ begin
   end;
 end;
 
-procedure TDfmToFmxObject.GenerateStyle(const APropName, APropValue, AObjectType: String);
+procedure TDfmToFmxObject.GenerateStyle(const AObjectType, APropName: String; const APropValue: TPropValue);
 
   function IsParamSet(const AType, AParam: String): Boolean;
   var
@@ -650,7 +651,7 @@ procedure TDfmToFmxObject.GenerateStyle(const APropName, APropValue, AObjectType
   begin
     Result := False;
     Prop := FFmxProps.FindByName('StyleLookup');
-    if Assigned(Prop) and (StyleGenerator.ReadParam(Prop.Value.DeQuotedString, AType, AParam) <> '') then
+    if Assigned(Prop) and (StyleGenerator.ReadParam(Prop.Value.Text, AType, AParam) <> '') then
       Result := True;
   end;
 
@@ -660,9 +661,9 @@ begin
   if AObjectType = 'Button' then
   begin
     if (APropName = 'ImageAlignment') and (APropValue <> 'iaCenter') then
-      SetStyle(CButtonStyle, CGlyphPosition, APropValue.Substring(2));
+      SetStyle(CButtonStyle, CGlyphPosition, TPropValue.CreateSymbolVal(APropValue.Text.Substring(2)));
     if APropName = 'Layout' then
-      SetStyle(CButtonStyle, CGlyphPosition, APropValue.Substring(7));
+      SetStyle(CButtonStyle, CGlyphPosition, TPropValue.CreateSymbolVal(APropValue.Text.Substring(7)));
   end
   else
   if (AObjectType = 'CheckBox') and (APropName = 'Color') then
@@ -680,10 +681,10 @@ begin
     if APropName = 'ParentBackground' then
     begin
       if StrToBoolDef(APropValue, True) then
-        SetStyle(CGroupBoxStyle, CBackgroundColor, 'claNull')
+        SetStyle(CGroupBoxStyle, CBackgroundColor, TPropValue.CreateSymbolVal('claNull'))
       else
         if not IsParamSet(CGroupBoxStyle, CBackgroundColor) then
-          SetStyle(CGroupBoxStyle, CBackgroundColor, CColorBtnFace);
+          SetStyle(CGroupBoxStyle, CBackgroundColor, TPropValue.CreateSymbolVal(CColorBtnFace));
     end;
   end
   else
@@ -700,10 +701,10 @@ begin
     if APropName = 'ParentBackground' then
     begin
       if StrToBoolDef(APropValue, True) then
-        SetStyle(CPanelStyle, CBackgroundColor, 'claNull')
+        SetStyle(CPanelStyle, CBackgroundColor, TPropValue.CreateSymbolVal('claNull'))
       else
         if not IsParamSet(CPanelStyle, CBackgroundColor) then
-          SetStyle(CPanelStyle, CBackgroundColor, CColorBtnFace);
+          SetStyle(CPanelStyle, CBackgroundColor, TPropValue.CreateSymbolVal(CColorBtnFace));
     end;
   end
   else
@@ -717,15 +718,15 @@ begin
     if APropName = 'ParentBackground' then
     begin
       if StrToBoolDef(APropValue, False) then
-        SetStyle(CScrollBoxStyle, CBackgroundColor, 'claNull')
+        SetStyle(CScrollBoxStyle, CBackgroundColor, TPropValue.CreateSymbolVal('claNull'))
       else
         if not IsParamSet(CScrollBoxStyle, CBackgroundColor) then
-          SetStyle(CScrollBoxStyle, CBackgroundColor, CColorBtnFace);
+          SetStyle(CScrollBoxStyle, CBackgroundColor, TPropValue.CreateSymbolVal(CColorBtnFace));
     end;
   end
   else
   if (AObjectType = 'SpeedButton') and (APropName = 'Layout') then
-    SetStyle(CSpeedButtonStyle, CGlyphPosition, APropValue.Substring(7));
+    SetStyle(CSpeedButtonStyle, CGlyphPosition, TPropValue.CreateSymbolVal(APropValue.Text.Substring(7)));
 end;
 
 function TDfmToFmxObject.GetObjHeader: string;
@@ -1049,7 +1050,7 @@ begin
   AParser.NextToken;
 end;
 
-procedure TDfmToFmxObject.SetStyle(const AType, AParam, AValue: String);
+procedure TDfmToFmxObject.SetStyle(const AType, AParam: String; const AValue: TPropValue);
 var
   Prop: TFmxProperty;
 begin
@@ -1057,17 +1058,18 @@ begin
 
   if not Assigned(Prop) then
   begin
-    Prop := TFmxProperty.Create('StyleLookup', '');
+    Prop := TFmxProperty.Create('StyleLookup', TPropValue.CreateStringVal(''));
     FFmxProps.AddProp(Prop);
   end;
 
-  Prop.Value := StyleGenerator.WriteParam(Prop.Value.DeQuotedString, AType, AParam, AValue).QuotedString;
+  Prop.Value.Text := StyleGenerator.WriteParam(Prop.Value.Text, AType, AParam, AValue);
 end;
 
 function TDfmToFmxObject.TransformProperty(AProp: TDfmProperty): TFmxProperty;
 var
   Rule: TRule;
-  EnumValue, Item: String;
+  EnumValue: String;
+  i: Integer;
 
   function ReplaceEnum(const APropValue: String): String;
   var
@@ -1107,13 +1109,13 @@ begin
   if Rule.Action = '#ConvertData#' then
   begin
     if Rule.Parameter = 'Image' then
-      Result := TFmxImageProp.Create(Rule.NewName, AProp.Value.Data)
+      Result := TFmxImageProp.Create(Rule.NewName, AProp.Value)
     else
     if Rule.Parameter = 'ImageList' then
-      Result := TFmxImageListProp.Create(Rule.NewName, AProp.Value.Data)
+      Result := TFmxImageListProp.Create(Rule.NewName, AProp.Value)
     else
     if Rule.Parameter = 'Picture' then
-      Result := TFmxPictureProp.Create(Rule.NewName, AProp.Value.Data)
+      Result := TFmxPictureProp.Create(Rule.NewName, AProp.Value)
     else
       raise Exception.Create('Unknown data type ' + Rule.Parameter + ' for property ' + AProp.Name);
   end
@@ -1132,7 +1134,7 @@ begin
   end
   else
   if Rule.Action = '#FontSize#' then
-    Result := TFmxProperty.Create(Rule.NewName, Abs(AProp.Value.Int).ToString)
+    Result := TFmxProperty.Create(Rule.NewName, TPropValue.CreateIntegerVal(Abs(AProp.Value.Int)))
   else
   if Rule.Action = '#GenerateLinkColumns#' then
   begin
@@ -1153,7 +1155,7 @@ begin
   else
   if Rule.Action = '#GenerateStyle#' then
   begin
-    GenerateStyle(AProp.Name, AProp.Value, Rule.Parameter);
+    GenerateStyle(Rule.Parameter, AProp.Name, AProp.Value);
     Result := nil;
   end
   else
@@ -1161,19 +1163,21 @@ begin
   begin
     if AProp.Value.VType = vtSet then
     begin
-      Result := TFmxSetProp.Create(Rule.NewName);
-      for Item in AProp.Value.SetItems do
+      for i := AProp.Value.SetItems.Count - 1 downto 0 do
       begin
-        EnumValue := ReplaceEnum(Item);
+        EnumValue := ReplaceEnum(AProp.Value.SetItems[i]);
         if EnumValue <> '' then
-          TFmxSetProp(Result).Items.Add(EnumValue);
-      end
+          AProp.Value.SetItems[i] := EnumValue
+        else
+          AProp.Value.SetItems.Delete(i);
+      end;
+      Result := TFmxSetProp.Create(Rule.NewName, AProp.Value);
     end
     else
     begin
       EnumValue := ReplaceEnum(AProp.Value);
       if EnumValue <> '' then     
-        Result := TFmxProperty.Create(Rule.NewName, EnumValue);
+        Result := TFmxProperty.Create(Rule.NewName, TPropValue.CreateSymbolVal(EnumValue));
     end;
   end
   else
@@ -1184,15 +1188,15 @@ begin
   end
   else
   if Rule.Action = '#ToString#' then
-    Result := TFmxProperty.Create(Rule.NewName, AProp.Value.Text.QuotedString)
+    Result := TFmxProperty.Create(Rule.NewName, TPropValue.CreateStringVal(AProp.Value.Text))
   else
   if (Rule.Action = '') or (Rule.Action = '#ItemClass#') then
   begin
     if AProp.Value.VType = vtStrings then
-      Result := TFmxStringsProp.Create(Rule.NewName, AProp.Value.Strings)
+      Result := TFmxStringsProp.Create(Rule.NewName, AProp.Value)
     else
     if AProp.Value.VType = vtData then
-      Result := TFmxDataProp.Create(Rule.NewName, AProp.Value.Data)
+      Result := TFmxDataProp.Create(Rule.NewName, AProp.Value)
     else
     if AProp.Value.VType = vtItems then
     begin
@@ -1201,11 +1205,7 @@ begin
     end
     else
     if AProp.Value.VType = vtSet then
-    begin
-      Result := TFmxSetProp.Create(Rule.NewName);
-      for Item in AProp.Value.SetItems do
-        TFmxSetProp(Result).Items.Add(Item);
-    end
+      Result := TFmxSetProp.Create(Rule.NewName, AProp.Value)
     else
       Result := TFmxProperty.Create(Rule.NewName, AProp.Value);
   end
