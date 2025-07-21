@@ -11,7 +11,7 @@ type
     property Ref: TObject read GetRef;
   end;
 
-  TValueType = (vtSymbol, vtInteger, vtFloat, vtString, vtData, vtItems, vtSet, vtList);
+  TValueType = (vtEmpty, vtSymbol, vtInteger, vtFloat, vtString, vtData, vtItems, vtSet, vtList);
 
   TPropValueList = class;
 
@@ -72,8 +72,8 @@ type
   end;
 
 const
-  TypeToStr: array[TValueType] of string = ('vtSymbol', 'vtInteger', 'vtFloat', 'vtString', 'vtData', 'vtItems',
-    'vtSet', 'vtList');
+  TypeToStr: array[TValueType] of string = ('vtEmpty', 'vtSymbol', 'vtInteger', 'vtFloat', 'vtString', 'vtData',
+    'vtItems', 'vtSet', 'vtList');
   STypeExceptionMessage = '%s type expected, but %s found';
   STextTypeExceptionMessage = 'vtSymbol, vtInteger, vtFloat or vtString type expected, but %s found';
   TextTypes: set of TValueType = [vtSymbol, vtInteger, vtFloat, vtString];
