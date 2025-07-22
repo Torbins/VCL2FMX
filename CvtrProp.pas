@@ -304,7 +304,10 @@ var
 begin
   Data := StreamToHex(FValue.Data);
   Result := APad + '  ' + FName + ' = {';
-  Result := Result + BreakIntoLines(Data, APad) + '}' + CRLF;
+  if Data.Length <= LineTruncLength then
+    Result := Result + Data + '}' + CRLF
+  else
+    Result := Result + BreakIntoLines(Data, APad) + '}' + CRLF;
 end;
 
 constructor TFmxImageProp.Create(const AName: string; AImage: TPngImage);
