@@ -27,7 +27,6 @@ type
     FLinkListControlList: TLinkControlList;
     FLinkGridList: TLinkGridList;
     FIList: TPropValue;
-    FSingletoneObjs: TOwnedObjects;
     FIniReplaceValues: TStringlist;
     FIniFile: TMemIniFile;
     FParser: TParser;
@@ -46,7 +45,7 @@ type
     procedure UpdateUsesStringList(AUsesList: TStrings); override;
     function ProcessUsesString(AOrigUsesArray: TArray<String>): String;
     function ProcessCodeBody(const ACodeBody: String): String;
-    procedure GenerateFMXSingletons;
+    function GetFMXSingletons: string;
     function GetPASSingletons: String;
   public
     OnProgress: TNotifyEvent;
@@ -62,76 +61,86 @@ type
 
 implementation
 
-procedure TDfmToFmxObjRoot.GenerateFMXSingletons;
+function TDfmToFmxObjRoot.GetFMXSingletons: string;
 var
   I: Integer;
   Obj, Link: TDfmToFmxObject;
+  SingletoneObjs: TOwnedObjects;
 begin
-  if FIList.Images.Count > 0 then
-  begin
-    Obj := TDfmToFmxObject.CreateGenerated(Self, 'SingletoneImageList', 'TImageList');
-    Obj.FmxProps.AddProp(TFmxProperty.CreateFromLine('Left=40'));
-    Obj.FmxProps.AddProp(TFmxProperty.CreateFromLine('Top=5'));
-    Obj.FmxProps.AddProp(TFmxImageListProp.Create('Bitmap', FIList));
-    FSingletoneObjs.Add(Obj);
+  Result := '';
+  SingletoneObjs := TOwnedObjects.Create;
+  try
+    if FIList.Images.Count > 0 then
+    begin
+      Obj := TDfmToFmxObject.CreateGenerated(Self, 'SingletoneImageList', 'TImageList');
+      Obj.FmxProps.AddProp(TFmxProperty.CreateFromLine('Left=40'));
+      Obj.FmxProps.AddProp(TFmxProperty.CreateFromLine('Top=5'));
+      Obj.FmxProps.AddProp(TFmxImageListProp.Create('Bitmap', FIList));
+      SingletoneObjs.Add(Obj);
+    end;
+
+    if (FLinkControlList.Count > 0) or (FLinkListControlList.Count > 0) or (FLinkGridList.Count > 0) then
+    begin
+      Obj := TDfmToFmxObject.CreateGenerated(Self, 'SingletoneBindingsList', 'TBindingsList');
+      Obj.FmxProps.AddProp(TFmxProperty.CreateFromLine('Left=20'));
+      Obj.FmxProps.AddProp(TFmxProperty.CreateFromLine('Top=5'));
+      SingletoneObjs.Add(Obj);
+
+      for I := 0 to FLinkControlList.Count - 1 do
+        if (FLinkControlList[I].DataSource <> '') and (FLinkControlList[I].FieldName <> '') and
+          (FLinkControlList[I].Control <> '') then
+        begin
+          Link := TDfmToFmxObject.CreateGenerated(Obj, 'LinkControlToField' + I.ToString, 'TLinkControlToField');
+          Link.FmxProps.AddProp(TFmxProperty.CreateFromLine('Category=''Quick Bindings'''));
+          Link.FmxProps.AddProp(TFmxProperty.Create('DataSource', FLinkControlList[I].DataSource));
+          Link.FmxProps.AddProp(TFmxProperty.Create('FieldName', FLinkControlList[I].FieldName));
+          Link.FmxProps.AddProp(TFmxProperty.Create('Control', FLinkControlList[I].Control));
+          Link.FmxProps.AddProp(TFmxProperty.CreateFromLine('Track=False'));
+          Obj.OwnedObjs.Add(Link);
+        end
+        else
+          raise Exception.Create('Binding incomplete for control ' + FLinkControlList[I].Control + ', datasource ' +
+            FLinkControlList[I].DataSource + ' and field ' + FLinkControlList[I].FieldName);
+
+      for I := 0 to FLinkListControlList.Count - 1 do
+        if (FLinkListControlList[I].DataSource <> '') and (FLinkListControlList[I].FieldName <> '') and
+          (FLinkListControlList[I].Control <> '') then
+        begin
+          Link := TDfmToFmxObject.CreateGenerated(Obj, 'LinkListControlToField' + I.ToString, 'TLinkListControlToField');
+          Link.FmxProps.AddProp(TFmxProperty.CreateFromLine('Category=''Quick Bindings'''));
+          Link.FmxProps.AddProp(TFmxProperty.Create('DataSource', FLinkListControlList[I].DataSource));
+          Link.FmxProps.AddProp(TFmxProperty.Create('FieldName', FLinkListControlList[I].FieldName));
+          Link.FmxProps.AddProp(TFmxProperty.Create('Control', FLinkListControlList[I].Control));
+          Obj.OwnedObjs.Add(Link);
+        end
+        else
+          raise Exception.Create('Binding incomplete for control ' + FLinkListControlList[I].Control + ', datasource ' +
+            FLinkListControlList[I].DataSource + ' and field ' + FLinkListControlList[I].FieldName);
+
+      for I := 0 to FLinkGridList.Count - 1 do
+        if (FLinkGridList[I].DataSource <> '') and (FLinkGridList[I].GridControl <> '') then
+        begin
+          Link := TDfmToFmxObject.CreateGenerated(Obj, 'LinkGridToDataSourceBindSourceDB' + I.ToString,
+            'TLinkGridToDataSource');
+          Link.FmxProps.AddProp(TFmxProperty.CreateFromLine('Category=''Quick Bindings'''));
+          Link.FmxProps.AddProp(TFmxProperty.Create('DataSource', FLinkGridList[I].DataSource));
+          Link.FmxProps.AddProp(TFmxProperty.Create('GridControl', FLinkGridList[I].GridControl));
+
+          if Assigned(FLinkGridList[I].Columns) then
+            Link.FmxProps.AddProp(FLinkGridList[I].Columns);
+
+          Obj.OwnedObjs.Add(Link);
+        end
+        else
+          raise Exception.Create('Binding incomplete for grid ' + FLinkGridList[I].GridControl + ' and datasource ' +
+            FLinkGridList[I].DataSource);
+    end;
+
+    for i := 0 to Pred(SingletoneObjs.Count) do
+      Result := Result + SingletoneObjs[i].FMXFile('  ');
+  finally
+    SingletoneObjs.Free;
   end;
-
-  if (FLinkControlList.Count = 0) and (FLinkListControlList.Count = 0) and (FLinkGridList.Count = 0) then
-    Exit;
-
-  Obj := TDfmToFmxObject.CreateGenerated(Self, 'SingletoneBindingsList', 'TBindingsList');
-  Obj.FmxProps.AddProp(TFmxProperty.CreateFromLine('Left=20'));
-  Obj.FmxProps.AddProp(TFmxProperty.CreateFromLine('Top=5'));
-  FSingletoneObjs.Add(Obj);
-
-  for I := 0 to FLinkControlList.Count - 1 do
-    if (FLinkControlList[I].DataSource <> '') and (FLinkControlList[I].FieldName <> '') and
-      (FLinkControlList[I].Control <> '') then
-    begin
-      Link := TDfmToFmxObject.CreateGenerated(Obj, 'LinkControlToField' + I.ToString, 'TLinkControlToField');
-      Link.FmxProps.AddProp(TFmxProperty.CreateFromLine('Category=''Quick Bindings'''));
-      Link.FmxProps.AddProp(TFmxProperty.Create('DataSource', FLinkControlList[I].DataSource));
-      Link.FmxProps.AddProp(TFmxProperty.Create('FieldName', FLinkControlList[I].FieldName));
-      Link.FmxProps.AddProp(TFmxProperty.Create('Control', FLinkControlList[I].Control));
-      Link.FmxProps.AddProp(TFmxProperty.CreateFromLine('Track=False'));
-      Obj.OwnedObjs.Add(Link);
-    end
-    else
-      raise Exception.Create('Binding incomplete for control ' + FLinkControlList[I].Control + ', datasource ' +
-        FLinkControlList[I].DataSource + ' and field ' + FLinkControlList[I].FieldName);
-
-  for I := 0 to FLinkListControlList.Count - 1 do
-    if (FLinkListControlList[I].DataSource <> '') and (FLinkListControlList[I].FieldName <> '') and
-      (FLinkListControlList[I].Control <> '') then
-    begin
-      Link := TDfmToFmxObject.CreateGenerated(Obj, 'LinkListControlToField' + I.ToString, 'TLinkListControlToField');
-      Link.FmxProps.AddProp(TFmxProperty.CreateFromLine('Category=''Quick Bindings'''));
-      Link.FmxProps.AddProp(TFmxProperty.Create('DataSource', FLinkListControlList[I].DataSource));
-      Link.FmxProps.AddProp(TFmxProperty.Create('FieldName', FLinkListControlList[I].FieldName));
-      Link.FmxProps.AddProp(TFmxProperty.Create('Control', FLinkListControlList[I].Control));
-      Obj.OwnedObjs.Add(Link);
-    end
-    else
-      raise Exception.Create('Binding incomplete for control ' + FLinkListControlList[I].Control + ', datasource ' +
-        FLinkListControlList[I].DataSource + ' and field ' + FLinkListControlList[I].FieldName);
-
-  for I := 0 to FLinkGridList.Count - 1 do
-    if (FLinkGridList[I].DataSource <> '') and (FLinkGridList[I].GridControl <> '') then
-    begin
-      Link := TDfmToFmxObject.CreateGenerated(Obj, 'LinkGridToDataSourceBindSourceDB' + I.ToString,
-        'TLinkGridToDataSource');
-      Link.FmxProps.AddProp(TFmxProperty.CreateFromLine('Category=''Quick Bindings'''));
-      Link.FmxProps.AddProp(TFmxProperty.Create('DataSource', FLinkGridList[I].DataSource));
-      Link.FmxProps.AddProp(TFmxProperty.Create('GridControl', FLinkGridList[I].GridControl));
-
-      if Assigned(FLinkGridList[I].Columns) then
-        Link.FmxProps.AddProp(FLinkGridList[I].Columns);
-
-      Obj.OwnedObjs.Add(Link);
-    end
-    else
-      raise Exception.Create('Binding incomplete for grid ' + FLinkGridList[I].GridControl + ' and datasource ' +
-        FLinkGridList[I].DataSource);
 end;
 
 function TDfmToFmxObjRoot.GetIniFile: TMemIniFile;
@@ -277,7 +286,6 @@ end;
 
 destructor TDfmToFmxObjRoot.Destroy;
 begin
-  FSingletoneObjs.Free;
   FLinkControlList.Free;
   FLinkListControlList.Free;
   FLinkGridList.Free;
@@ -307,20 +315,18 @@ end;
 
 function TDfmToFmxObjRoot.FMXFile(APad: String = ''): String;
 var
-  i: integer;
+  LB: String;
 begin
   if FFMXFileText <> '' then
     Exit(FFMXFileText);
 
   Result := inherited;
   Result := Result.Substring(0, Result.Length - 5);
-  GenerateFMXSingletons;
-  if FSingletoneObjs.Count > 0 then
-  begin
-    for i := 0 to Pred(FSingletoneObjs.Count) do
-      Result := Result + FSingletoneObjs[i].FMXFile(APad + '  ');
-  end;
+  LB := GetFMXSingletons;
+  if LB <> '' then
+    Result := Result + LB;
   Result := Result + APad +'end' + CRLF;
+
   FFMXFileText := Result;
 end;
 
@@ -389,7 +395,6 @@ begin
   FLinkControlList := TLinkControlList.Create;
   FLinkListControlList := TLinkControlList.Create;
   FLinkGridList := TLinkGridList.Create;
-  FSingletoneObjs := TOwnedObjects.Create;
 end;
 
 function TDfmToFmxObjRoot.ProcessCodeBody(const ACodeBody: String): String;
